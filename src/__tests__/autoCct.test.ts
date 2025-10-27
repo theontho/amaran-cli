@@ -61,11 +61,11 @@ describe('auto-cct command', () => {
 
     const deps = {
       createController: async () => controllerStub as unknown as LightController,
-      findDevice: (_controller: LightController, _deviceQuery: string) => undefined,
+      findDevice: (_controller: LightController, _deviceQuery: string): null => null,
       asyncCommand:
-        (fn: (...fnArgs: unknown[]) => Promise<unknown>) =>
-        (...fnArgs: unknown[]) =>
-          fn(...fnArgs),
+        <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
+        (...args: T) =>
+          fn(...args),
       loadConfig: () => ({}) as Record<string, unknown>,
       saveWsUrl: undefined,
     };

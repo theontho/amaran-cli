@@ -7,6 +7,7 @@ import { Command } from 'commander';
 import registerCommands from './commands';
 import { discoverLocalWebSocket } from './discovery';
 import LightController from './lightControl';
+import type { Device } from './types';
 
 const program = new Command();
 
@@ -24,19 +25,21 @@ interface Config {
   cctMax?: number; // Kelvin
   intensityMin?: number; // percent [0-100]
   intensityMax?: number; // percent [0-100]
+  [key: string]: unknown;
 }
 
 // Load configuration
-function loadConfig(): Config {
+function loadConfig(): Config | null {
   try {
     if (fs.existsSync(configPath)) {
       const configData = fs.readFileSync(configPath, 'utf8');
       return JSON.parse(configData);
     }
+    return null;
   } catch (_error) {
     console.warn(chalk.yellow('Warning: Could not load config file'));
+    return null;
   }
-  return {};
 }
 
 // Save configuration
@@ -50,7 +53,7 @@ function saveConfig(config: Config): void {
 }
 
 function saveWsUrl(url: string) {
-  const current = loadConfig();
+  const current = loadConfig() || {};
   current.wsUrl = url;
   saveConfig(current);
 }
@@ -62,9 +65,9 @@ async function createController(
   debug?: boolean
 ): Promise<LightController> {
   const config = loadConfig();
-  let url = wsUrl || config.wsUrl;
-  const id = clientId || config.clientId || 'amaran-cli';
-  const debugMode = debug !== undefined ? debug : config.debug || false;
+  let url = wsUrl || config?.wsUrl;
+  const id = clientId || config?.clientId || 'amaran-cli';
+  const debugMode = debug !== undefined ? debug : config?.debug || false;
 
   const connectWithUrl = (candidateUrl: string): Promise<LightController> => {
     return new Promise((resolve, reject) => {
@@ -126,9 +129,9 @@ async function createController(
 }
 
 // Helper function to handle async commands
-function asyncCommand(fn: (...args: any[]) => Promise<any>) {
-  return (...args: any[]) => {
-    fn(...args).catch((error) => {
+function asyncCommand<T extends unknown[]>(fn: (...args: T) => Promise<void>) {
+  return (...args: T): Promise<void> => {
+    return fn(...args).catch((error) => {
       console.error(chalk.red('Error:'), error.message);
       process.exit(1);
     });
@@ -136,22 +139,22 @@ function asyncCommand(fn: (...args: any[]) => Promise<any>) {
 }
 
 // Helper function to find device by name or ID
-function findDevice(controller: LightController, deviceQuery: string): any {
+function findDevice(controller: LightController, deviceQuery: string): Device | null {
   const devices = controller.getDevices();
 
   // Try to find by exact ID first
-  let device = devices.find((d: any) => d.node_id === deviceQuery || d.id === deviceQuery);
+  let device = devices.find((d: Device) => d.node_id === deviceQuery || d.id === deviceQuery);
 
   // If not found, try to find by name (case insensitive)
   if (!device) {
     const q = deviceQuery.toLowerCase();
-    device = devices.find((d: any) => {
+    device = devices.find((d: Device) => {
       const nm = (d.device_name || d.name || '').toLowerCase();
       return nm.includes(q);
     });
   }
 
-  return device;
+  return device || null;
 }
 
 // Main CLI setup
@@ -174,7 +177,7 @@ program
   .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
   .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
   .option('--show', 'Show current configuration')
-  .action((options: any) => {
+  .action((options: Record<string, unknown>) => {
     if (options.show) {
       const config = loadConfig();
       console.log(chalk.blue('Current configuration:'));
@@ -182,12 +185,12 @@ program
       return;
     }
 
-    const config = loadConfig();
-    if (options.url) config.wsUrl = options.url;
-    if (options.clientId) config.clientId = options.clientId;
-    if (options.debug !== undefined) config.debug = options.debug;
+    const config = loadConfig() || {};
+    if (options.url) config.wsUrl = options.url as string;
+    if (options.clientId) config.clientId = options.clientId as string;
+    if (options.debug !== undefined) config.debug = options.debug as boolean;
     if (options.lat !== undefined) {
-      const lat = parseFloat(options.lat);
+      const lat = parseFloat(options.lat as string);
       if (Number.isNaN(lat) || lat < -90 || lat > 90) {
         console.error(chalk.red('Latitude must be between -90 and 90'));
         process.exit(1);
@@ -195,7 +198,7 @@ program
       config.latitude = lat;
     }
     if (options.lon !== undefined) {
-      const lon = parseFloat(options.lon);
+      const lon = parseFloat(options.lon as string);
       if (Number.isNaN(lon) || lon < -180 || lon > 180) {
         console.error(chalk.red('Longitude must be between -180 and 180'));
         process.exit(1);
@@ -206,7 +209,7 @@ program
     // Bounds validation helpers
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
     if (options.cctMin !== undefined) {
-      const k = parseInt(options.cctMin, 10);
+      const k = parseInt(options.cctMin as string, 10);
       if (Number.isNaN(k)) {
         console.error(chalk.red('cct-min must be a number (Kelvin)'));
         process.exit(1);
@@ -214,7 +217,7 @@ program
       config.cctMin = clamp(k, 1000, 20000);
     }
     if (options.cctMax !== undefined) {
-      const k = parseInt(options.cctMax, 10);
+      const k = parseInt(options.cctMax as string, 10);
       if (Number.isNaN(k)) {
         console.error(chalk.red('cct-max must be a number (Kelvin)'));
         process.exit(1);
@@ -222,7 +225,7 @@ program
       config.cctMax = clamp(k, 1000, 20000);
     }
     if (options.intensityMin !== undefined) {
-      const p = parseFloat(options.intensityMin);
+      const p = parseFloat(options.intensityMin as string);
       if (Number.isNaN(p)) {
         console.error(chalk.red('intensity-min must be a number (percent)'));
         process.exit(1);
@@ -230,7 +233,7 @@ program
       config.intensityMin = clamp(p, 0, 100);
     }
     if (options.intensityMax !== undefined) {
-      const p = parseFloat(options.intensityMax);
+      const p = parseFloat(options.intensityMax as string);
       if (Number.isNaN(p)) {
         console.error(chalk.red('intensity-max must be a number (percent)'));
         process.exit(1);

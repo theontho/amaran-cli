@@ -1,13 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-
-export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
-  findDevice: (controller: any, deviceQuery: string) => any;
-  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => any;
-}
+import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand, loadConfig } = deps;
@@ -20,7 +13,7 @@ export function registerSchedule(program: Command, deps: CommandDeps) {
     .option('--date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
     .option('--interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
     .action(
-      asyncCommand(async (options: any) => {
+      asyncCommand(async (options: CommandOptions) => {
         const { getLocationFromIP } = await import('../geoipUtil');
         const { calculateCCT } = await import('../cctUtil');
         const { getTimes } = await import('suncalc');
@@ -52,7 +45,11 @@ export function registerSchedule(program: Command, deps: CommandDeps) {
           source = 'manual';
         } else if (loadConfig) {
           const config = loadConfig();
-          if (config.latitude !== undefined && config.longitude !== undefined) {
+          if (
+            config &&
+            typeof config.latitude === 'number' &&
+            typeof config.longitude === 'number'
+          ) {
             lat = config.latitude;
             lon = config.longitude;
             source = 'config';
@@ -80,7 +77,7 @@ export function registerSchedule(program: Command, deps: CommandDeps) {
           }
         }
 
-        const interval = parseInt(options.interval, 10);
+        const interval = parseInt(options.interval ?? '30', 10);
         if (Number.isNaN(interval) || interval < 1) {
           console.error(chalk.red('Interval must be a positive number of minutes'));
           process.exit(1);

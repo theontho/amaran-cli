@@ -1,14 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { discoverLocalWebSocket } from '../discovery';
-
-export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
-  findDevice: (controller: any, deviceQuery: string) => any;
-  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => any;
-}
+import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerDiscover(program: Command, deps: CommandDeps) {
   const { asyncCommand, saveWsUrl } = deps;
@@ -18,7 +11,7 @@ export function registerDiscover(program: Command, deps: CommandDeps) {
     .description('Discover local Amaran WebSocket endpoint')
     .option('-d, --debug', 'Enable debug output')
     .action(
-      asyncCommand(async (options: any) => {
+      asyncCommand(async (options: CommandOptions) => {
         const res = await discoverLocalWebSocket('127.0.0.1', !!options.debug);
         if (res) {
           console.log(chalk.green(`Found WebSocket: ${res.url} (process: ${res.process})`));

@@ -1,6 +1,6 @@
 {
   "name": "amaran-light-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Command line tool for controlling Aputure Amaran lights via WebSocket to a local Amaran desktop app.",
   "main": "dist/lightControl.js",
   "types": "dist/lightControl.d.ts",

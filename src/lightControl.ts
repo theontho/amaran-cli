@@ -45,15 +45,31 @@ type CommandType =
   | 'set_color'
   | 'set_system_effect';
 
+interface Device {
+  node_id?: string;
+  device_name?: string;
+  name?: string;
+  id?: string;
+  [key: string]: unknown;
+}
+
+interface NodeConfig {
+  [key: string]: unknown;
+}
+
+interface CommandArgs {
+  [key: string]: unknown;
+}
+
 interface Command {
   version: number;
   client_id: string;
   type: CommandType;
   node_id?: string;
-  args?: any;
+  args?: CommandArgs;
 }
 
-type CommandCallback = (success: boolean, message: string, data?: any) => void;
+type CommandCallback = (success: boolean, message: string, data?: unknown) => void;
 
 class LightController {
   /**
@@ -68,12 +84,12 @@ class LightController {
   private async applyToAllLights(
     commandFn: (nodeId: string, callback?: CommandCallback) => void,
     commandName: string,
-    getDisplayArgs?: (device: any) => string
+    getDisplayArgs?: (device: Device) => string
   ): Promise<void> {
     if (!this.deviceList) return;
 
     // Filter devices: only those with node_id matching the light pattern
-    const lightDevices = this.deviceList.filter((device: any) => {
+    const lightDevices = this.deviceList.filter((device: Device) => {
       return device?.node_id && this.isLightNodeId(device.node_id);
     });
 
@@ -93,7 +109,9 @@ class LightController {
 
       console.log(`  ${commandName} ${displayName} (${device.node_id})${displayArgs}`);
 
-      commandFn(device.node_id);
+      if (device.node_id) {
+        commandFn(device.node_id);
+      }
 
       // Wait waitTimeMs before sending next command (skip delay after last one)
       if (i < lightDevices.length - 1) {
@@ -242,16 +260,16 @@ class LightController {
 
   private ws: WebSocket;
   private clientId: string = 'unknown_client';
-  private deviceList: any[] = [];
-  private sceneList: any[] = [];
-  private nodeConfigs: Map<string, any> = new Map();
+  private deviceList: Device[] = [];
+  private sceneList: unknown[] = [];
+  private nodeConfigs: Map<string, NodeConfig> = new Map();
   private debug: boolean;
   private onInitializedCallback?: () => void;
   private commandCallbacks: Map<string, CommandCallback> = new Map();
   private pendingQueue: Array<{
     nodeId?: string;
     type: CommandType;
-    args?: any;
+    args?: CommandArgs;
     callback?: CommandCallback;
   }> = [];
 
@@ -338,7 +356,7 @@ class LightController {
   private sendCommand(
     nodeId: string | undefined,
     type: CommandType,
-    args?: any,
+    args?: CommandArgs,
     callback?: CommandCallback
   ) {
     if (this.ws.readyState === WebSocket.OPEN) {
@@ -363,19 +381,19 @@ class LightController {
     }
   }
 
-  private handleDeviceList(data: any) {
+  private handleDeviceList(data: { data: Device[] }) {
     this.deviceList = data.data;
     this.log('Device List:', JSON.stringify(this.deviceList, null, 2));
     this.getSceneList();
   }
 
-  private handleSceneList(data: any) {
+  private handleSceneList(data: { data: unknown[] }) {
     this.sceneList = data.data;
     this.log('Scene List:', JSON.stringify(this.sceneList, null, 2));
     this.getNodeConfigs();
   }
 
-  private handleNodeConfig(data: any) {
+  private handleNodeConfig(data: { node_id?: string; data: NodeConfig }) {
     const nodeId = data.node_id;
     if (nodeId) {
       this.nodeConfigs.set(nodeId, data.data);
@@ -435,7 +453,7 @@ class LightController {
   }
 
   setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
-    const args: any = { cct };
+    const args: CommandArgs = { cct };
     if (intensity !== undefined) {
       args.intensity = intensity;
     }
@@ -443,7 +461,7 @@ class LightController {
   }
 
   incrementCCT(nodeId: string, delta: number, intensity?: number, callback?: CommandCallback) {
-    const args: any = { delta };
+    const args: CommandArgs = { delta };
     if (intensity !== undefined) {
       args.intensity = intensity;
     }
@@ -459,7 +477,7 @@ class LightController {
     gm?: number,
     callback?: CommandCallback
   ) {
-    const args: any = { hue, sat, intensity };
+    const args: CommandArgs = { hue, sat, intensity };
     if (cct !== undefined) {
       args.cct = cct;
     }
@@ -470,7 +488,7 @@ class LightController {
   }
 
   setColor(nodeId: string, color: string, intensity?: number, callback?: CommandCallback) {
-    const args: any = { color };
+    const args: CommandArgs = { color };
     if (intensity !== undefined) {
       args.intensity = intensity;
     }
@@ -483,7 +501,7 @@ class LightController {
     intensity?: number,
     callback?: CommandCallback
   ) {
-    const args: any = { effect_type: effectType };
+    const args: CommandArgs = { effect_type: effectType };
     if (intensity !== undefined) {
       args.intensity = intensity;
     }
@@ -515,11 +533,11 @@ class LightController {
   }
 
   // Getters
-  public getDevices(): any[] {
+  public getDevices(): Device[] {
     return this.deviceList;
   }
 
-  public getScenes(): any[] {
+  public getScenes(): unknown[] {
     return this.sceneList;
   }
 
@@ -527,7 +545,7 @@ class LightController {
     return this.nodeConfigs.get(nodeId);
   }
 
-  private log(...args: any[]) {
+  private log(...args: unknown[]) {
     if (this.debug) {
       console.log(...args);
     }

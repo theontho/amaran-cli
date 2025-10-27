@@ -1,59 +1,132 @@
 import { Command } from 'commander';
 import registerCommands from '../commands';
+import type { Device, LightController } from '../types';
+
+interface CaptureData {
+  intensityForAll?: number;
+  intensityOne?: { nodeId: string; intensity: number };
+  cctForAll?: { cct: number; intensity?: number };
+  hsiForAll?: { h: number; s: number; i: number };
+  colorForAll?: { color: string; intensity?: number };
+}
+
+interface MockController {
+  setIntensityForAllLights: (
+    intensity: number,
+    cb?: (success: boolean, message: string) => void
+  ) => Promise<void>;
+  setIntensity: (
+    nodeId: string,
+    intensity: number,
+    cb?: (success: boolean, message: string) => void
+  ) => void;
+  setCCTAndIntensityForAllLights: (
+    cct: number,
+    intensity?: number,
+    cb?: (success: boolean, message: string) => void
+  ) => Promise<void>;
+  setHSIForAllLights: (
+    h: number,
+    s: number,
+    i: number,
+    c?: number,
+    g?: number,
+    cb?: (success: boolean, message: string) => void
+  ) => Promise<void>;
+  setColorForAllLights: (
+    color: string,
+    intensity?: number,
+    cb?: (success: boolean, message: string) => void
+  ) => Promise<void>;
+  disconnect: () => Promise<void>;
+  getDevices: () => Array<{ node_id: string; device_name: string }>;
+  turnOnAllLights: () => Promise<void>;
+  turnOffAllLights: () => Promise<void>;
+  toggleAllLights: () => Promise<void>;
+}
 
 describe('CLI intensity API usage (0-100 -> 0-1000)', () => {
-  function buildProgram(capture: any) {
+  function buildProgram(capture: CaptureData) {
     const program = new Command();
     program.exitOverride();
 
-    const mockController: any = {
-      setIntensityForAllLights: (intensity: number, cb?: Function) => {
+    const mockController: MockController = {
+      setIntensityForAllLights: async (
+        intensity: number,
+        cb?: (success: boolean, message: string) => void
+      ) => {
         capture.intensityForAll = intensity;
-        cb?.(true, 'ok');
-        return Promise.resolve();
+        if (cb) {
+          cb(true, 'ok');
+        }
       },
-      setIntensity: (nodeId: string, intensity: number, cb?: Function) => {
+      setIntensity: (
+        nodeId: string,
+        intensity: number,
+        cb?: (success: boolean, message: string) => void
+      ) => {
         capture.intensityOne = { nodeId, intensity };
-        cb?.(true, 'ok');
+        if (cb) {
+          cb(true, 'ok');
+        }
       },
-      setCCTForAllLights: (cct: number, intensity?: number, cb?: Function) => {
+      setCCTAndIntensityForAllLights: async (
+        cct: number,
+        intensity?: number,
+        cb?: (success: boolean, message: string) => void
+      ) => {
         capture.cctForAll = { cct, intensity };
-        cb?.(true, 'ok');
-        return Promise.resolve();
+        if (cb) {
+          cb(true, 'ok');
+        }
       },
-      setHSIForAllLights: (
+      setHSIForAllLights: async (
         h: number,
         s: number,
         i: number,
         _c?: number,
         _g?: number,
-        cb?: Function
+        cb?: (success: boolean, message: string) => void
       ) => {
         capture.hsiForAll = { h, s, i };
-        cb?.(true, 'ok');
-        return Promise.resolve();
+        if (cb) {
+          cb(true, 'ok');
+        }
       },
-      setColorForAllLights: (color: string, intensity?: number, cb?: Function) => {
+      setColorForAllLights: async (
+        color: string,
+        intensity?: number,
+        cb?: (success: boolean, message: string) => void
+      ) => {
         capture.colorForAll = { color, intensity };
-        cb?.(true, 'ok');
-        return Promise.resolve();
+        if (cb) {
+          cb(true, 'ok');
+        }
       },
-      disconnect: () => Promise.resolve(),
+      disconnect: async () => {
+        // No-op for tests
+      },
       getDevices: () => [{ node_id: 'DEV-1', device_name: 'Mock Light' }],
-      turnOnAllLights: () => Promise.resolve(),
-      turnOffAllLights: () => Promise.resolve(),
-      toggleAllLights: () => Promise.resolve(),
+      turnOnAllLights: async () => {
+        // No-op for tests
+      },
+      turnOffAllLights: async () => {
+        // No-op for tests
+      },
+      toggleAllLights: async () => {
+        // No-op for tests
+      },
     };
 
     const deps = {
-      createController: async () => mockController,
-      findDevice: (_controller: any, _query: string) => ({
+      createController: async () => mockController as unknown as LightController,
+      findDevice: (_controller: unknown, _query: string): Device | null => ({
         node_id: 'DEV-1',
         device_name: 'Mock Light',
       }),
       asyncCommand:
-        (fn: any) =>
-        (...args: any[]) =>
+        <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
+        (...args: T) =>
           fn(...args),
       saveWsUrl: undefined,
       loadConfig: undefined,
@@ -64,39 +137,39 @@ describe('CLI intensity API usage (0-100 -> 0-1000)', () => {
   }
 
   test('intensity command maps percent to 0-1000 for all devices', async () => {
-    const capture: any = {};
+    const capture: CaptureData = {};
     const program = buildProgram(capture);
     await program.parseAsync(['node', 'test', 'intensity', '25', 'all']);
     expect(capture.intensityForAll).toBe(250);
   });
 
   test('intensity command boundaries 0% => 0 and 100% => 1000', async () => {
-    const capture: any = {};
+    const capture: CaptureData = {};
     const program = buildProgram(capture);
     await program.parseAsync(['node', 'test', 'intensity', '0', 'all']);
     expect(capture.intensityForAll).toBe(0);
-    const capture2: any = {};
+    const capture2: CaptureData = {};
     const program2 = buildProgram(capture2);
     await program2.parseAsync(['node', 'test', 'intensity', '100', 'all']);
     expect(capture2.intensityForAll).toBe(1000);
   });
 
   test('cct --intensity maps percent to API range', async () => {
-    const capture: any = {};
+    const capture: CaptureData = {};
     const program = buildProgram(capture);
     await program.parseAsync(['node', 'test', 'cct', '3000', '--intensity', '30', 'all']);
     expect(capture.cctForAll).toEqual({ cct: 3000, intensity: 300 });
   });
 
   test('hsi intensity argument maps percent to API range', async () => {
-    const capture: any = {};
+    const capture: CaptureData = {};
     const program = buildProgram(capture);
     await program.parseAsync(['node', 'test', 'hsi', '120', '50', '40', 'all']);
     expect(capture.hsiForAll).toEqual({ h: 120, s: 50, i: 400 });
   });
 
   test('color --intensity maps percent to API range', async () => {
-    const capture: any = {};
+    const capture: CaptureData = {};
     const program = buildProgram(capture);
     await program.parseAsync(['node', 'test', 'color', 'red', '--intensity', '12', 'all']);
     expect(capture.colorForAll).toEqual({ color: 'red', intensity: 120 });

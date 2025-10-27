@@ -1,13 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-
-export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
-  findDevice: (controller: any, deviceQuery: string) => any;
-  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => any;
-}
+import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerStatus(program: Command, deps: CommandDeps) {
   const { createController, findDevice, asyncCommand } = deps;
@@ -19,7 +12,7 @@ export function registerStatus(program: Command, deps: CommandDeps) {
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .action(
-      asyncCommand(async (deviceQuery: string, options: any) => {
+      asyncCommand(async (deviceQuery: string, options: CommandOptions) => {
         const controller = await createController(options.url, options.clientId, options.debug);
 
         const device = findDevice(controller, deviceQuery);
@@ -28,15 +21,24 @@ export function registerStatus(program: Command, deps: CommandDeps) {
           process.exit(1);
         }
 
+        if (!device.node_id) {
+          console.error(chalk.red(`Device "${deviceQuery}" has no node_id`));
+          process.exit(1);
+        }
+
+        const nodeId = device.node_id;
+
         controller.getLightSleepStatus(
-          device.node_id,
-          (success: boolean, message: string, data?: any) => {
+          nodeId,
+          (success: boolean, message: string, data?: unknown) => {
             if (success) {
-              const nodeConfig = controller.getNode(device.node_id);
+              const nodeConfig = controller.getNode(nodeId);
               const displayName =
                 device.device_name || device.name || device.id || device.node_id || 'Unknown';
               console.log(chalk.blue(`Status for ${displayName}:`));
-              console.log(`  State: ${data?.sleep ? chalk.red('Off') : chalk.green('On')}`);
+              console.log(
+                `  State: ${(data as { sleep?: boolean })?.sleep ? chalk.red('Off') : chalk.green('On')}`
+              );
 
               if (nodeConfig) {
                 if (nodeConfig.intensity !== undefined) {

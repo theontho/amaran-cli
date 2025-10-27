@@ -76,7 +76,9 @@ async function probeWebSocket(url: string, timeoutMs = 1200): Promise<boolean> {
         settled = true;
         try {
           ws.terminate();
-        } catch {}
+        } catch {
+          // Ignore termination errors
+        }
         resolve(false);
       }
     }, timeoutMs);
@@ -87,7 +89,9 @@ async function probeWebSocket(url: string, timeoutMs = 1200): Promise<boolean> {
         clearTimeout(timer);
         try {
           ws.close();
-        } catch {}
+        } catch {
+          // Ignore close errors
+        }
         resolve(true);
       }
     });

@@ -1,13 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-
-export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
-  findDevice: (controller: any, deviceQuery: string) => any;
-  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => any;
-}
+import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerList(program: Command, deps: CommandDeps) {
   const { createController, asyncCommand } = deps;
@@ -20,7 +13,7 @@ export function registerList(program: Command, deps: CommandDeps) {
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .action(
-      asyncCommand(async (options: any) => {
+      asyncCommand(async (options: CommandOptions) => {
         const controller = await createController(options.url, options.clientId, options.debug);
 
         const devices = controller.getDevices();
@@ -31,7 +24,7 @@ export function registerList(program: Command, deps: CommandDeps) {
         }
 
         console.log(chalk.blue('Available lights:'));
-        devices.forEach((device: any, index: number) => {
+        devices.forEach((device, index: number) => {
           const displayName =
             device.device_name || device.name || device.id || device.node_id || 'Unknown';
           console.log(

@@ -1,13 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-
-export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
-  findDevice: (controller: any, deviceQuery: string) => any;
-  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => any;
-}
+import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerHsi(program: Command, deps: CommandDeps) {
   const { createController, findDevice, asyncCommand } = deps;
@@ -27,7 +20,7 @@ export function registerHsi(program: Command, deps: CommandDeps) {
           satStr: string,
           intStr: string,
           deviceQuery: string | undefined,
-          options: any
+          options: CommandOptions
         ) => {
           const hue = parseInt(hueStr, 10);
           const saturation = parseInt(satStr, 10);
@@ -70,6 +63,11 @@ export function registerHsi(program: Command, deps: CommandDeps) {
           const device = findDevice(controller, deviceQuery);
           if (!device) {
             console.error(chalk.red(`Device "${deviceQuery}" not found`));
+            process.exit(1);
+          }
+
+          if (!device.node_id) {
+            console.error(chalk.red(`Device "${deviceQuery}" has no node_id`));
             process.exit(1);
           }
 

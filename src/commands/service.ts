@@ -3,14 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-
-export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
-  findDevice: (controller: any, deviceQuery: string) => any;
-  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => any;
-}
+import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerService(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -26,8 +19,8 @@ export function registerService(program: Command, deps: CommandDeps) {
     .description('Install auto-cct as a circadian lighting background service (runs every minute)')
     .option('--interval <seconds>', 'Interval in seconds (default: 60)', '60')
     .action(
-      asyncCommand(async (options: any) => {
-        const interval = parseInt(options.interval, 10);
+      asyncCommand(async (options: CommandOptions) => {
+        const interval = parseInt(options.interval ?? '60', 10);
         if (Number.isNaN(interval) || interval < 10) {
           console.error(chalk.red('Interval must be at least 10 seconds'));
           process.exit(1);
@@ -63,14 +56,15 @@ export function registerService(program: Command, deps: CommandDeps) {
           console.log(chalk.blue(`✓ Using local development build: ${cliPath}`));
         }
 
+        const homeDir = process.env.HOME;
+        if (!homeDir) {
+          console.error(chalk.red('HOME environment variable not set'));
+          process.exit(1);
+        }
+
         const plistName = 'com.hmmfn.amaran.circadian-service';
-        const plistPath = path.join(
-          process.env.HOME!,
-          'Library',
-          'LaunchAgents',
-          `${plistName}.plist`
-        );
-        const logDir = path.join(process.env.HOME!, 'Library', 'Logs');
+        const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', `${plistName}.plist`);
+        const logDir = path.join(homeDir, 'Library', 'Logs');
         const nodePath = process.execPath;
 
         // Ensure log directory exists
@@ -129,8 +123,9 @@ export function registerService(program: Command, deps: CommandDeps) {
           appendServiceLog(
             `Service installed (${isGlobal ? 'global' : 'local'}) interval=${interval}s`
           );
-        } catch (error: any) {
-          console.error(chalk.red('Failed to install circadian lighting service:'), error.message);
+        } catch (error) {
+          const err = error as Error;
+          console.error(chalk.red('Failed to install circadian lighting service:'), err.message);
           process.exit(1);
         }
       })
@@ -142,13 +137,14 @@ export function registerService(program: Command, deps: CommandDeps) {
     .description('Uninstall circadian lighting background service')
     .action(
       asyncCommand(async () => {
+        const homeDir = process.env.HOME;
+        if (!homeDir) {
+          console.error(chalk.red('HOME environment variable not set'));
+          process.exit(1);
+        }
+
         const plistName = 'com.hmmfn.amaran.circadian-service';
-        const plistPath = path.join(
-          process.env.HOME!,
-          'Library',
-          'LaunchAgents',
-          `${plistName}.plist`
-        );
+        const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', `${plistName}.plist`);
 
         try {
           if (fs.existsSync(plistPath)) {
@@ -161,11 +157,9 @@ export function registerService(program: Command, deps: CommandDeps) {
           } else {
             console.log(chalk.yellow('Circadian lighting service not found (already uninstalled)'));
           }
-        } catch (error: any) {
-          console.error(
-            chalk.red('Failed to uninstall circadian lighting service:'),
-            error.message
-          );
+        } catch (error) {
+          const err = error as Error;
+          console.error(chalk.red('Failed to uninstall circadian lighting service:'), err.message);
           process.exit(1);
         }
       })
@@ -177,21 +171,17 @@ export function registerService(program: Command, deps: CommandDeps) {
     .description('Check circadian lighting service status')
     .action(
       asyncCommand(async () => {
+        const homeDir = process.env.HOME;
+        if (!homeDir) {
+          console.error(chalk.red('HOME environment variable not set'));
+          process.exit(1);
+        }
+
         const plistName = 'com.hmmfn.amaran.circadian-service';
-        const plistPath = path.join(
-          process.env.HOME!,
-          'Library',
-          'LaunchAgents',
-          `${plistName}.plist`
-        );
-        const logPath = path.join(
-          process.env.HOME!,
-          'Library',
-          'Logs',
-          'amaran-circadian-service.log'
-        );
+        const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', `${plistName}.plist`);
+        const logPath = path.join(homeDir, 'Library', 'Logs', 'amaran-circadian-service.log');
         const errorLogPath = path.join(
-          process.env.HOME!,
+          homeDir,
           'Library',
           'Logs',
           'amaran-circadian-service-error.log'
@@ -221,7 +211,9 @@ export function registerService(program: Command, deps: CommandDeps) {
             const lastLines = logContent.trim().split('\n').slice(-3);
             if (lastLines.length > 0 && lastLines[0]) {
               console.log(chalk.gray('  Recent output:'));
-              lastLines.forEach((line) => console.log(chalk.gray(`    ${line}`)));
+              for (const line of lastLines) {
+                console.log(chalk.gray(`    ${line}`));
+              }
             }
           }
 
@@ -237,10 +229,11 @@ export function registerService(program: Command, deps: CommandDeps) {
                 });
             }
           }
-        } catch (error: any) {
+        } catch (error) {
+          const err = error as Error;
           console.error(
             chalk.red('Failed to check circadian lighting service status:'),
-            error.message
+            err.message
           );
         }
       })
@@ -257,8 +250,9 @@ export function registerService(program: Command, deps: CommandDeps) {
           await runCommand('launchctl', ['start', plistName]);
           console.log(chalk.green('✓ Circadian lighting service started'));
           appendServiceLog('Service start requested');
-        } catch (error: any) {
-          console.error(chalk.red('Failed to start circadian lighting service:'), error.message);
+        } catch (error) {
+          const err = error as Error;
+          console.error(chalk.red('Failed to start circadian lighting service:'), err.message);
         }
       })
     );
@@ -274,8 +268,9 @@ export function registerService(program: Command, deps: CommandDeps) {
           await runCommand('launchctl', ['stop', plistName]);
           console.log(chalk.green('✓ Circadian lighting service stopped'));
           appendServiceLog('Service stop requested');
-        } catch (error: any) {
-          console.error(chalk.red('Failed to stop circadian lighting service:'), error.message);
+        } catch (error) {
+          const err = error as Error;
+          console.error(chalk.red('Failed to stop circadian lighting service:'), err.message);
         }
       })
     );
@@ -287,11 +282,17 @@ export function registerService(program: Command, deps: CommandDeps) {
     .option('-f, --follow', 'Follow log output')
     .option('-e, --errors', 'Show error logs instead')
     .action(
-      asyncCommand(async (options: any) => {
+      asyncCommand(async (options: CommandOptions) => {
+        const homeDir = process.env.HOME;
+        if (!homeDir) {
+          console.error(chalk.red('HOME environment variable not set'));
+          process.exit(1);
+        }
+
         const logFile = options.errors
           ? 'amaran-circadian-service-error.log'
           : 'amaran-circadian-service.log';
-        const logPath = path.join(process.env.HOME!, 'Library', 'Logs', logFile);
+        const logPath = path.join(homeDir, 'Library', 'Logs', logFile);
 
         if (!fs.existsSync(logPath)) {
           console.log(chalk.yellow(`No ${options.errors ? 'error ' : ''}logs found`));
@@ -306,8 +307,9 @@ export function registerService(program: Command, deps: CommandDeps) {
             const content = fs.readFileSync(logPath, 'utf8');
             console.log(content);
           }
-        } catch (error: any) {
-          console.error(chalk.red('Failed to read logs:'), error.message);
+        } catch (error) {
+          const err = error as Error;
+          console.error(chalk.red('Failed to read logs:'), err.message);
         }
       })
     );

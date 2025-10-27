@@ -1,18 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type LightController from '../lightControl';
-
-export interface CommandDeps {
-  createController: (
-    wsUrl?: string,
-    clientId?: string,
-    debug?: boolean
-  ) => Promise<LightController>;
-  findDevice: (controller: LightController, deviceQuery: string) => unknown;
-  asyncCommand: (fn: (...args: unknown[]) => Promise<unknown>) => (...args: unknown[]) => void;
-  saveWsUrl?: (url: string) => void;
-  loadConfig?: () => Record<string, unknown>;
-}
+import type { CommandDeps } from '../types';
 
 export function registerAutoCct(program: Command, deps: CommandDeps) {
   const { createController, asyncCommand, loadConfig } = deps;
@@ -72,12 +60,14 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
           source = 'manual';
         } else if (loadConfig) {
           const config = loadConfig();
-          const storedLat = config.latitude;
-          const storedLon = config.longitude;
-          if (typeof storedLat === 'number' && typeof storedLon === 'number') {
-            lat = storedLat;
-            lon = storedLon;
-            source = 'config';
+          if (config) {
+            const storedLat = config.latitude;
+            const storedLon = config.longitude;
+            if (typeof storedLat === 'number' && typeof storedLon === 'number') {
+              lat = storedLat;
+              lon = storedLon;
+              source = 'config';
+            }
           }
         }
 
@@ -182,7 +172,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
 
             controller.getLightSleepStatus?.(
               nodeId,
-              (success: boolean, _message: string, data?: { sleep?: unknown; data?: unknown }) => {
+              (success: boolean, _message: string, data?: unknown) => {
                 if (settled) return;
                 settled = true;
                 clearTimeout(timeout);
