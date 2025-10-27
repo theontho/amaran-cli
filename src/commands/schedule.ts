@@ -131,7 +131,7 @@ export function registerSchedule(program: Command, deps: CommandDeps) {
         );
 
         console.log(chalk.blue('\n───────────────────────────────────────────────────────────'));
-        console.log(chalk.bold('Time          CCT         Intensity'));
+        console.log(chalk.bold('Time           CCT         Intensity'));
         console.log(chalk.blue('───────────────────────────────────────────────────────────'));
 
         const startTime = new Date(sunrise.getTime() - 30 * 60 * 1000);
