@@ -10,7 +10,7 @@ export interface CCTOptions {
   cctMinK?: number;
   /** Maximum CCT in Kelvin (default 6500K) */
   cctMaxK?: number;
-  /** Minimum intensity in percent [0-100] (default 10%) */
+  /** Minimum intensity in percent [0-100] (default 5%) */
   intensityMinPct?: number;
   /** Maximum intensity in percent [0-100] (default 100%) */
   intensityMaxPct?: number;
@@ -26,11 +26,11 @@ const _CCT_DEFAULTS = {
 /**
  * Calculate CCT (correlated color temperature) and intensity based on sunrise/sunset for a location and time.
  * Requirements:
- * - Outside sunrise/sunset window: return 2000K at 10% intensity (warmest min, dimmest)
- * - Within sunrise→sunset: follow a smooth bell-shaped curve that is 2000K/10% at both ends
+ * - Outside sunrise/sunset window: return 2000K at 5% intensity (warmest min, dimmest)
+ * - Within sunrise→sunset: follow a smooth bell-shaped curve that is 2000K/5% at both ends
  *   and peaks at 6500K/100% at solar noon (the middle)
  *
- * Note: Intensity is returned in 0-1000 range (Amaran API format), where 100 = 10%, 1000 = 100%.
+ * Note: Intensity is returned in 0-1000 range (Amaran API format), where 50 = 5%, 1000 = 100%.
  * You can override the min/max CCT and intensity (percent) via the options parameter.
  */
 export function calculateCCT(
