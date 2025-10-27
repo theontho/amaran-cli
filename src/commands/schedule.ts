@@ -168,30 +168,34 @@ export function registerSchedule(program: Command, deps: CommandDeps) {
           const intensityStr = `${(result.intensity / 10).toFixed(0)}%`;
 
           let color = chalk.white;
+          let emoji = '  ';
           const timeDiffSunrise = Math.abs(currentTime.getTime() - sunrise.getTime());
           const timeDiffNoon = Math.abs(currentTime.getTime() - solarNoon.getTime());
           const timeDiffSunset = Math.abs(currentTime.getTime() - sunset.getTime());
 
           if (timeDiffSunrise < highlightThreshold) {
             color = chalk.yellow;
+            emoji = '🌅';
           } else if (timeDiffNoon < highlightThreshold) {
             color = chalk.green.bold;
+            emoji = '🌞';
           } else if (timeDiffSunset < highlightThreshold) {
             color = chalk.magenta;
+            emoji = '🌇';
           }
 
-          console.log(color(`${timeStr}    ${cctStr}  ${intensityStr}`));
+          console.log(color(`${timeStr} ${emoji}    ${cctStr}  ${intensityStr}`));
           currentTime = new Date(currentTime.getTime() + intervalMs);
         }
 
         console.log(chalk.blue('───────────────────────────────────────────────────────────\n'));
         console.log(
           chalk.gray('Legend: ') +
-            chalk.yellow('Sunrise') +
+            chalk.yellow('🌅 Sunrise') +
             chalk.gray(' | ') +
-            chalk.green.bold('Solar Noon') +
+            chalk.green.bold('🌞 Solar Noon') +
             chalk.gray(' | ') +
-            chalk.magenta('Sunset')
+            chalk.magenta('🌇 Sunset')
         );
         console.log();
       })
