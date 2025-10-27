@@ -1,0 +1,75 @@
+{
+  "name": "amaran-light-cli",
+  "version": "1.0.1",
+  "description": "Command line tool for controlling Aputure Amaran lights via WebSocket to a local Amaran desktop app.",
+  "main": "dist/lightControl.js",
+  "types": "dist/lightControl.d.ts",
+  "bin": {
+    "amaran-cli": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "lint": "biome lint src/",
+    "lint:fix": "biome lint --apply src/",
+    "format": "biome format --write src/",
+    "format:check": "biome format src/",
+    "check": "biome check src/",
+    "check:fix": "biome check --apply src/"
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/amaran-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/amaran-cli/issues"
+  },
+  "homepage": "https://github.com/yourusername/amaran-cli#readme",
+  "keywords": [
+    "amaran",
+    "aputure",
+    "lighting",
+    "cli",
+    "websocket",
+    "smart-home",
+    "home-automation",
+    "circadian"
+  ],
+  "author": "Mahyar McDonald <github@hmmfn.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "geoip-lite": "^1.4.10",
+    "suncalc": "^1.9.0",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.1",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.8.0",
+    "@types/suncalc": "^1.9.0",
+    "@types/ws": "^8.5.8",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}

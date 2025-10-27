@@ -1,0 +1,136 @@
+import chalk from 'chalk';
+import type { Command } from 'commander';
+
+export interface CommandDeps {
+  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
+  findDevice: (controller: any, deviceQuery: string) => any;
+  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
+  saveWsUrl?: (url: string) => void;
+  loadConfig?: () => any;
+}
+
+export function registerPower(program: Command, deps: CommandDeps) {
+  const { createController, findDevice, asyncCommand } = deps;
+
+  // on
+  program
+    .command('on [device]')
+    .description('Turn a light on (or all lights if no device specified)')
+    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-c, --client-id <id>', 'Client ID')
+    .option('-d, --debug', 'Enable debug mode')
+    .action(
+      asyncCommand(async (deviceQuery: string | undefined, options: any) => {
+        const controller = await createController(options.url, options.clientId, options.debug);
+
+        if (!deviceQuery || deviceQuery.toLowerCase() === 'all') {
+          await controller.turnOnAllLights((success: boolean, message: string) => {
+            if (!success) {
+              console.error(chalk.red(`✗ Failed to turn on light: ${message}`));
+            }
+          });
+          await controller.disconnect();
+          return;
+        }
+
+        const device = findDevice(controller, deviceQuery);
+        if (!device) {
+          console.error(chalk.red(`Device "${deviceQuery}" not found`));
+          process.exit(1);
+        }
+
+        controller.turnLightOn(device.node_id, (success: boolean, message: string) => {
+          if (success) {
+            const displayName =
+              device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            console.log(chalk.green(`✓ ${displayName} turned on`));
+          } else {
+            console.error(chalk.red(`✗ Failed to turn on light: ${message}`));
+          }
+          controller.disconnect();
+        });
+      })
+    );
+
+  // off
+  program
+    .command('off [device]')
+    .description('Turn a light off (or all lights if no device specified)')
+    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-c, --client-id <id>', 'Client ID')
+    .option('-d, --debug', 'Enable debug mode')
+    .action(
+      asyncCommand(async (deviceQuery: string | undefined, options: any) => {
+        const controller = await createController(options.url, options.clientId, options.debug);
+
+        if (!deviceQuery || deviceQuery.toLowerCase() === 'all') {
+          await controller.turnOffAllLights((success: boolean, message: string) => {
+            if (!success) {
+              console.error(chalk.red(`✗ Failed to turn off light: ${message}`));
+            }
+          });
+          await controller.disconnect();
+          return;
+        }
+
+        const device = findDevice(controller, deviceQuery);
+        if (!device) {
+          console.error(chalk.red(`Device "${deviceQuery}" not found`));
+          process.exit(1);
+        }
+
+        controller.turnLightOff(device.node_id, (success: boolean, message: string) => {
+          if (success) {
+            const displayName =
+              device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            console.log(chalk.green(`✓ ${displayName} turned off`));
+          } else {
+            console.error(chalk.red(`✗ Failed to turn off light: ${message}`));
+          }
+          controller.disconnect();
+        });
+      })
+    );
+
+  // toggle
+  program
+    .command('toggle [device]')
+    .description('Toggle a light on/off (or all lights if no device specified)')
+    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-c, --client-id <id>', 'Client ID')
+    .option('-d, --debug', 'Enable debug mode')
+    .action(
+      asyncCommand(async (deviceQuery: string | undefined, options: any) => {
+        const controller = await createController(options.url, options.clientId, options.debug);
+
+        if (!deviceQuery || deviceQuery.toLowerCase() === 'all') {
+          await controller.toggleAllLights((success: boolean, message: string) => {
+            if (!success) {
+              console.error(chalk.red(`✗ Failed to toggle light: ${message}`));
+            }
+          });
+          await controller.disconnect();
+          return;
+        }
+
+        const device = findDevice(controller, deviceQuery);
+        if (!device) {
+          console.error(chalk.red(`Device "${deviceQuery}" not found`));
+          process.exit(1);
+        }
+
+        controller.toggleLight(device.node_id, (success: boolean, message: string) => {
+          if (success) {
+            const displayName =
+              device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            console.log(chalk.green(`✓ ${displayName} toggled`));
+          } else {
+            console.error(chalk.red(`✗ Failed to toggle light: ${message}`));
+          }
+          controller.disconnect();
+        });
+      })
+    );
+}
+
+export default registerPower;

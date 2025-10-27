@@ -1,0 +1,360 @@
+import { spawn } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import chalk from 'chalk';
+import type { Command } from 'commander';
+
+export interface CommandDeps {
+  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<any>;
+  findDevice: (controller: any, deviceQuery: string) => any;
+  asyncCommand: (fn: (...args: any[]) => Promise<any>) => any;
+  saveWsUrl?: (url: string) => void;
+  loadConfig?: () => any;
+}
+
+export function registerService(program: Command, deps: CommandDeps) {
+  const { asyncCommand } = deps;
+
+  const serviceCommand = program
+    .command('circadian-service')
+    .alias('service')
+    .description('Manage auto-cct circadian lighting background service');
+
+  // Install service
+  serviceCommand
+    .command('install')
+    .description('Install auto-cct as a circadian lighting background service (runs every minute)')
+    .option('--interval <seconds>', 'Interval in seconds (default: 60)', '60')
+    .action(
+      asyncCommand(async (options: any) => {
+        const interval = parseInt(options.interval, 10);
+        if (Number.isNaN(interval) || interval < 10) {
+          console.error(chalk.red('Interval must be at least 10 seconds'));
+          process.exit(1);
+        }
+
+        // Determine CLI path - check if globally installed or local
+        let cliPath: string;
+        let isGlobal = false;
+
+        // Check if running from global installation
+        try {
+          const { stdout } = await runCommand('which', ['amaran-cli']);
+          const globalPath = stdout.trim();
+          if (globalPath && fs.existsSync(globalPath)) {
+            cliPath = globalPath;
+            isGlobal = true;
+            console.log(chalk.blue(`✓ Detected global installation: ${cliPath}`));
+          } else {
+            throw new Error('Not found in PATH');
+          }
+        } catch {
+          // Fall back to local development path
+          const projectDir = path.resolve(__dirname, '..');
+          cliPath = path.join(projectDir, 'dist', 'cli.js');
+
+          // Check if CLI is built locally
+          if (!fs.existsSync(cliPath)) {
+            console.error(chalk.red('CLI not found. Please either:'));
+            console.error(chalk.red('  1. Install globally: npm install -g .'));
+            console.error(chalk.red('  2. Or build locally: npm run build'));
+            process.exit(1);
+          }
+          console.log(chalk.blue(`✓ Using local development build: ${cliPath}`));
+        }
+
+        const plistName = 'com.hmmfn.amaran.circadian-service';
+        const plistPath = path.join(
+          process.env.HOME!,
+          'Library',
+          'LaunchAgents',
+          `${plistName}.plist`
+        );
+        const logDir = path.join(process.env.HOME!, 'Library', 'Logs');
+        const nodePath = process.execPath;
+
+        // Ensure log directory exists
+        if (!fs.existsSync(logDir)) {
+          fs.mkdirSync(logDir, { recursive: true });
+        }
+
+        const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${plistName}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${nodePath}</string>
+        <string>${cliPath}</string>
+        <string>auto-cct</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>${interval}</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>${path.join(logDir, 'amaran-circadian-service.log')}</string>
+    <key>StandardErrorPath</key>
+    <string>${path.join(logDir, 'amaran-circadian-service-error.log')}</string>
+    ${
+      !isGlobal
+        ? `<key>WorkingDirectory</key>
+    <string>${path.dirname(path.dirname(cliPath))}</string>`
+        : ''
+    }
+</dict>
+</plist>`;
+
+        try {
+          // Write plist file
+          fs.writeFileSync(plistPath, plistContent);
+          console.log(chalk.green(`✓ Created service file: ${plistPath}`));
+
+          // Load the service
+          await runCommand('launchctl', ['load', plistPath]);
+          console.log(chalk.green(`✓ Circadian lighting service installed and started`));
+          console.log(
+            chalk.blue(`  Installation type: ${isGlobal ? 'Global' : 'Local development'}`)
+          );
+          console.log(chalk.blue(`  CLI path: ${cliPath}`));
+          console.log(chalk.blue(`  Running auto-cct every ${interval} seconds`));
+          console.log(chalk.gray(`  Logs: ${path.join(logDir, 'amaran-circadian-service.log')}`));
+          console.log(
+            chalk.gray(`  Errors: ${path.join(logDir, 'amaran-circadian-service-error.log')}`)
+          );
+          appendServiceLog(
+            `Service installed (${isGlobal ? 'global' : 'local'}) interval=${interval}s`
+          );
+        } catch (error: any) {
+          console.error(chalk.red('Failed to install circadian lighting service:'), error.message);
+          process.exit(1);
+        }
+      })
+    );
+
+  // Uninstall service
+  serviceCommand
+    .command('uninstall')
+    .description('Uninstall circadian lighting background service')
+    .action(
+      asyncCommand(async () => {
+        const plistName = 'com.hmmfn.amaran.circadian-service';
+        const plistPath = path.join(
+          process.env.HOME!,
+          'Library',
+          'LaunchAgents',
+          `${plistName}.plist`
+        );
+
+        try {
+          if (fs.existsSync(plistPath)) {
+            // Unload the service
+            await runCommand('launchctl', ['unload', plistPath]);
+            // Remove the plist file
+            fs.unlinkSync(plistPath);
+            console.log(chalk.green('✓ Circadian lighting service uninstalled successfully'));
+            appendServiceLog('Service uninstalled');
+          } else {
+            console.log(chalk.yellow('Circadian lighting service not found (already uninstalled)'));
+          }
+        } catch (error: any) {
+          console.error(
+            chalk.red('Failed to uninstall circadian lighting service:'),
+            error.message
+          );
+          process.exit(1);
+        }
+      })
+    );
+
+  // Status command
+  serviceCommand
+    .command('status')
+    .description('Check circadian lighting service status')
+    .action(
+      asyncCommand(async () => {
+        const plistName = 'com.hmmfn.amaran.circadian-service';
+        const plistPath = path.join(
+          process.env.HOME!,
+          'Library',
+          'LaunchAgents',
+          `${plistName}.plist`
+        );
+        const logPath = path.join(
+          process.env.HOME!,
+          'Library',
+          'Logs',
+          'amaran-circadian-service.log'
+        );
+        const errorLogPath = path.join(
+          process.env.HOME!,
+          'Library',
+          'Logs',
+          'amaran-circadian-service-error.log'
+        );
+
+        try {
+          if (!fs.existsSync(plistPath)) {
+            console.log(chalk.yellow('Circadian lighting service not installed'));
+            return;
+          }
+
+          // Check if service is loaded
+          const { stdout } = await runCommand('launchctl', ['list']);
+          const isLoaded = stdout.includes(plistName);
+
+          console.log(chalk.blue('Circadian Lighting Service Status:'));
+          console.log(`  Installed: ${chalk.green('✓')}`);
+          console.log(`  Running: ${isLoaded ? chalk.green('✓') : chalk.red('✗')}`);
+          console.log(`  Config: ${plistPath}`);
+
+          if (fs.existsSync(logPath)) {
+            const logStats = fs.statSync(logPath);
+            console.log(`  Last run: ${logStats.mtime.toLocaleString()}`);
+
+            // Show last few lines of log
+            const logContent = fs.readFileSync(logPath, 'utf8');
+            const lastLines = logContent.trim().split('\n').slice(-3);
+            if (lastLines.length > 0 && lastLines[0]) {
+              console.log(chalk.gray('  Recent output:'));
+              lastLines.forEach((line) => console.log(chalk.gray(`    ${line}`)));
+            }
+          }
+
+          if (fs.existsSync(errorLogPath)) {
+            const errorContent = fs.readFileSync(errorLogPath, 'utf8').trim();
+            if (errorContent) {
+              console.log(chalk.red('  Recent errors:'));
+              errorContent
+                .split('\n')
+                .slice(-3)
+                .forEach((line) => {
+                  if (line.trim()) console.log(chalk.red(`    ${line}`));
+                });
+            }
+          }
+        } catch (error: any) {
+          console.error(
+            chalk.red('Failed to check circadian lighting service status:'),
+            error.message
+          );
+        }
+      })
+    );
+
+  // Start service
+  serviceCommand
+    .command('start')
+    .description('Start circadian lighting service')
+    .action(
+      asyncCommand(async () => {
+        const plistName = 'com.hmmfn.amaran.circadian-service';
+        try {
+          await runCommand('launchctl', ['start', plistName]);
+          console.log(chalk.green('✓ Circadian lighting service started'));
+          appendServiceLog('Service start requested');
+        } catch (error: any) {
+          console.error(chalk.red('Failed to start circadian lighting service:'), error.message);
+        }
+      })
+    );
+
+  // Stop service
+  serviceCommand
+    .command('stop')
+    .description('Stop circadian lighting service')
+    .action(
+      asyncCommand(async () => {
+        const plistName = 'com.hmmfn.amaran.circadian-service';
+        try {
+          await runCommand('launchctl', ['stop', plistName]);
+          console.log(chalk.green('✓ Circadian lighting service stopped'));
+          appendServiceLog('Service stop requested');
+        } catch (error: any) {
+          console.error(chalk.red('Failed to stop circadian lighting service:'), error.message);
+        }
+      })
+    );
+
+  // Logs command
+  serviceCommand
+    .command('logs')
+    .description('Show circadian lighting service logs')
+    .option('-f, --follow', 'Follow log output')
+    .option('-e, --errors', 'Show error logs instead')
+    .action(
+      asyncCommand(async (options: any) => {
+        const logFile = options.errors
+          ? 'amaran-circadian-service-error.log'
+          : 'amaran-circadian-service.log';
+        const logPath = path.join(process.env.HOME!, 'Library', 'Logs', logFile);
+
+        if (!fs.existsSync(logPath)) {
+          console.log(chalk.yellow(`No ${options.errors ? 'error ' : ''}logs found`));
+          return;
+        }
+
+        try {
+          if (options.follow) {
+            console.log(chalk.blue(`Following ${logFile}... (Ctrl+C to stop)`));
+            spawn('tail', ['-f', logPath], { stdio: 'inherit' });
+          } else {
+            const content = fs.readFileSync(logPath, 'utf8');
+            console.log(content);
+          }
+        } catch (error: any) {
+          console.error(chalk.red('Failed to read logs:'), error.message);
+        }
+      })
+    );
+}
+
+function appendServiceLog(message: string): void {
+  const homeDir = process.env.HOME;
+  if (!homeDir) {
+    return;
+  }
+  const logDir = path.join(homeDir, 'Library', 'Logs');
+  const logPath = path.join(logDir, 'amaran-circadian-service.log');
+  try {
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
+  } catch (error) {
+    const err = error as Error;
+    console.error(chalk.red('Failed to write to service log:'), err.message);
+  }
+}
+
+// Helper function to run shell commands
+function runCommand(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'pipe' });
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(new Error(`Command failed with code ${code}: ${stderr}`));
+      }
+    });
+  });
+}
+
+export default registerService;
