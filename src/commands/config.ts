@@ -19,7 +19,7 @@ interface ConfigOptions {
 
 export default function registerConfig(program: Command, deps: CommandDeps) {
   const { loadConfig } = deps;
-  
+
   if (!loadConfig) {
     throw new Error('loadConfig dependency is required');
   }
@@ -36,8 +36,14 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
     .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
     .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
     .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
-    .option('--default-curve <curve>', 'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)')
-    .option('--auto-start-app <boolean>', 'Automatically start Amaran desktop app on connection failure (default: true)')
+    .option(
+      '--default-curve <curve>',
+      'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
+    )
+    .option(
+      '--auto-start-app <boolean>',
+      'Automatically start Amaran desktop app on connection failure (default: true)'
+    )
     .option('--show', 'Show current configuration')
     .action(async (options: ConfigOptions) => {
       if (options.show) {
@@ -166,15 +172,21 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       }
 
       // Ensure logical ordering if both sides provided
-      if (config.cctMin !== undefined && config.cctMax !== undefined && 
-          config.cctMin !== null && config.cctMax !== null && 
-          config.cctMin > config.cctMax) {
+      if (
+        config.cctMin !== undefined &&
+        config.cctMax !== undefined &&
+        config.cctMin !== null &&
+        config.cctMax !== null &&
+        config.cctMin > config.cctMax
+      ) {
         console.error(chalk.red('cct-min must be <= cct-max'));
         process.exit(1);
       }
       if (
-        config.intensityMin !== undefined && config.intensityMin !== null &&
-        config.intensityMax !== undefined && config.intensityMax !== null &&
+        config.intensityMin !== undefined &&
+        config.intensityMin !== null &&
+        config.intensityMax !== undefined &&
+        config.intensityMax !== null &&
         config.intensityMin > config.intensityMax
       ) {
         console.error(chalk.red('intensity-min must be <= intensity-max'));
@@ -186,7 +198,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       const path = require('node:path');
       const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      
+
       if (changes && changes.length > 0) {
         console.log(chalk.green('Configuration saved successfully:'));
         changes.forEach((change) => {

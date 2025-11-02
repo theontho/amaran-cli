@@ -31,7 +31,7 @@ export function registerCommands(program: Command, deps: CommandDeps) {
       const path = require('node:path');
       const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      
+
       if (changes && changes.length > 0) {
         console.log(chalk.green('Configuration saved successfully:'));
         changes.forEach((change: string) => {
@@ -40,9 +40,9 @@ export function registerCommands(program: Command, deps: CommandDeps) {
       } else {
         console.log(chalk.green('Configuration saved successfully'));
       }
-    }
+    },
   };
-  
+
   // Register all commands
   registerConfig(program, configDeps);
   registerAutoCct(program, deps);

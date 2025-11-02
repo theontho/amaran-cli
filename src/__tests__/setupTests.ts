@@ -9,7 +9,7 @@ const TEST_STORAGE_DIR = join(__dirname, '.test-storage');
 try {
   // Ensure the test storage directory exists
   mkdirSync(TEST_STORAGE_DIR, { recursive: true });
-  
+
   // Set up global localStorage for tests
   global.localStorage = new LocalStorage(TEST_STORAGE_DIR);
 } catch (error) {

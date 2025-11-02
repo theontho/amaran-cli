@@ -68,7 +68,11 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
             try {
               curveType = parseCurveType(config.defaultCurve);
             } catch (_) {
-              console.warn(chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Using 'hann' as fallback.`));
+              console.warn(
+                chalk.yellow(
+                  `Warning: Invalid default curve in config: ${config.defaultCurve}. Using 'hann' as fallback.`
+                )
+              );
               curveType = 'HANN';
             }
           } else {

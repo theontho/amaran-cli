@@ -27,13 +27,13 @@ program
       const isRoot = cmd.name() === 'amaran-cli';
       const commandPath = isRoot ? [] : [cmd.name()];
       let current = cmd.parent;
-      
+
       // Build the full command path
       while (current && current.name() !== 'amaran-cli') {
         commandPath.unshift(current.name());
         current = current.parent;
       }
-      
+
       const commandName = commandPath.join(' ');
       const displayName = 'amaran-cli';
 
@@ -352,7 +352,10 @@ program
   .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
   .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
   .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
-  .option('--default-curve <curve>', 'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)')
+  .option(
+    '--default-curve <curve>',
+    'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
+  )
   .option('--auto-start-app <boolean>', 'Automatically start Amaran desktop app on connection failure (default: true)')
   .option('--show', 'Show current configuration')
   .action(async (options: Record<string, unknown>) => {

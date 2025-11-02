@@ -61,20 +61,20 @@ function displayAllSpecialTimes(times: Record<string, Date | undefined>): void {
   for (let i = 0; i < halfLength; i++) {
     const left = allSpecialTimes[i];
     const right = allSpecialTimes[i + halfLength];
-    
+
     let line = '';
     if (left?.time) {
       const timeStr = left.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       const label = `${left.emoji} ${formatTitle(left.key)}`.padEnd(20);
       line += left.color(`${label}: ${timeStr}`);
     }
-    
+
     if (right?.time) {
       const timeStr = right.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       const label = `${right.emoji} ${formatTitle(right.key)}`.padEnd(20);
       line += `   ${right.color(`${label}: ${timeStr}`)}`;
     }
-    
+
     console.log(line);
   }
 }
@@ -89,7 +89,8 @@ function registerSchedule(program: Command, deps: CommandDeps) {
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
     .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
-    .option('-C, --curve <curve>',
+    .option(
+      '-C, --curve <curve>',
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
     )
     .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
@@ -130,7 +131,9 @@ function registerSchedule(program: Command, deps: CommandDeps) {
               curveType = parseCurveType(config.defaultCurve);
               showAllCurves = false; // Use the specified curve from config
             } catch (_) {
-              console.warn(chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Showing all curves.`));
+              console.warn(
+                chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Showing all curves.`)
+              );
               showAllCurves = true;
               curveType = 'HANN'; // fallback for single curve calculations
             }
@@ -219,7 +222,7 @@ function registerSchedule(program: Command, deps: CommandDeps) {
 
         const formatSource = (src: string, isPrivate: boolean) => {
           if (!isPrivate || !src.includes('(')) return src;
-          
+
           // Hide IP address parts
           const ipMatch = src.match(/(\d+\.\d+\.\d+\.\d+)/);
           if (ipMatch) {
@@ -232,10 +235,12 @@ function registerSchedule(program: Command, deps: CommandDeps) {
           return src;
         };
 
-        console.log(chalk.cyan(
-          `Location: ${formatCoordinate(lat, options.private)}°, ${formatCoordinate(lon, options.private)}° ` +
-          `(${formatSource(source, options.private)})`
-        ));
+        console.log(
+          chalk.cyan(
+            `Location: ${formatCoordinate(lat, options.private)}°, ${formatCoordinate(lon, options.private)}° ` +
+              `(${formatSource(source, options.private)})`
+          )
+        );
         console.log(
           chalk.cyan(
             `Date: ${date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`
