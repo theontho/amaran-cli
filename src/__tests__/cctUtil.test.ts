@@ -1,9 +1,17 @@
 import { getTimes } from 'suncalc';
-import { calculateCCT } from '../cctUtil';
+import { calculateCCT, _CCT_DEFAULTS } from '../cctUtil';
 
 describe('calculateCCT', () => {
   const NYC_LAT = 40.7128;
   const NYC_LON = -74.006;
+  
+  // Use the actual defaults from the module for all tests
+  const MIN_INTENSITY_PCT = _CCT_DEFAULTS.intensityMinPct;
+  const MAX_INTENSITY_PCT = _CCT_DEFAULTS.intensityMaxPct;
+  const MIN_CCT = _CCT_DEFAULTS.cctMinK;
+  const MAX_CCT = _CCT_DEFAULTS.cctMaxK;
+  const MIN_INTENSITY_API = MIN_INTENSITY_PCT * 10; // API format (50)
+  const MAX_INTENSITY_API = MAX_INTENSITY_PCT * 10; // API format (1000)
 
   describe('NYC circadian lighting tests', () => {
     let testDate: Date;
@@ -12,12 +20,6 @@ describe('calculateCCT', () => {
     let solarNoon: Date;
     let nightEnd: Date;
     let night: Date;
-    const MIN_INTENSITY_PCT = 5;
-    const MAX_INTENSITY_PCT = 100;
-    const MIN_CCT = 2000;
-    const MAX_CCT = 6500;
-    const MIN_INTENSITY_API = MIN_INTENSITY_PCT * 10; // API format (50)
-    const MAX_INTENSITY_API = MAX_INTENSITY_PCT * 10; // API format (1000)
 
     beforeAll(() => {
       // Use a fixed date for consistent test results
@@ -147,19 +149,28 @@ describe('calculateCCT', () => {
 
       const result = calculateCCT(LONDON_LAT, LONDON_LON, testDate);
 
-      expect(result.cct).toBeGreaterThanOrEqual(2000);
-      expect(result.cct).toBeLessThanOrEqual(6500);
-      expect(result.intensity).toBeGreaterThanOrEqual(50); // 5% minimum
-      expect(result.intensity).toBeLessThanOrEqual(1000);
+      expect(result.cct).toBeGreaterThanOrEqual(MIN_CCT);
+      expect(result.cct).toBeLessThanOrEqual(MAX_CCT);
+      expect(result.intensity).toBeGreaterThanOrEqual(MIN_INTENSITY_API); // 5% minimum
+      expect(result.intensity).toBeLessThanOrEqual(MAX_INTENSITY_API);
+    });
+
+    it('should use default options when none provided', () => {
+      const result = calculateCCT(NYC_LAT, NYC_LON, new Date('2024-06-21T12:00:00Z'));
+
+      expect(result.cct).toBeGreaterThanOrEqual(MIN_CCT);
+      expect(result.cct).toBeLessThanOrEqual(MAX_CCT);
+      expect(result.intensity).toBeGreaterThanOrEqual(MIN_INTENSITY_API); // 5% minimum
+      expect(result.intensity).toBeLessThanOrEqual(MAX_INTENSITY_API);
     });
 
     it('should use default date if not provided', () => {
       const result = calculateCCT(NYC_LAT, NYC_LON);
 
-      expect(result.cct).toBeGreaterThanOrEqual(2000);
-      expect(result.cct).toBeLessThanOrEqual(6500);
-      expect(result.intensity).toBeGreaterThanOrEqual(50); // 5% minimum
-      expect(result.intensity).toBeLessThanOrEqual(1000);
+      expect(result.cct).toBeGreaterThanOrEqual(MIN_CCT);
+      expect(result.cct).toBeLessThanOrEqual(MAX_CCT);
+      expect(result.intensity).toBeGreaterThanOrEqual(MIN_INTENSITY_API); // 5% minimum
+      expect(result.intensity).toBeLessThanOrEqual(MAX_INTENSITY_API);
     });
   });
 
@@ -187,13 +198,13 @@ describe('calculateCCT', () => {
     const NYC_LAT = 40.7128;
     const NYC_LON = -74.006;
 
-    it('intensity stays within [50, 1000] across a whole day (hourly samples)', () => {
+    it(`intensity stays within [${MIN_INTENSITY_API}, ${MAX_INTENSITY_API}] across a whole day (hourly samples)`, () => {
       const base = new Date('2024-06-21T00:00:00Z'); // summer solstice
       for (let hour = 0; hour < 24; hour++) {
         const sample = new Date(base.getTime() + hour * 60 * 60 * 1000);
         const { intensity } = calculateCCT(NYC_LAT, NYC_LON, sample);
-        expect(intensity).toBeGreaterThanOrEqual(50); // 5% minimum
-        expect(intensity).toBeLessThanOrEqual(1000);
+        expect(intensity).toBeGreaterThanOrEqual(MIN_INTENSITY_API); // 5% minimum
+        expect(intensity).toBeLessThanOrEqual(MAX_INTENSITY_API);
       }
     });
 
@@ -220,8 +231,8 @@ describe('calculateCCT', () => {
           for (const h of offsetsHours) {
             const d = new Date(base.getTime() + h * 60 * 60 * 1000);
             const { intensity } = calculateCCT(lat, lon, d);
-            expect(intensity).toBeGreaterThanOrEqual(50); // 5% minimum
-            expect(intensity).toBeLessThanOrEqual(1000);
+            expect(intensity).toBeGreaterThanOrEqual(MIN_INTENSITY_API); // 5% minimum
+            expect(intensity).toBeLessThanOrEqual(MAX_INTENSITY_API);
           }
         }
       }

@@ -12,6 +12,13 @@ export interface CCTOptions {
   intensityMaxPct?: number;
 }
 
+export const _CCT_DEFAULTS = {
+  cctMinK: 2000,
+  cctMaxK: 6500,
+  intensityMinPct: 5,
+  intensityMaxPct: 100,
+};
+
 export enum CurveType {
   HANN = 'hann',
   WIDER_MIDDLE_SMALL = 'wider-middle-small',
@@ -51,13 +58,6 @@ export function getAvailableCurves(): string[] {
   return Object.values(CurveType);
 }
 
-const _CCT_DEFAULTS = {
-  cctMinK: 2000,
-  cctMaxK: 6500,
-  intensityMinPct: 5,
-  intensityMaxPct: 100,
-};
-
 type CurveFunction = (x: number) => number;
 
 const CURVE_FUNCTIONS: Record<CurveType, CurveFunction> = {
@@ -93,6 +93,165 @@ function widerMiddleCurve(x: number, width: 'small' | 'medium' | 'large' = 'medi
 }
 
 // Scientifically-based daylight curves using suncalc data
+
+// Realistic daylight calculation functions
+function calculateRealisticSunAltitude(
+  altitude: number,
+  maxAltitude: number
+): [cctFactor: number, intensityFactor: number] {
+  // Convert altitude to degrees for easier calculations
+  const altitudeDeg = (altitude * 180) / Math.PI;
+  const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  // CCT: Based on real-world color temperature at different sun angles
+  // Civil twilight (-6° to 0°): 4000-5000K
+  // Sunrise to 30°: 5000-6500K
+  // 30° to 60°: 5500-7000K
+  // Above 60°: 6500-7500K
+  let cctFactor: number;
+  if (altitudeDeg < -6) {
+    cctFactor = 0; // Before civil twilight - minimum CCT
+  } else if (altitudeDeg < 0) {
+    // Civil twilight: 4000-5000K range
+    cctFactor = 0.3 + ((altitudeDeg + 6) / 6) * 0.2; // 0.3 to 0.5
+  } else if (altitudeDeg < 30) {
+    // Morning/afternoon: 5000-6500K
+    cctFactor = 0.5 + (altitudeDeg / 30) * 0.3; // 0.5 to 0.8
+  } else if (altitudeDeg < 60) {
+    // High sun: 5500-7000K
+    cctFactor = 0.8 + ((altitudeDeg - 30) / 30) * 0.2; // 0.8 to 1.0
+  } else {
+    // Very high sun: 6500-7500K
+    cctFactor = 1.0;
+  }
+
+  // Intensity: Based on actual illuminance levels, scaled to 5-100% range
+  // Peak at 100% around noon, much steeper curve than CCT
+  let intensityFactor: number;
+  if (altitudeDeg < -6) {
+    intensityFactor = 0; // Dark - will become 5% minimum
+  } else if (altitudeDeg < 0) {
+    // Civil twilight: very low but increasing rapidly
+    intensityFactor = ((altitudeDeg + 6) / 6) ** 2 * 0.05; // 0 to 0.05
+  } else if (altitudeDeg < 10) {
+    // Just after sunrise: rapid increase
+    intensityFactor = 0.05 + (altitudeDeg / 10) * 0.15; // 0.05 to 0.20
+  } else if (altitudeDeg < 30) {
+    // Morning: steady increase
+    intensityFactor = 0.2 + ((altitudeDeg - 10) / 20) * 0.4; // 0.20 to 0.60
+  } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
+    // Approach maximum - reach 100% by 80% of max altitude
+    intensityFactor = 0.6 + ((altitudeDeg - 30) / (maxAltitudeDeg * 0.8 - 30)) * 0.4; // 0.60 to 1.0
+  } else {
+    // Maintain peak at maximum intensity
+    intensityFactor = 1.0;
+  }
+
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+}
+
+function calculateRealisticCIEDaylight(
+  altitude: number,
+  maxAltitude: number
+): [cctFactor: number, intensityFactor: number] {
+  // CIE daylight with more realistic atmospheric modeling
+  const altitudeDeg = (altitude * 180) / Math.PI;
+  const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  // CCT: CIE standard illuminant D series with atmospheric scattering
+  let cctFactor: number;
+  if (altitudeDeg < -6) {
+    cctFactor = 0;
+  } else if (altitudeDeg < 0) {
+    // Enhanced blue during civil twilight due to Rayleigh scattering
+    cctFactor = 0.4 + ((altitudeDeg + 6) / 6) ** 1.5 * 0.2; // 0.4 to 0.6
+  } else if (altitudeDeg < 15) {
+    // Golden hour effect: warmer light
+    cctFactor = 0.6 - Math.sin((altitudeDeg * Math.PI) / 30) * 0.1; // Slight dip to 0.5
+  } else if (altitudeDeg < 45) {
+    // Mid-morning: rapid blue increase
+    cctFactor = 0.5 + ((altitudeDeg - 15) / 30) * 0.4; // 0.5 to 0.9
+  } else {
+    // High sun: maximum blue
+    cctFactor = 0.9 + Math.min(0.1, ((altitudeDeg - 45) / 45) * 0.1); // 0.9 to 1.0
+  }
+
+  // Intensity: CIE illuminance with atmospheric absorption, scaled to 5-100%
+  let intensityFactor: number;
+  if (altitudeDeg < -6) {
+    intensityFactor = 0; // Will become 5% minimum
+  } else if (altitudeDeg < 0) {
+    intensityFactor = ((altitudeDeg + 6) / 6) ** 3 * 0.03; // Very low start
+  } else if (altitudeDeg < 15) {
+    // Atmospheric path length effect - gradual start
+    const airMass = 1 / Math.sin(Math.max(0.01, (altitude * Math.PI) / 180));
+    intensityFactor = Math.min(0.25, 1 / airMass ** 0.7);
+  } else if (altitudeDeg < Math.min(40, maxAltitudeDeg * 0.6)) {
+    // Mid-morning increase - use lower of 40° or 60% of max altitude
+    intensityFactor = 0.25 + ((altitudeDeg - 15) / (Math.min(40, maxAltitudeDeg * 0.6) - 15)) * 0.55; // 0.25 to 0.80
+  } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
+    // Approach peak - reach 100% by 80% of max altitude
+    intensityFactor = 0.8 + ((altitudeDeg - Math.min(40, maxAltitudeDeg * 0.6)) / (maxAltitudeDeg * 0.8 - Math.min(40, maxAltitudeDeg * 0.6))) * 0.2; // 0.80 to 1.0
+  } else {
+    // Peak at solar noon
+    intensityFactor = 1.0;
+  }
+
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+}
+
+function calculateRealisticPerezDaylight(
+  altitude: number,
+  maxAltitude: number
+): [cctFactor: number, intensityFactor: number] {
+  // Perez daylight model with turbidity and atmospheric effects
+  const altitudeDeg = (altitude * 180) / Math.PI;
+  const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  // CCT: Perez model with atmospheric turbidity
+  let cctFactor: number;
+  if (altitudeDeg < -6) {
+    cctFactor = 0;
+  } else if (altitudeDeg < 0) {
+    // Strong blue during twilight (high turbidity effect)
+    cctFactor = 0.35 + ((altitudeDeg + 6) / 6) ** 2 * 0.25; // 0.35 to 0.6
+  } else if (altitudeDeg < 25) {
+    // Warm golden hour with Perez atmospheric correction
+    const goldenHourEffect = Math.exp(-((altitudeDeg - 12.5) ** 2) / 100);
+    cctFactor = 0.6 - goldenHourEffect * 0.15 + (altitudeDeg / 25) * 0.3; // 0.45 to 0.75
+  } else if (altitudeDeg < 50) {
+    // Transition to neutral white
+    cctFactor = 0.75 + ((altitudeDeg - 25) / 25) * 0.2; // 0.75 to 0.95
+  } else {
+    // Slight cooling at very high angles
+    cctFactor = Math.min(1.0, 0.95 + ((altitudeDeg - 50) / 40) * 0.05); // 0.95 to 1.0
+  }
+
+  // Intensity: Perez all-weather model with cloud cover assumption, scaled to 5-100%
+  let intensityFactor: number;
+  if (altitudeDeg < -6) {
+    intensityFactor = 0; // Will become 5% minimum
+  } else if (altitudeDeg < 5) {
+    // Very low light near horizon
+    intensityFactor = (Math.max(0, altitudeDeg + 6) / 11) ** 4 * 0.15;
+  } else if (altitudeDeg < 20) {
+    // Morning increase with atmospheric effects
+    const zenithAngle = Math.max(0.01, ((90 - altitudeDeg) * Math.PI) / 180);
+    const relativeLuminance = Math.exp(-0.2 / Math.max(0.01, Math.cos(zenithAngle)));
+    intensityFactor = Math.min(0.4, relativeLuminance * 0.35 + 0.05);
+  } else if (altitudeDeg < Math.min(45, maxAltitudeDeg * 0.7)) {
+    // Strong increase to midday - use lower of 45° or 70% of max altitude
+    intensityFactor = 0.4 + ((altitudeDeg - 20) / (Math.min(45, maxAltitudeDeg * 0.7) - 20)) * 0.5; // 0.40 to 0.90
+  } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
+    // Peak at solar noon - reach 100% by 80% of max altitude
+    intensityFactor = 0.9 + ((altitudeDeg - Math.min(45, maxAltitudeDeg * 0.7)) / (maxAltitudeDeg * 0.8 - Math.min(45, maxAltitudeDeg * 0.7))) * 0.1; // 0.90 to 1.0
+  } else {
+    // Maintain peak at noon
+    intensityFactor = 1.0;
+  }
+
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+}
 
 function cieDaylightCurve(x: number): number {
   // CIE daylight locus approximation
@@ -160,21 +319,22 @@ function calculateCCTCore(
   ) {
     f = 0; // Initialize f
     if (isValidSunTimes(sunrise, sunset, _solarNoon)) {
-      const [t, noon] = [
-        date.getTime(),
-        _solarNoon.getTime(),
-      ];
+      const [t, _noon] = [date.getTime(), _solarNoon.getTime()];
 
       // For scientific curves, handle cases where nightEnd/night might not be available
       let nightEndTime: number;
       let nightStartTime: number;
-      
-      if (nightEnd instanceof Date && !isNaN(nightEnd.getTime()) && 
-          night instanceof Date && !isNaN(night.getTime())) {
+
+      if (
+        nightEnd instanceof Date &&
+        !Number.isNaN(nightEnd.getTime()) &&
+        night instanceof Date &&
+        !Number.isNaN(night.getTime())
+      ) {
         // Normal case: both nightEnd and night are available
         nightEndTime = nightEnd.getTime();
         nightStartTime = night.getTime();
-        
+
         if (t <= nightEndTime || t >= nightStartTime) {
           return { cct: minK, intensity: minIntensity };
         }
@@ -183,7 +343,7 @@ function calculateCCTCore(
         // Use sunrise/sunset as boundaries for scientific curves
         nightEndTime = sunrise.getTime() - 30 * 60 * 1000; // 30 min before sunrise
         nightStartTime = sunset.getTime() + 30 * 60 * 1000; // 30 min after sunset
-        
+
         if (t <= nightEndTime || t >= nightStartTime) {
           return { cct: minK, intensity: minIntensity };
         }
@@ -197,33 +357,36 @@ function calculateCCTCore(
       const maxAltitude = noonPos.altitude;
 
       if (curveType === CurveType.SUN_ALTITUDE) {
-        // Direct sun altitude-based CCT calculation
-        // Real daylight ranges from ~2000K at dawn to ~6500-7500K at midday
-        // Allow dawn (-6°) to contribute by shifting altitude calculation
-        const altitudeFactor = Math.max(0, Math.sin(altitude + Math.PI/6));
-        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude + Math.PI/6));
-        f = maxAltitudeFactor > 0 ? altitudeFactor / maxAltitudeFactor : 0;
+        // Realistic sun altitude-based calculations
+        const [cctFactor, intensityFactor] = calculateRealisticSunAltitude(altitude, maxAltitude);
+        const cct = minK + (maxK - minK) * cctFactor;
+        const intensity = minIntensity + (maxIntensity - minIntensity) * intensityFactor;
+
+        return {
+          cct: Math.round(cct),
+          intensity: Math.round(intensity),
+        };
       } else if (curveType === CurveType.CIE_DAYLIGHT) {
-        // CIE daylight locus with atmospheric considerations
-        // Allow dawn (-6°) to contribute by shifting altitude calculation
-        const altitudeFactor = Math.max(0, Math.sin(altitude + Math.PI/6));
-        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude + Math.PI/6));
-        f = maxAltitudeFactor > 0 ? (altitudeFactor / maxAltitudeFactor) ** 0.8 : 0;
+        // Realistic CIE daylight locus calculations
+        const [cctFactor, intensityFactor] = calculateRealisticCIEDaylight(altitude, maxAltitude);
+        const cct = minK + (maxK - minK) * cctFactor;
+        const intensity = minIntensity + (maxIntensity - minIntensity) * intensityFactor;
+
+        return {
+          cct: Math.round(cct),
+          intensity: Math.round(intensity),
+        };
       } else if (curveType === CurveType.PEREZ_DAYLIGHT) {
-        // Perez model with atmospheric turbidity approximation
-        // Allow dawn (-6°) to contribute by shifting altitude calculation
-        const altitudeFactor = Math.max(0, Math.sin(altitude + Math.PI/6));
-        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude + Math.PI/6));
-        f = maxAltitudeFactor > 0 ? (altitudeFactor / maxAltitudeFactor) ** 0.6 : 0;
+        // Realistic Perez daylight model calculations
+        const [cctFactor, intensityFactor] = calculateRealisticPerezDaylight(altitude, maxAltitude);
+        const cct = minK + (maxK - minK) * cctFactor;
+        const intensity = minIntensity + (maxIntensity - minIntensity) * intensityFactor;
+
+        return {
+          cct: Math.round(cct),
+          intensity: Math.round(intensity),
+        };
       }
-
-      const cct = minK + (maxK - minK) * f;
-      const intensity = minIntensity + (maxIntensity - minIntensity) * f;
-
-      return {
-        cct: Math.round(cct),
-        intensity: Math.round(intensity),
-      };
     } else {
       // Fallback for scientific curves when sun times are invalid
       f = 0;
@@ -237,8 +400,13 @@ function calculateCCTCore(
   }
 
   // Empirical curves (HANN, WIDER_MIDDLE) use time-based calculations with nightEnd/night like scientific curves
-  if (isValidSunTimes(sunrise, sunset, _solarNoon) && nightEnd instanceof Date && !isNaN(nightEnd.getTime()) && 
-      night instanceof Date && !isNaN(night.getTime())) {
+  if (
+    isValidSunTimes(sunrise, sunset, _solarNoon) &&
+    nightEnd instanceof Date &&
+    !Number.isNaN(nightEnd.getTime()) &&
+    night instanceof Date &&
+    !Number.isNaN(night.getTime())
+  ) {
     const [t, noon, nightStartTime, nightEndTime] = [
       date.getTime(),
       _solarNoon.getTime(),
@@ -274,7 +442,7 @@ function calculateCCTCore(
     const pos = getPosition(date, lat, lon);
     const altitude = pos.altitude;
     if (altitude <= 0) return { cct: minK, intensity: minIntensity };
-    
+
     f = Math.max(0, Math.sin(altitude));
 
     const cct = minK + (maxK - minK) * f;

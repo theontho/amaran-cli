@@ -2,6 +2,63 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions } from '../types';
 
+// Special time configuration - single source of truth for colors and emojis
+const SPECIAL_TIME_CONFIG = [
+  { key: 'nightEnd', color: chalk.blue, emoji: 'NE' },
+  { key: 'nauticalDawn', color: chalk.cyan, emoji: 'ND' },
+  { key: 'dawn', color: chalk.cyan, emoji: 'DA' },
+  { key: 'sunrise', color: chalk.yellow, emoji: 'SR' },
+  { key: 'sunriseEnd', color: chalk.yellow, emoji: 'SE' },
+  { key: 'goldenHourEnd', color: chalk.yellow, emoji: 'GE' },
+  { key: 'solarNoon', color: chalk.green.bold, emoji: 'SN' },
+  { key: 'goldenHour', color: chalk.yellow, emoji: 'GH' },
+  { key: 'sunsetStart', color: chalk.magenta, emoji: 'SB' },
+  { key: 'sunset', color: chalk.magenta, emoji: 'SS' },
+  { key: 'nauticalDusk', color: chalk.magenta, emoji: 'ND' },
+  { key: 'dusk', color: chalk.magenta, emoji: 'DU' },
+  { key: 'night', color: chalk.blue, emoji: 'NI' },
+] as const;
+
+// Helper function to get color and emoji for a special time
+function getSpecialTimeStyling(
+  currentTime: Date,
+  times: Record<string, Date | null | undefined>
+): { color: (text: string) => string; emoji: string } {
+  const isSpecialTime = (specialTime: Date | null | undefined) => {
+    if (!specialTime || Number.isNaN(specialTime.getTime())) return false;
+    return Math.abs(currentTime.getTime() - specialTime.getTime()) < 30000; // 30 seconds
+  };
+
+  for (const config of SPECIAL_TIME_CONFIG) {
+    if (isSpecialTime(times[config.key])) {
+      return { color: config.color, emoji: config.emoji };
+    }
+  }
+
+  return { color: chalk.white, emoji: '' };
+}
+
+// Helper function to generate legend from the configuration
+function generateLegend(): void {
+  const formatTitle = (key: string): string => {
+    return key
+      .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+      .replace(/^([a-z])/, (c) => c.toUpperCase()) // Capitalize first letter
+      .trim();
+  };
+
+  const legendItems = SPECIAL_TIME_CONFIG.map((config) => config.color(`${config.emoji} ${formatTitle(config.key)}`));
+
+  // Split legend into 3 lines for better readability
+  const firstLine = legendItems.slice(0, 5).join(chalk.gray(' | '));
+  const secondLine = legendItems.slice(5, 10).join(chalk.gray(' | '));
+  const thirdLine = legendItems.slice(10).join(chalk.gray(' | '));
+
+  console.log(chalk.gray('Legend: ') + firstLine);
+  console.log(chalk.gray('        ') + secondLine);
+  console.log(chalk.gray('        ') + thirdLine);
+}
+
 function registerSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand, loadConfig } = deps;
 
@@ -100,6 +157,11 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         const solarNoon = times.solarNoon;
         const dawn = times.dawn;
         const dusk = times.dusk;
+        const nadir = times.nadir;
+        const nauticalDawn = times.nauticalDawn;
+        const nauticalDusk = times.nauticalDusk;
+        const sunriseEnd = times.sunriseEnd;
+        const sunsetStart = times.sunsetStart;
         const goldenHour = times.goldenHour;
         const goldenHourEnd = times.goldenHourEnd;
         const night = times.night;
@@ -136,11 +198,28 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         console.log(
           chalk.gray(`Sunset:      ${sunset.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
         );
+        console.log(
+          chalk.gray(`Nadir:       ${nadir.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
+        );
 
-        console.log(chalk.blue('\n───────────────────────────────────────────────────────────'));
+        console.log(chalk.blue('\n'));
 
         // Calculate time range - extend beyond special times
-        const allSpecialTimes = [nightEnd, dawn, sunrise, goldenHourEnd, solarNoon, goldenHour, sunset, dusk, night]
+        const allSpecialTimes = [
+          nightEnd,
+          nauticalDawn,
+          dawn,
+          sunrise,
+          sunriseEnd,
+          goldenHourEnd,
+          solarNoon,
+          goldenHour,
+          sunsetStart,
+          sunset,
+          nauticalDusk,
+          dusk,
+          night,
+        ]
           .filter((time) => time && !Number.isNaN(time.getTime()))
           .map((time) => time?.getTime());
 
@@ -156,9 +235,50 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         const startTime = new Date(minTime.getTime() - bufferMs);
         const endTime = new Date(maxTime.getTime() + bufferMs);
         const intervalMs = interval * 60 * 1000;
-        const highlightThreshold = intervalMs / 2;
+        const _highlightThreshold = intervalMs / 2;
 
-        let currentTime = new Date(startTime);
+        // Create array of all times to display: regular intervals + special times
+        const allTimes: Date[] = [];
+
+        // Add regular interval times
+        let intervalTime = new Date(startTime);
+        while (intervalTime <= endTime) {
+          allTimes.push(new Date(intervalTime));
+          intervalTime = new Date(intervalTime.getTime() + intervalMs);
+        }
+
+        // Add special times at their exact moments
+        const specialTimes = [
+          nightEnd,
+          nauticalDawn,
+          dawn,
+          sunrise,
+          sunriseEnd,
+          goldenHourEnd,
+          solarNoon,
+          goldenHour,
+          sunsetStart,
+          sunset,
+          nauticalDusk,
+          dusk,
+          night,
+        ].filter((time) => time && !Number.isNaN(time.getTime()));
+
+        allTimes.push(...specialTimes);
+
+        // Sort all times and remove duplicates (within 1 minute tolerance)
+        allTimes.sort((a, b) => a.getTime() - b.getTime());
+        const uniqueTimes: Date[] = [];
+        const duplicateThresholdMs = 60 * 1000; // 1 minute
+
+        for (const time of allTimes) {
+          if (
+            uniqueTimes.length === 0 ||
+            time.getTime() - uniqueTimes[uniqueTimes.length - 1].getTime() > duplicateThresholdMs
+          ) {
+            uniqueTimes.push(time);
+          }
+        }
         // Respect user-configured bounds if provided
         const cfg: Record<string, unknown> = typeof loadConfig === 'function' ? (loadConfig() ?? {}) : {};
         const cctMinRaw = cfg.cctMin;
@@ -168,69 +288,51 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         const hasCctBounds = typeof cctMinRaw === 'number' || typeof cctMaxRaw === 'number';
         const hasIntensityBounds = typeof iMinRaw === 'number' || typeof iMaxRaw === 'number';
 
+        // Calculate table widths
+        const multiCurveColWidths = [13, 12, 12, 12, 12, 12, 12, 12];
+        const totalWidth = multiCurveColWidths.reduce((a, b) => a + b, 0);
+        const singleCurveWidth = 13 + 18; // Time width + CCT/Intensity width
+
         if (showAllCurves) {
           // Show all curves in one table with compact formatting
           const _allCurveTypes = Object.values(CurveType);
           const headers = ['Time', 'HANN', 'WM_SMALL', 'WM_MEDIUM', 'WM_LARGE', 'CIE', 'SUN_ALT', 'PEREZ'];
-          const colWidths = [12, 12, 12, 12, 12, 12, 12, 12];
-
+          const colWidths = multiCurveColWidths;
           // Print header
           let headerLine = '';
           headers.forEach((header, i) => {
             headerLine += header.padEnd(colWidths[i]);
           });
-          console.log(chalk.bold(headerLine));
-          console.log(chalk.blue('─'.repeat(colWidths.reduce((a, b) => a + b, 0))));
 
-          while (currentTime <= endTime) {
+          console.log(chalk.blue('─'.repeat(totalWidth)));
+          console.log(chalk.bold(headerLine));
+          console.log(chalk.blue('─'.repeat(totalWidth)));
+
+          for (const currentTime of uniqueTimes) {
             const timeStr = currentTime.toLocaleTimeString(undefined, {
               hour: '2-digit',
               minute: '2-digit',
             });
 
-            let color = chalk.white;
-            let emoji = '';
-            const timeDiffSunrise = Math.abs(currentTime.getTime() - sunrise.getTime());
-            const timeDiffNoon = Math.abs(currentTime.getTime() - solarNoon.getTime());
-            const timeDiffSunset = Math.abs(currentTime.getTime() - sunset.getTime());
-            const timeDiffDawn = Math.abs(currentTime.getTime() - dawn.getTime());
-            const timeDiffDusk = Math.abs(currentTime.getTime() - dusk.getTime());
-            const timeDiffGoldenHour = Math.abs(currentTime.getTime() - goldenHour.getTime());
-            const timeDiffGoldenHourEnd = Math.abs(currentTime.getTime() - goldenHourEnd.getTime());
-            const timeDiffNight = Math.abs(currentTime.getTime() - night.getTime());
-            const timeDiffNightEnd = Math.abs(currentTime.getTime() - nightEnd.getTime());
+            // Create times object for helper function
+            const times = {
+              nightEnd,
+              nauticalDawn,
+              dawn,
+              sunrise,
+              sunriseEnd,
+              goldenHourEnd,
+              solarNoon,
+              goldenHour,
+              sunsetStart,
+              sunset,
+              nauticalDusk,
+              dusk,
+              night,
+            };
 
-            // Check time periods in order of priority (most specific first)
-            if (timeDiffNightEnd < highlightThreshold) {
-              color = chalk.blue;
-              emoji = ' 🌄';
-            } else if (timeDiffDawn < highlightThreshold) {
-              color = chalk.cyan;
-              emoji = ' 🌅';
-            } else if (timeDiffSunrise < highlightThreshold) {
-              color = chalk.yellow;
-              emoji = ' ☀️  ';
-            } else if (timeDiffGoldenHourEnd < highlightThreshold) {
-              color = chalk.yellow;
-              emoji = ' 🌇';
-            } else if (timeDiffNoon < highlightThreshold) {
-              color = chalk.green.bold;
-              emoji = ' 🌞';
-            } else if (timeDiffGoldenHour < highlightThreshold) {
-              color = chalk.yellow;
-              emoji = ' 🌆';
-            } else if (timeDiffSunset < highlightThreshold) {
-              color = chalk.magenta;
-              emoji = ' 🌅';
-            } else if (timeDiffDusk < highlightThreshold) {
-              color = chalk.magenta;
-              emoji = ' 🌆';
-            } else if (timeDiffNight < highlightThreshold) {
-              color = chalk.blue;
-              emoji = ' 🌙';
-            }
-
-            let rowLine = color(`${timeStr}${emoji}`.padEnd(colWidths[0]));
+            const { color, emoji } = getSpecialTimeStyling(currentTime, times);
+            let rowLine = color(`${timeStr} ${emoji || '  '}  `);
 
             // Calculate for each curve in fixed order
             const curvesInOrder = [
@@ -265,14 +367,14 @@ function registerSchedule(program: Command, deps: CommandDeps) {
             });
 
             console.log(rowLine);
-            currentTime = new Date(currentTime.getTime() + intervalMs);
           }
         } else {
           // Show single curve (original behavior)
+          console.log(chalk.blue('─'.repeat(singleCurveWidth)));
           console.log(chalk.bold('Time           CCT/Intensity'));
-          console.log(chalk.blue('───────────────────────────────────────────────────────────'));
+          console.log(chalk.blue('─'.repeat(singleCurveWidth)));
 
-          while (currentTime <= endTime) {
+          for (const currentTime of uniqueTimes) {
             const result =
               hasCctBounds || hasIntensityBounds
                 ? calculateCCT(
@@ -294,76 +396,34 @@ function registerSchedule(program: Command, deps: CommandDeps) {
             });
             const valueStr = `${result.cct}K/${(result.intensity / 10).toFixed(0)}%`.padEnd(18);
 
-            let color = chalk.white;
-            let emoji = '';
-            const timeDiffSunrise = Math.abs(currentTime.getTime() - sunrise.getTime());
-            const timeDiffNoon = Math.abs(currentTime.getTime() - solarNoon.getTime());
-            const timeDiffSunset = Math.abs(currentTime.getTime() - sunset.getTime());
-            const timeDiffDawn = Math.abs(currentTime.getTime() - dawn.getTime());
-            const timeDiffDusk = Math.abs(currentTime.getTime() - dusk.getTime());
-            const timeDiffGoldenHour = Math.abs(currentTime.getTime() - goldenHour.getTime());
-            const timeDiffGoldenHourEnd = Math.abs(currentTime.getTime() - goldenHourEnd.getTime());
-            const timeDiffNight = Math.abs(currentTime.getTime() - night.getTime());
-            const timeDiffNightEnd = Math.abs(currentTime.getTime() - nightEnd.getTime());
+            // Create times object for helper function
+            const times = {
+              nightEnd,
+              nauticalDawn,
+              dawn,
+              sunrise,
+              sunriseEnd,
+              goldenHourEnd,
+              solarNoon,
+              goldenHour,
+              sunsetStart,
+              sunset,
+              nauticalDusk,
+              dusk,
+              night,
+            };
 
-            // Check time periods in order of priority (most specific first)
-            if (timeDiffNightEnd < highlightThreshold) {
-              color = chalk.blue;
-              emoji = ' 🌄';
-            } else if (timeDiffDawn < highlightThreshold) {
-              color = chalk.cyan;
-              emoji = ' 🌅';
-            } else if (timeDiffSunrise < highlightThreshold) {
-              color = chalk.yellow;
-              emoji = ' ☀️  ';
-            } else if (timeDiffGoldenHourEnd < highlightThreshold) {
-              color = chalk.yellow;
-              emoji = ' 🌇';
-            } else if (timeDiffNoon < highlightThreshold) {
-              color = chalk.green.bold;
-              emoji = ' 🌞';
-            } else if (timeDiffGoldenHour < highlightThreshold) {
-              color = chalk.yellow;
-              emoji = ' 🌆';
-            } else if (timeDiffSunset < highlightThreshold) {
-              color = chalk.magenta;
-              emoji = ' 🌅';
-            } else if (timeDiffDusk < highlightThreshold) {
-              color = chalk.magenta;
-              emoji = ' 🌆';
-            } else if (timeDiffNight < highlightThreshold) {
-              color = chalk.blue;
-              emoji = ' 🌙';
-            }
-
-            console.log(color(`${timeStr}${emoji}    ${valueStr}`));
-            currentTime = new Date(currentTime.getTime() + intervalMs);
+            const { color, emoji } = getSpecialTimeStyling(currentTime, times);
+            console.log(color(`${timeStr} ${emoji || '  '}    ${valueStr}`));
           }
         }
 
-        console.log(chalk.blue('───────────────────────────────────────────────────────────\n'));
-        console.log(
-          chalk.gray('Legend: ') +
-            chalk.blue('🌄 Night End') +
-            chalk.gray(' | ') +
-            chalk.cyan('🌅 Dawn') +
-            chalk.gray(' | ') +
-            chalk.yellow('☀️ Sunrise ') +
-            chalk.gray(' | ') +
-            chalk.yellow('🌇 Golden Hour End')
-        );
-        console.log(
-          chalk.gray('        ') +
-            chalk.green.bold('🌞 Solar Noon') +
-            chalk.gray(' | ') +
-            chalk.yellow('🌆 Golden Hour') +
-            chalk.gray(' | ') +
-            chalk.magenta('🌅 Sunset') +
-            chalk.gray(' | ') +
-            chalk.magenta('🌆 Dusk') +
-            chalk.gray(' | ') +
-            chalk.blue('🌙 Night')
-        );
+        if (showAllCurves) {
+          console.log(chalk.blue('─'.repeat(totalWidth) + '\n'));
+        } else {
+          console.log(chalk.blue('─'.repeat(singleCurveWidth) + '\n'));
+        }
+        generateLegend();
         console.log();
       })
     );
