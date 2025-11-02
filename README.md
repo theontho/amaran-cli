@@ -412,9 +412,13 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 ## Changelog
 
 ### v1.1.0
-- Updated GitHub Actions workflow for automatic npm publishing on release
-- Improved build and test process in CI/CD pipeline
-- Enhanced release automation
+- More curves for auto-cct!
+- Print all curves in one schedule table!
+- Better range for start / stop times for curves
+- Simulate a full day curve in seconds with one of your amaran lights!
+- Autostarts the desktop app if it's closed
+- More special times printed in the schedule, like Nautical Dawn!
+Tests, refactoring ,etc
 
 ### v1.0.3
 - Initial stable release with full CLI functionality
