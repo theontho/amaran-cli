@@ -90,6 +90,7 @@
     }
   },
   "javascript": {
+    "globals": ["jest"],
     "formatter": {
       "quoteStyle": "single",
       "jsxQuoteStyle": "double",

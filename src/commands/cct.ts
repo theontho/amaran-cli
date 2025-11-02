@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { VALIDATION_RANGES } from '../constants';
 import type { CommandDeps, CommandOptions } from '../types';
 
 export function registerCct(program: Command, deps: CommandDeps) {
@@ -7,24 +8,43 @@ export function registerCct(program: Command, deps: CommandDeps) {
 
   program
     .command('cct <temperature> [device]')
-    .description('Set color temperature in Kelvin (2000-6500). Omit device or use "all" to set all lights.')
-    .option('-i, --intensity <value>', 'Also set intensity (0-100)')
+    .description(
+      `Set color temperature in Kelvin (${VALIDATION_RANGES.cct.min}-${VALIDATION_RANGES.cct.max}). Omit device or use "all" to set all lights.`
+    )
+    .option(
+      '-i, --intensity <value>',
+      `Also set intensity (${VALIDATION_RANGES.intensity.min}-${VALIDATION_RANGES.intensity.max})`
+    )
     .option('-u, --url <url>', 'WebSocket URL')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .action(
       asyncCommand(async (tempStr: string, deviceQuery: string | undefined, options: CommandOptions) => {
         const temperature = parseInt(tempStr, 10);
-        if (Number.isNaN(temperature) || temperature < 2000 || temperature > 6500) {
-          console.error(chalk.red('Temperature must be between 2000K and 6500K'));
+        if (
+          Number.isNaN(temperature) ||
+          temperature < VALIDATION_RANGES.cct.min ||
+          temperature > VALIDATION_RANGES.cct.max
+        ) {
+          console.error(
+            chalk.red(`Temperature must be between ${VALIDATION_RANGES.cct.min}K and ${VALIDATION_RANGES.cct.max}K`)
+          );
           process.exit(1);
         }
 
         let intensity: number | undefined;
         if (options.intensity) {
           intensity = parseInt(options.intensity, 10);
-          if (Number.isNaN(intensity) || intensity < 0 || intensity > 100) {
-            console.error(chalk.red('Intensity must be a number between 0 and 100'));
+          if (
+            Number.isNaN(intensity) ||
+            intensity < VALIDATION_RANGES.intensity.min ||
+            intensity > VALIDATION_RANGES.intensity.max
+          ) {
+            console.error(
+              chalk.red(
+                `Intensity must be a number between ${VALIDATION_RANGES.intensity.min} and ${VALIDATION_RANGES.intensity.max}`
+              )
+            );
             process.exit(1);
           }
           intensity = intensity * 10;

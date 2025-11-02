@@ -24,7 +24,9 @@ SOFTWARE.
 Downloaded from: https://gist.github.com/zsprackett/29334b9be1e2bd90c1737bd0ba0eaf5c 
 */
 
+import chalk from 'chalk';
 import WebSocket from 'ws';
+import { DEVICE_DEFAULTS } from './constants';
 
 // The commands are probably 1:1 with the OpenAPI commands listed here:
 // https://tools.sidus.link/openapi/docs/usage
@@ -75,7 +77,7 @@ class LightController {
   /**
    * Apply a command to all light devices with throttling.
    * Only targets devices with node_ids matching the light pattern (e.g., '400J5-F2C008').
-   * Throttles commands with 250ms delay between each to avoid overwhelming the server.
+   * Throttles commands with ${DEVICE_DEFAULTS.commandThrottleDelay}ms delay between each to avoid overwhelming the server.
    *
    * @param commandFn - Function that takes (nodeId, callback) and executes the command
    * @param commandName - Display name for the command (for logging)
@@ -100,7 +102,7 @@ class LightController {
 
     this.log(`${commandName} for ${lightDevices.length} light(s)`);
 
-    const waitTimeMs = 250;
+    const waitTimeMs = DEVICE_DEFAULTS.commandThrottleDelay;
     // Send commands with waitTimeMs throttling between each
     for (let i = 0; i < lightDevices.length; i++) {
       const device = lightDevices[i];
@@ -123,7 +125,7 @@ class LightController {
   /**
    * Set CCT & Intensity for all lights in deviceList.
    * Only targets devices with node_ids matching the light pattern (e.g., '400J5-F2C008').
-   * Throttles commands with 250ms delay between each to avoid overwhelming the server.
+   * Throttles commands with ${DEVICE_DEFAULTS.commandThrottleDelay}ms delay between each to avoid overwhelming the server.
    */
   public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
     await this.applyToAllLights(
@@ -319,12 +321,24 @@ class LightController {
     });
 
     this.ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      if (this.debug) {
+        console.error('WebSocket error:', error);
+      } else {
+        // Extract address and port from the error message for cleaner output
+        const addressMatch = error.message.match(/(\S+:\d+)/);
+        const addressPort = addressMatch ? addressMatch[1] : this.ws.url;
+        console.error(chalk.red(`WebSocket connection failed to ${chalk.bold(addressPort)}`));
+      }
     });
 
     this.ws.on('close', () => {
       this.log('Disconnected from WebSocket server');
     });
+  }
+
+  // Public getter for WebSocket to allow external error handling
+  public getWebSocket(): WebSocket {
+    return this.ws;
   }
 
   setClientId(clientId: string) {

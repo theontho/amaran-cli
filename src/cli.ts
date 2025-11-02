@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
+import { handleAutostart } from './autostart';
 import registerCommands from './commands';
 import { discoverLocalWebSocket } from './discovery';
 import LightController from './lightControl';
@@ -25,6 +26,8 @@ interface Config {
   cctMax?: number; // Kelvin
   intensityMin?: number; // percent [0-100]
   intensityMax?: number; // percent [0-100]
+  // Autostart behavior
+  autoStartApp?: boolean; // Whether to automatically start the Amaran desktop app on connection failure
   [key: string]: unknown;
 }
 
@@ -43,10 +46,18 @@ function loadConfig(): Config | null {
 }
 
 // Save configuration
-function saveConfig(config: Config): void {
+function saveConfig(config: Config, changes?: string[]): void {
   try {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    console.log(chalk.green('Configuration saved successfully'));
+
+    if (changes && changes.length > 0) {
+      console.log(chalk.green('Configuration saved successfully:'));
+      changes.forEach((change) => {
+        console.log(chalk.green(`  • ${change}`));
+      });
+    } else {
+      console.log(chalk.green('Configuration saved successfully'));
+    }
   } catch (error) {
     console.error(chalk.red('Error saving configuration:'), error);
   }
@@ -55,7 +66,7 @@ function saveConfig(config: Config): void {
 function saveWsUrl(url: string) {
   const current = loadConfig() || {};
   current.wsUrl = url;
-  saveConfig(current);
+  saveConfig(current, [`WebSocket URL: ${url}`]);
 }
 
 // Create light controller with connection handling
@@ -71,19 +82,48 @@ async function createController(wsUrl?: string, clientId?: string, debug?: boole
         reject(new Error('Connection timeout'));
       }, 8000);
 
+      let hasResolved = false;
+      let hasRejected = false;
+
       const controller = new LightController(candidateUrl, id, undefined, debugMode);
+
+      // Set up error handling on the WebSocket to catch connection errors
+      const ws = controller.getWebSocket();
+      ws.on('error', (error: Error) => {
+        if (debugMode) {
+          console.error('WebSocket error:', error);
+        } else {
+          // Extract address and port from the error message for cleaner output
+          const addressMatch = error.message.match(/(\S+:\d+)/);
+          const addressPort = addressMatch ? addressMatch[1] : candidateUrl;
+          console.error(chalk.red(`WebSocket connection failed to ${chalk.bold(addressPort)}`));
+        }
+        if (!hasResolved && !hasRejected) {
+          hasRejected = true;
+          clearTimeout(timeout);
+          reject(new Error(`WebSocket connection failed: ${error.message}`));
+        }
+      });
 
       // Resolve once we have a device list back (works even if zero devices)
       controller.getDeviceList((success: boolean, message: string) => {
+        if (hasRejected) return; // Don't resolve if we already rejected due to error
+
         clearTimeout(timeout);
         if (!success) {
-          reject(new Error(message || 'Failed to fetch device list'));
+          if (!hasRejected) {
+            hasRejected = true;
+            reject(new Error(message || 'Failed to fetch device list'));
+          }
           return;
         }
-        if (debugMode) {
-          console.log(chalk.green('✓ Connected (device list received)'));
+        if (!hasResolved) {
+          hasResolved = true;
+          if (debugMode) {
+            console.log(chalk.green('✓ Connected (device list received)'));
+          }
+          resolve(controller);
         }
-        resolve(controller);
       });
     });
   };
@@ -105,13 +145,33 @@ async function createController(wsUrl?: string, clientId?: string, debug?: boole
     }
   }
 
-  // Try to connect; on failure, discover, persist, and retry once
+  // Try to connect; on failure, attempt autostart, discover, persist, and retry once
   try {
     return await connectWithUrl(url);
   } catch (e) {
-    if (debugMode) {
-      console.log(chalk.yellow(`Initial connection to ${url} failed; attempting discovery...`));
+    const config = loadConfig();
+    const autoStartEnabled = config?.autoStartApp !== false; // Default to true
+
+    if (autoStartEnabled) {
+      console.log(chalk.blue('🚀 Amaran desktop app not running, starting...'));
     }
+
+    if (debugMode) {
+      console.log(chalk.yellow(`Initial connection to ${url} failed; attempting autostart and discovery...`));
+    }
+
+    // Attempt to start the Amaran desktop app
+    const autostartSuccess = await handleAutostart(debugMode);
+
+    if (autostartSuccess) {
+      // Give the app a moment to fully start up and begin listening
+      if (debugMode) {
+        console.log(chalk.blue('Waiting for app to initialize...'));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    // Try discovery again (in case the app started on a different port)
     const found = await discoverLocalWebSocket('127.0.0.1', debugMode);
     if (found) {
       if (debugMode) {
@@ -120,6 +180,17 @@ async function createController(wsUrl?: string, clientId?: string, debug?: boole
       saveWsUrl(found.url);
       return await connectWithUrl(found.url);
     }
+
+    // Provide appropriate error message based on what happened
+    if (!autoStartEnabled) {
+      console.log(chalk.yellow('Amaran desktop app is not running and autostart is disabled.'));
+      console.log(chalk.yellow('Enable autostart with: amaran config --auto-start-app true'));
+    } else if (!autostartSuccess) {
+      console.log(chalk.yellow('Could not start Amaran desktop app. Please ensure it is installed and try again.'));
+    } else {
+      console.log(chalk.yellow('Amaran desktop app started but connection still failed. Please try again.'));
+    }
+
     throw e;
   }
 }
@@ -162,13 +233,14 @@ program
   .description('Configure WebSocket URL and other settings')
   .option('-u, --url <url>', 'WebSocket URL (default: ws://localhost:60124)')
   .option('-c, --client-id <id>', 'Client ID (default: amaran-cli)')
-  .option('-d, --debug', 'Enable debug mode')
+  .option('-d, --debug <boolean>', 'Enable debug mode')
   .option('--lat <latitude>', 'Default latitude for auto-cct (overrides geoip)')
   .option('--lon <longitude>', 'Default longitude for auto-cct (overrides geoip)')
   .option('--cct-min <kelvin>', 'Minimum CCT for auto-cct in Kelvin (default: 2000)')
   .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
   .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
   .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
+  .option('--auto-start-app <boolean>', 'Automatically start Amaran desktop app on connection failure (default: true)')
   .option('--show', 'Show current configuration')
   .action((options: Record<string, unknown>) => {
     if (options.show) {
@@ -179,9 +251,33 @@ program
     }
 
     const config = loadConfig() || {};
-    if (options.url) config.wsUrl = options.url as string;
-    if (options.clientId) config.clientId = options.clientId as string;
-    if (options.debug !== undefined) config.debug = options.debug as boolean;
+    const changes: string[] = [];
+
+    if (options.url) {
+      config.wsUrl = options.url as string;
+      changes.push(`WebSocket URL: ${options.url}`);
+    }
+    if (options.clientId) {
+      config.clientId = options.clientId as string;
+      changes.push(`Client ID: ${options.clientId}`);
+    }
+    if (options.debug !== undefined) {
+      const value = options.debug as string;
+      if (typeof value === 'boolean') {
+        config.debug = value;
+      } else {
+        const lowerValue = value.toLowerCase().trim();
+        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
+          config.debug = true;
+        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
+          config.debug = false;
+        } else {
+          console.error(chalk.red('debug must be true or false'));
+          process.exit(1);
+        }
+      }
+      changes.push(`Debug mode: ${config.debug ? 'enabled' : 'disabled'}`);
+    }
     if (options.lat !== undefined) {
       const lat = parseFloat(options.lat as string);
       if (Number.isNaN(lat) || lat < -90 || lat > 90) {
@@ -189,6 +285,7 @@ program
         process.exit(1);
       }
       config.latitude = lat;
+      changes.push(`Latitude: ${lat}`);
     }
     if (options.lon !== undefined) {
       const lon = parseFloat(options.lon as string);
@@ -197,6 +294,7 @@ program
         process.exit(1);
       }
       config.longitude = lon;
+      changes.push(`Longitude: ${lon}`);
     }
 
     // Bounds validation helpers
@@ -208,6 +306,7 @@ program
         process.exit(1);
       }
       config.cctMin = clamp(k, 1000, 20000);
+      changes.push(`CCT minimum: ${config.cctMin}K`);
     }
     if (options.cctMax !== undefined) {
       const k = parseInt(options.cctMax as string, 10);
@@ -216,6 +315,7 @@ program
         process.exit(1);
       }
       config.cctMax = clamp(k, 1000, 20000);
+      changes.push(`CCT maximum: ${config.cctMax}K`);
     }
     if (options.intensityMin !== undefined) {
       const p = parseFloat(options.intensityMin as string);
@@ -224,6 +324,7 @@ program
         process.exit(1);
       }
       config.intensityMin = clamp(p, 0, 100);
+      changes.push(`Intensity minimum: ${config.intensityMin}%`);
     }
     if (options.intensityMax !== undefined) {
       const p = parseFloat(options.intensityMax as string);
@@ -232,6 +333,26 @@ program
         process.exit(1);
       }
       config.intensityMax = clamp(p, 0, 100);
+      changes.push(`Intensity maximum: ${config.intensityMax}%`);
+    }
+
+    // Handle auto-start-app option
+    if (options.autoStartApp !== undefined) {
+      const value = options.autoStartApp as string;
+      if (typeof value === 'boolean') {
+        config.autoStartApp = value;
+      } else {
+        const lowerValue = value.toLowerCase().trim();
+        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
+          config.autoStartApp = true;
+        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
+          config.autoStartApp = false;
+        } else {
+          console.error(chalk.red('auto-start-app must be true or false'));
+          process.exit(1);
+        }
+      }
+      changes.push(`Auto-start app: ${config.autoStartApp ? 'enabled' : 'disabled'}`);
     }
 
     // Ensure logical ordering if both sides provided
@@ -248,7 +369,7 @@ program
       process.exit(1);
     }
 
-    saveConfig(config);
+    saveConfig(config, changes);
   });
 
 // Register all commands

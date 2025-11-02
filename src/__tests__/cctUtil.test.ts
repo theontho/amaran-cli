@@ -1,21 +1,22 @@
 import { getTimes } from 'suncalc';
-import { calculateCCT, _CCT_DEFAULTS } from '../cctUtil';
+import { calculateCCT } from '../cctUtil';
+import { CCT_DEFAULTS } from '../constants';
 
 describe('calculateCCT', () => {
   const NYC_LAT = 40.7128;
   const NYC_LON = -74.006;
-  
+
   // Use the actual defaults from the module for all tests
-  const MIN_INTENSITY_PCT = _CCT_DEFAULTS.intensityMinPct;
-  const MAX_INTENSITY_PCT = _CCT_DEFAULTS.intensityMaxPct;
-  const MIN_CCT = _CCT_DEFAULTS.cctMinK;
-  const MAX_CCT = _CCT_DEFAULTS.cctMaxK;
+  const MIN_INTENSITY_PCT = CCT_DEFAULTS.intensityMinPct;
+  const MAX_INTENSITY_PCT = CCT_DEFAULTS.intensityMaxPct;
+  const MIN_CCT = CCT_DEFAULTS.cctMinK;
+  const MAX_CCT = CCT_DEFAULTS.cctMaxK;
   const MIN_INTENSITY_API = MIN_INTENSITY_PCT * 10; // API format (50)
   const MAX_INTENSITY_API = MAX_INTENSITY_PCT * 10; // API format (1000)
 
   describe('NYC circadian lighting tests', () => {
     let testDate: Date;
-    let sunrise: Date;
+    let _sunrise: Date;
     let sunset: Date;
     let solarNoon: Date;
     let nightEnd: Date;
@@ -25,7 +26,7 @@ describe('calculateCCT', () => {
       // Use a fixed date for consistent test results
       testDate = new Date('2024-06-21T12:00:00Z'); // Summer solstice
       const times = getTimes(testDate, NYC_LAT, NYC_LON);
-      sunrise = times.sunrise;
+      _sunrise = times.sunrise;
       sunset = times.sunset;
       solarNoon = times.solarNoon;
       nightEnd = times.nightEnd;
@@ -138,8 +139,8 @@ describe('calculateCCT', () => {
       const midnight = new Date('2024-06-21T04:00:00Z'); // Midnight in NYC
       const result = calculateCCT(NYC_LAT, NYC_LON, midnight);
 
-      expect(result.cct).toBe(2000);
-      expect(result.intensity).toBe(50); // 5% with default
+      expect(result.cct).toBe(MIN_CCT);
+      expect(result.intensity).toBe(MIN_INTENSITY_API);
     });
 
     it('should return valid results for different locations', () => {

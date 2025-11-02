@@ -1,4 +1,5 @@
 import { getPosition, getTimes } from 'suncalc';
+import { CCT_DEFAULTS } from './constants';
 
 export interface CCTResult {
   cct: number;
@@ -11,13 +12,6 @@ export interface CCTOptions {
   intensityMinPct?: number;
   intensityMaxPct?: number;
 }
-
-export const _CCT_DEFAULTS = {
-  cctMinK: 2000,
-  cctMaxK: 6500,
-  intensityMinPct: 5,
-  intensityMaxPct: 100,
-};
 
 export enum CurveType {
   HANN = 'hann',
@@ -191,7 +185,11 @@ function calculateRealisticCIEDaylight(
     intensityFactor = 0.25 + ((altitudeDeg - 15) / (Math.min(40, maxAltitudeDeg * 0.6) - 15)) * 0.55; // 0.25 to 0.80
   } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
     // Approach peak - reach 100% by 80% of max altitude
-    intensityFactor = 0.8 + ((altitudeDeg - Math.min(40, maxAltitudeDeg * 0.6)) / (maxAltitudeDeg * 0.8 - Math.min(40, maxAltitudeDeg * 0.6))) * 0.2; // 0.80 to 1.0
+    intensityFactor =
+      0.8 +
+      ((altitudeDeg - Math.min(40, maxAltitudeDeg * 0.6)) /
+        (maxAltitudeDeg * 0.8 - Math.min(40, maxAltitudeDeg * 0.6))) *
+        0.2; // 0.80 to 1.0
   } else {
     // Peak at solar noon
     intensityFactor = 1.0;
@@ -244,7 +242,11 @@ function calculateRealisticPerezDaylight(
     intensityFactor = 0.4 + ((altitudeDeg - 20) / (Math.min(45, maxAltitudeDeg * 0.7) - 20)) * 0.5; // 0.40 to 0.90
   } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
     // Peak at solar noon - reach 100% by 80% of max altitude
-    intensityFactor = 0.9 + ((altitudeDeg - Math.min(45, maxAltitudeDeg * 0.7)) / (maxAltitudeDeg * 0.8 - Math.min(45, maxAltitudeDeg * 0.7))) * 0.1; // 0.90 to 1.0
+    intensityFactor =
+      0.9 +
+      ((altitudeDeg - Math.min(45, maxAltitudeDeg * 0.7)) /
+        (maxAltitudeDeg * 0.8 - Math.min(45, maxAltitudeDeg * 0.7))) *
+        0.1; // 0.90 to 1.0
   } else {
     // Maintain peak at noon
     intensityFactor = 1.0;
@@ -465,13 +467,13 @@ export function calculateCCT(
   curveType: CurveType = CurveType.HANN
 ): CCTResult {
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-  const cctMinK = clamp(opts?.cctMinK ?? _CCT_DEFAULTS.cctMinK, 1000, 20000);
-  const cctMaxK = clamp(opts?.cctMaxK ?? _CCT_DEFAULTS.cctMaxK, 1000, 20000);
+  const cctMinK = clamp(opts?.cctMinK ?? CCT_DEFAULTS.cctMinK, 1000, 20000);
+  const cctMaxK = clamp(opts?.cctMaxK ?? CCT_DEFAULTS.cctMaxK, 1000, 20000);
   const minK = Math.min(cctMinK, cctMaxK);
   const maxK = Math.max(cctMinK, cctMaxK);
 
-  const intensityMinPct = clamp(opts?.intensityMinPct ?? _CCT_DEFAULTS.intensityMinPct, 0, 100);
-  const intensityMaxPct = clamp(opts?.intensityMaxPct ?? _CCT_DEFAULTS.intensityMaxPct, 0, 100);
+  const intensityMinPct = clamp(opts?.intensityMinPct ?? CCT_DEFAULTS.intensityMinPct, 0, 100);
+  const intensityMaxPct = clamp(opts?.intensityMaxPct ?? CCT_DEFAULTS.intensityMaxPct, 0, 100);
   const minPct = Math.min(intensityMinPct, intensityMaxPct);
   const maxPct = Math.max(intensityMinPct, intensityMaxPct);
 

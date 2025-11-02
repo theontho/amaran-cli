@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES } from '../constants';
 import type { CommandDeps } from '../types';
 
 function registerAutoCct(program: Command, deps: CommandDeps) {
@@ -15,7 +16,11 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
     .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('--time <time>', 'Manual time (ISO 8601 format, e.g., 2025-10-26T14:30:00)')
-    .option('--curve <curve>', 'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)', 'hann')
+    .option(
+      '--curve <curve>',
+      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
+      'hann'
+    )
     .action(
       asyncCommand(async (...args: unknown[]) => {
         const optionsRaw = (args[0] ?? {}) as Record<string, unknown>;
@@ -116,23 +121,43 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
         const maxKRaw = cfg.cctMax;
         const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
         const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
-        const loK = minKCfg !== undefined ? clamp(minKCfg, 1000, 20000) : 2000;
-        const hiK = maxKCfg !== undefined ? clamp(maxKCfg, 1000, 20000) : 6500;
+        const loK =
+          minKCfg !== undefined
+            ? clamp(minKCfg, VALIDATION_RANGES.cct.min, VALIDATION_RANGES.cct.max)
+            : CCT_DEFAULTS.cctMinK;
+        const hiK =
+          maxKCfg !== undefined
+            ? clamp(maxKCfg, VALIDATION_RANGES.cct.min, VALIDATION_RANGES.cct.max)
+            : CCT_DEFAULTS.cctMaxK;
 
-        // For auto-cct defaults: use 5–100% if not configured
+        // For auto-cct defaults: use CCT defaults if not configured
         const minPctRaw = cfg.intensityMin;
         const maxPctRaw = cfg.intensityMax;
-        const minPctCfg = typeof minPctRaw === 'number' ? minPctRaw : 5;
-        const maxPctCfg = typeof maxPctRaw === 'number' ? maxPctRaw : 100;
-        const loPct = clamp(Math.min(minPctCfg, maxPctCfg), 0, 100);
-        const hiPct = clamp(Math.max(minPctCfg, maxPctCfg), 0, 100);
+        const minPctCfg = typeof minPctRaw === 'number' ? minPctRaw : CCT_DEFAULTS.intensityMinPct;
+        const maxPctCfg = typeof maxPctRaw === 'number' ? maxPctRaw : CCT_DEFAULTS.intensityMaxPct;
+        const loPct = clamp(
+          Math.min(minPctCfg, maxPctCfg),
+          VALIDATION_RANGES.intensity.min,
+          VALIDATION_RANGES.intensity.max
+        );
+        const hiPct = clamp(
+          Math.max(minPctCfg, maxPctCfg),
+          VALIDATION_RANGES.intensity.min,
+          VALIDATION_RANGES.intensity.max
+        );
 
-        const result = calculateCCT(lat, lon, time, {
-          cctMinK: Math.min(loK, hiK),
-          cctMaxK: Math.max(loK, hiK),
-          intensityMinPct: loPct,
-          intensityMaxPct: hiPct,
-        }, CurveType[curveType]);
+        const result = calculateCCT(
+          lat,
+          lon,
+          time,
+          {
+            cctMinK: Math.min(loK, hiK),
+            cctMaxK: Math.max(loK, hiK),
+            intensityMinPct: loPct,
+            intensityMaxPct: hiPct,
+          },
+          CurveType[curveType]
+        );
 
         const percent = Math.round((result.intensity / 10) * 10) / 10;
         console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
@@ -164,7 +189,7 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
           return;
         }
 
-        const waitMs = 250;
+        const waitMs = DEVICE_DEFAULTS.statusCheckDelay;
         const offDevices: LightDevice[] = [];
         const activeDevices: LightDevice[] = [];
 

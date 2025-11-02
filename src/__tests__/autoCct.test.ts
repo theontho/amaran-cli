@@ -9,6 +9,16 @@ jest.mock('../geoipUtil', () => ({
 
 jest.mock('../cctUtil', () => ({
   calculateCCT: jest.fn(() => ({ cct: 5600, intensity: 500 })),
+  parseCurveType: jest.fn(() => 'HANN'),
+  CurveType: {
+    HANN: 'hann',
+    WIDER_MIDDLE_SMALL: 'wider-middle-small',
+    WIDER_MIDDLE_MEDIUM: 'wider-middle-medium',
+    WIDER_MIDDLE_LARGE: 'wider-middle-large',
+    CIE_DAYLIGHT: 'cie-daylight',
+    SUN_ALTITUDE: 'sun-altitude',
+    PEREZ_DAYLIGHT: 'perez-daylight',
+  },
 }));
 
 describe('auto-cct command', () => {

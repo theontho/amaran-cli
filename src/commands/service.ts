@@ -18,11 +18,15 @@ export function registerService(program: Command, deps: CommandDeps) {
     .command('install')
     .description('Install auto-cct as a circadian lighting background service (runs every minute)')
     .option('--interval <seconds>', 'Interval in seconds (default: 60)', '60')
-    .option('--curve <curve>', 'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)', 'hann')
+    .option(
+      '--curve <curve>',
+      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
+      'hann'
+    )
     .action(
       asyncCommand(async (options: CommandOptions) => {
         const { parseCurveType } = await import('../cctUtil');
-        
+
         const interval = parseInt(options.interval ?? '60', 10);
         if (Number.isNaN(interval) || interval < 10) {
           console.error(chalk.red('Interval must be at least 10 seconds'));
@@ -135,7 +139,9 @@ export function registerService(program: Command, deps: CommandDeps) {
           console.log(chalk.blue(`  Curve type: ${curveType}`));
           console.log(chalk.gray(`  Logs: ${path.join(logDir, 'amaran-circadian-service.log')}`));
           console.log(chalk.gray(`  Errors: ${path.join(logDir, 'amaran-circadian-service-error.log')}`));
-          appendServiceLog(`Service installed (${isGlobal ? 'global' : 'local'}) interval=${interval}s curve=${curveType}`);
+          appendServiceLog(
+            `Service installed (${isGlobal ? 'global' : 'local'}) interval=${interval}s curve=${curveType}`
+          );
         } catch (error) {
           const err = error as Error;
           console.error(chalk.red('Failed to install circadian lighting service:'), err.message);

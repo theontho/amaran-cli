@@ -1,23 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { SPECIAL_TIME_CONFIG } from '../constants';
 import type { CommandDeps, CommandOptions } from '../types';
-
-// Special time configuration - single source of truth for colors and emojis
-const SPECIAL_TIME_CONFIG = [
-  { key: 'nightEnd', color: chalk.blue, emoji: 'NE' },
-  { key: 'nauticalDawn', color: chalk.cyan, emoji: 'ND' },
-  { key: 'dawn', color: chalk.cyan, emoji: 'DA' },
-  { key: 'sunrise', color: chalk.yellow, emoji: 'SR' },
-  { key: 'sunriseEnd', color: chalk.yellow, emoji: 'SE' },
-  { key: 'goldenHourEnd', color: chalk.yellow, emoji: 'GE' },
-  { key: 'solarNoon', color: chalk.green.bold, emoji: 'SN' },
-  { key: 'goldenHour', color: chalk.yellow, emoji: 'GH' },
-  { key: 'sunsetStart', color: chalk.magenta, emoji: 'SB' },
-  { key: 'sunset', color: chalk.magenta, emoji: 'SS' },
-  { key: 'nauticalDusk', color: chalk.magenta, emoji: 'ND' },
-  { key: 'dusk', color: chalk.magenta, emoji: 'DU' },
-  { key: 'night', color: chalk.blue, emoji: 'NI' },
-] as const;
 
 // Helper function to get color and emoji for a special time
 function getSpecialTimeStyling(
@@ -38,8 +22,8 @@ function getSpecialTimeStyling(
   return { color: chalk.white, emoji: '' };
 }
 
-// Helper function to generate legend from the configuration
-function generateLegend(): void {
+// Helper function to display all special times
+function displayAllSpecialTimes(times: Record<string, Date | undefined>): void {
   const formatTitle = (key: string): string => {
     return key
       .replace(/([A-Z])/g, ' $1') // Add space before capital letters
@@ -47,16 +31,43 @@ function generateLegend(): void {
       .trim();
   };
 
-  const legendItems = SPECIAL_TIME_CONFIG.map((config) => config.color(`${config.emoji} ${formatTitle(config.key)}`));
+  // Create array of all special times including nadir
+  const allSpecialTimes = [
+    ...SPECIAL_TIME_CONFIG.map((config) => ({
+      key: config.key,
+      emoji: config.emoji,
+      color: config.color,
+      time: times[config.key],
+    })),
+    {
+      key: 'nadir',
+      emoji: 'NA',
+      color: chalk.blue,
+      time: times.nadir,
+    },
+  ].filter((item) => item.time && !Number.isNaN(item.time.getTime()));
 
-  // Split legend into 3 lines for better readability
-  const firstLine = legendItems.slice(0, 5).join(chalk.gray(' | '));
-  const secondLine = legendItems.slice(5, 10).join(chalk.gray(' | '));
-  const thirdLine = legendItems.slice(10).join(chalk.gray(' | '));
-
-  console.log(chalk.gray('Legend: ') + firstLine);
-  console.log(chalk.gray('        ') + secondLine);
-  console.log(chalk.gray('        ') + thirdLine);
+  // Display in 2 columns
+  const halfLength = Math.ceil(allSpecialTimes.length / 2);
+  for (let i = 0; i < halfLength; i++) {
+    const left = allSpecialTimes[i];
+    const right = allSpecialTimes[i + halfLength];
+    
+    let line = '';
+    if (left && left.time) {
+      const timeStr = left.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      const label = `${left.emoji} ${formatTitle(left.key)}`.padEnd(20);
+      line += left.color(`${label}: ${timeStr}`);
+    }
+    
+    if (right && right.time) {
+      const timeStr = right.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      const label = `${right.emoji} ${formatTitle(right.key)}`.padEnd(20);
+      line += '   ' + right.color(`${label}: ${timeStr}`);
+    }
+    
+    console.log(line);
+  }
 }
 
 function registerSchedule(program: Command, deps: CommandDeps) {
@@ -189,18 +200,24 @@ function registerSchedule(program: Command, deps: CommandDeps) {
           console.log(chalk.cyan(`Curve: ${curveType.toLowerCase()}\n`));
         }
 
-        console.log(
-          chalk.gray(`Sunrise:     ${sunrise.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
-        );
-        console.log(
-          chalk.gray(`Solar Noon:  ${solarNoon.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
-        );
-        console.log(
-          chalk.gray(`Sunset:      ${sunset.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
-        );
-        console.log(
-          chalk.gray(`Nadir:       ${nadir.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
-        );
+        // Display all special times
+        const specialTimesObject = {
+          nightEnd,
+          nauticalDawn,
+          dawn,
+          sunrise,
+          sunriseEnd,
+          goldenHourEnd,
+          solarNoon,
+          goldenHour,
+          sunsetStart,
+          sunset,
+          nauticalDusk,
+          dusk,
+          night,
+          nadir,
+        };
+        displayAllSpecialTimes(specialTimesObject);
 
         console.log(chalk.blue('\n'));
 
@@ -269,7 +286,7 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         // Sort all times and remove duplicates (within 1 minute tolerance)
         allTimes.sort((a, b) => a.getTime() - b.getTime());
         const uniqueTimes: Date[] = [];
-        const duplicateThresholdMs = 60 * 1000; // 1 minute
+        const duplicateThresholdMs = 30 * 1000; // 30 seconds
 
         for (const time of allTimes) {
           if (
@@ -419,12 +436,10 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         }
 
         if (showAllCurves) {
-          console.log(chalk.blue('─'.repeat(totalWidth) + '\n'));
+          console.log(chalk.blue(`${'─'.repeat(totalWidth)}\n`));
         } else {
-          console.log(chalk.blue('─'.repeat(singleCurveWidth) + '\n'));
+          console.log(chalk.blue(`${'─'.repeat(singleCurveWidth)}\n`));
         }
-        generateLegend();
-        console.log();
       })
     );
 }
