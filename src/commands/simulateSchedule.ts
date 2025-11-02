@@ -19,7 +19,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
       'hann'
     )
-    .option('--duration <seconds>', 'Simulation duration to compress full day (default: 60 seconds)', '60')
+    .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
     .action(
       asyncCommand(async (deviceQuery: string, options: CommandOptions) => {
         const { getLocationFromIP } = await import('../geoipUtil');

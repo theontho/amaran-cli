@@ -88,37 +88,48 @@ class LightController {
     commandName: string,
     getDisplayArgs?: (device: Device) => string
   ): Promise<void> {
-    if (!this.deviceList) return;
-
-    // Filter devices: only those with node_id matching the light pattern
-    const lightDevices = this.deviceList.filter((device: Device) => {
-      return device?.node_id && this.isLightNodeId(device.node_id);
-    });
-
-    if (lightDevices.length === 0) {
-      this.log(`No light devices found for ${commandName}`);
-      return;
-    }
-
-    this.log(`${commandName} for ${lightDevices.length} light(s)`);
-
-    const waitTimeMs = DEVICE_DEFAULTS.commandThrottleDelay;
-    // Send commands with waitTimeMs throttling between each
-    for (let i = 0; i < lightDevices.length; i++) {
-      const device = lightDevices[i];
-      const displayName = device.device_name || device.name || device.node_id || 'Unknown';
-      const displayArgs = getDisplayArgs ? getDisplayArgs(device) : '';
-
-      console.log(`  ${commandName} ${displayName} (${device.node_id})${displayArgs}`);
-
-      if (device.node_id) {
-        commandFn(device.node_id);
+    try {
+      if (!this.deviceList || this.deviceList.length === 0) {
+        this.log('No devices found');
+        return;
       }
 
-      // Wait waitTimeMs before sending next command (skip delay after last one)
-      if (i < lightDevices.length - 1) {
-        await this.sleep(waitTimeMs);
+      // Filter for light devices (node_ids that look like light IDs)
+      const lightDevices = this.deviceList.filter((device) =>
+        device.node_id ? this.isLightNodeId(device.node_id) : false
+      );
+
+      if (lightDevices.length === 0) {
+        this.log('No light devices found');
+        return;
       }
+
+      this.log(`${commandName} for ${lightDevices.length} light(s)`);
+
+      const waitTimeMs = DEVICE_DEFAULTS.commandThrottleDelay;
+      // Send commands with waitTimeMs throttling between each
+      for (let i = 0; i < lightDevices.length; i++) {
+        const device = lightDevices[i];
+        const displayName = device.device_name || device.name || device.node_id || 'Unknown';
+        const displayArgs = getDisplayArgs ? getDisplayArgs(device) : '';
+
+        // Only log if we're not in test environment
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(`  ${commandName} ${displayName} (${device.node_id})${displayArgs}`);
+        }
+
+        if (device.node_id) {
+          commandFn(device.node_id);
+        }
+
+        // Wait waitTimeMs before sending next command (skip delay after last one)
+        if (i < lightDevices.length - 1) {
+          await this.sleep(waitTimeMs);
+        }
+      }
+    } catch (error) {
+      console.error('Error in applyToAllLights:', error);
+      throw error;
     }
   }
 
