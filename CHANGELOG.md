@@ -1,3 +1,7 @@
+## [1.1.4] - 2025-11-02
+
+test token config
+
 ## [1.1.3] - 2025-11-02
 
 curve config and refactors
