@@ -179,13 +179,14 @@ The `auto-cct` command automatically adjusts color temperature based on sunrise/
 
 This mimics natural daylight changes throughout the day for more comfortable, circadian-friendly lighting. Both color temperature and brightness follow the same curve, providing natural dimming at dawn/dusk.
 
-**Location Priority:**
+#### Location Priority
 
 1. Command-line `--lat` and `--lon` arguments (highest priority)
 2. Config file defaults (set with `amaran-cli config --lat <lat> --lon <lon>`)
 3. GeoIP lookup based on public IP address (fallback)
 
-**Bounds (optional):**
+#### Bounds (optional)
+
 You can constrain the auto-cct curve to your preferred ranges via config:
 
 ```bash
@@ -237,7 +238,8 @@ amaran-cli circadian-service start
 amaran-cli circadian-service uninstall
 ```
 
-**Backward Compatibility:**
+#### Backward Compatibility
+
 The `service` command is still available as an alias to `circadian-service`:
 
 ```bash
@@ -246,7 +248,7 @@ amaran-cli service install
 amaran-cli circadian-service install
 ```
 
-**Installation Detection:**
+#### Installation Detection
 
 - The service automatically detects if amaran-cli is installed globally (via `npm install -g`) or running from a local development build
 - Global installations run the executable directly for better performance
@@ -254,7 +256,7 @@ amaran-cli circadian-service install
 
 The service uses macOS launchd and will automatically start on login. Logs are stored in `~/Library/Logs/amaran-circadian-service.log`.
 
-**Alternative: Using Cron**
+#### Alternative: Using Cron
 
 If you prefer using cron instead of launchd, the included script handles both global and local installations:
 
@@ -271,7 +273,7 @@ crontab -e
 tail -f ~/.amaran-circadian-service.log
 ```
 
-**Manual launchd Setup:**
+#### Manual launchd Setup
 
 For advanced users who want to create the service manually:
 
@@ -394,7 +396,7 @@ Example:
 amaran-cli list -u ws://192.168.1.100:60124 -d
 ```
 
-## Examples
+## Usage Examples
 
 ```bash
 # Configure for remote Amaran Desktop
