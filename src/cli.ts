@@ -13,9 +13,12 @@ import type { Device } from './types';
 const program = new Command();
 
 // Configure help output
+import { version } from '../package.json';
+
 program
   .name('amaran-cli')
   .description('Command line tool for controlling Aputure Amaran lights via WebSocket')
+  .version(version, '-v, --version', 'output the current version')
   .configureHelp({
     sortSubcommands: true,
     sortOptions: true,

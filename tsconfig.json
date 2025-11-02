@@ -10,8 +10,9 @@
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
     "declarationMap": true,
-  "sourceMap": true,
-  "types": ["node", "jest"]
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "types": ["node", "jest"]
   },
   "include": [
   "src/**/*",
