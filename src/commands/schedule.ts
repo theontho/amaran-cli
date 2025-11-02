@@ -3,6 +3,15 @@ import type { Command } from 'commander';
 import { SPECIAL_TIME_CONFIG } from '../constants';
 import type { CommandDeps, CommandOptions } from '../types';
 
+type ScheduleCommandOptions = {
+  lat?: string;
+  lon?: string;
+  date?: string;
+  interval?: string;
+  curve?: string;
+  private: boolean;
+};
+
 // Helper function to get color and emoji for a special time
 function getSpecialTimeStyling(
   currentTime: Date,
@@ -80,12 +89,12 @@ function registerSchedule(program: Command, deps: CommandDeps) {
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
     .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
-    .option(
-      '-C, --curve <curve>',
+    .option('-C, --curve <curve>',
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
     )
+    .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
     .action(
-      asyncCommand(async (options: CommandOptions) => {
+      asyncCommand(async (options: CommandOptions & ScheduleCommandOptions) => {
         const { getLocationFromIP } = await import('../geoipUtil');
         const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil');
         const { getTimes } = await import('suncalc');
@@ -187,7 +196,30 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         console.log(chalk.blue.bold('               Auto-CCT Schedule Preview'));
         console.log(chalk.blue.bold('═══════════════════════════════════════════════════════════\n'));
 
-        console.log(chalk.cyan(`Location: ${lat.toFixed(4)}°, ${lon.toFixed(4)}° (${source})`));
+        // Format location based on private mode
+        const formatCoordinate = (coord: number, isPrivate: boolean) => {
+          return isPrivate ? `${Math.round(coord)}.XXXX` : coord.toFixed(4);
+        };
+
+        const formatSource = (src: string, isPrivate: boolean) => {
+          if (!isPrivate || !src.includes('(')) return src;
+          
+          // Hide IP address parts
+          const ipMatch = src.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (ipMatch) {
+            const ipParts = ipMatch[1].split('.');
+            ipParts[0] = 'XXX';
+            ipParts[1] = 'XXX';
+            ipParts[2] = 'XXX';
+            return src.replace(ipMatch[1], ipParts.join('.'));
+          }
+          return src;
+        };
+
+        console.log(chalk.cyan(
+          `Location: ${formatCoordinate(lat, options.private)}°, ${formatCoordinate(lon, options.private)}° ` +
+          `(${formatSource(source, options.private)})`
+        ));
         console.log(
           chalk.cyan(
             `Date: ${date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`
