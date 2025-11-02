@@ -1,5 +1,7 @@
 import { handleAutostart, isAmaranAppRunning, startAmaranApp } from '../autostart';
 
+type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
+
 // Mock the child_process module
 jest.mock('node:util', () => ({
   promisify: jest.fn((fn) => fn),
@@ -40,7 +42,7 @@ describe('autostart', () => {
 
   describe('isAmaranAppRunning', () => {
     it('should return true when amaran process is found', async () => {
-      mockExec.mockImplementation((_command: string, callback: Function) => {
+      mockExec.mockImplementation((_command: string, callback: ExecCallback) => {
         callback(
           null,
           'amaran Desktop 12345 0.0  0.1  123456  1234 ??  10:30AM 0:00.01 /Applications/amaran Desktop.app/Contents/MacOS/amaran Desktop',
@@ -55,7 +57,7 @@ describe('autostart', () => {
     });
 
     it('should return false when no amaran process is found', async () => {
-      mockExec.mockImplementation((_command: string, callback: Function) => {
+      mockExec.mockImplementation((_command: string, callback: ExecCallback) => {
         callback(null, '', '');
       });
 
@@ -65,7 +67,7 @@ describe('autostart', () => {
     });
 
     it('should return false when exec fails', async () => {
-      mockExec.mockImplementation((_command: string, callback: Function) => {
+      mockExec.mockImplementation((_command: string, callback: ExecCallback) => {
         callback(new Error('Command failed'), '', '');
       });
 
@@ -77,7 +79,7 @@ describe('autostart', () => {
 
   describe('startAmaranApp', () => {
     it('should start app successfully when autostart is enabled', async () => {
-      mockExec.mockImplementation((command: string, callback: Function) => {
+      mockExec.mockImplementation((command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
         if (command.includes('open -a "amaran Desktop"')) {
           callback(null, '', '');
         }
@@ -104,7 +106,7 @@ describe('autostart', () => {
 
     it('should try multiple start methods', async () => {
       let callCount = 0;
-      mockExec.mockImplementation((_command: string, callback: Function) => {
+      mockExec.mockImplementation((_command: string, callback: ExecCallback) => {
         callCount++;
         if (callCount < 3) {
           callback(new Error('Command not found'), '', '');
@@ -134,7 +136,7 @@ describe('autostart', () => {
     });
 
     it('should return true when app is already running', async () => {
-      mockExec.mockImplementation((command: string, callback: Function) => {
+      mockExec.mockImplementation((command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
         if (command.includes('ps aux')) {
           callback(
             null,
@@ -153,7 +155,7 @@ describe('autostart', () => {
     });
 
     it('should attempt to start app when not running', async () => {
-      mockExec.mockImplementation((command: string, callback: Function) => {
+      mockExec.mockImplementation((command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
         if (command.includes('ps aux')) {
           callback(null, '', '');
         } else if (command.includes('open -a "amaran Desktop"')) {

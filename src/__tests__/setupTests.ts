@@ -1,7 +1,7 @@
 // Setup test environment before running tests
 import { LocalStorage } from 'node-localstorage';
-import { join } from 'path';
-import { mkdirSync } from 'fs';
+import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
 
 // Create a temporary directory for test local storage
 const TEST_STORAGE_DIR = join(__dirname, '.test-storage');
