@@ -7,6 +7,8 @@ export function registerList(program: Command, deps: CommandDeps) {
 
   program
     .command('list')
+    .name('list')
+    .usage('[options]')
     .alias('ls')
     .description('List all available lights')
     .option('-u, --url <url>', 'WebSocket URL')

@@ -8,16 +8,17 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
 
   program
     .command('auto-cct')
+    .usage('[options]')
     .description('Set CCT for all lights based on current location and time (geoip)')
     .option('-u, --url <url>', 'WebSocket URL')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
-    .option('--ip <ip>', 'Override IP address for geoip lookup')
-    .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
-    .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
-    .option('--time <time>', 'Manual time (ISO 8601 format, e.g., 2025-10-26T14:30:00)')
+    .option('-i, --ip <ip>', 'Override IP address for geoip lookup')
+    .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
+    .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
+    .option('-t, --time <time>', 'Manual time (ISO 8601 format, e.g., 2025-10-26T14:30:00)')
     .option(
-      '--curve <curve>',
+      '-C, --curve <curve>',
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
       'hann'
     )

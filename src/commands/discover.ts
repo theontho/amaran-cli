@@ -8,6 +8,7 @@ export function registerDiscover(program: Command, deps: CommandDeps) {
 
   program
     .command('discover')
+    .usage('[options]')
     .description('Discover local Amaran WebSocket endpoint')
     .option('-d, --debug', 'Enable debug output')
     .action(

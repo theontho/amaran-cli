@@ -12,6 +12,118 @@ import type { Device } from './types';
 
 const program = new Command();
 
+// Configure help output
+program
+  .name('amaran-cli')
+  .description('Command line tool for controlling Aputure Amaran lights via WebSocket')
+  .configureHelp({
+    sortSubcommands: true,
+    sortOptions: true,
+    showGlobalOptions: true,
+    formatHelp: (cmd, helper) => {
+      const isRoot = cmd.name() === 'amaran-cli';
+      const commandPath = isRoot ? [] : [cmd.name()];
+      let current = cmd.parent;
+      
+      // Build the full command path
+      while (current && current.name() !== 'amaran-cli') {
+        commandPath.unshift(current.name());
+        current = current.parent;
+      }
+      
+      const commandName = commandPath.join(' ');
+      const displayName = 'amaran-cli';
+
+      const sections = [
+        `${chalk.blue.bold('Amaran Light Control CLI')}`,
+        '',
+        `${chalk.bold('Usage:')} ${displayName}${commandName ? ` ${commandName}` : ''} [options]${isRoot ? ' [command]' : ''}`,
+        '',
+      ];
+
+      // Add command description if available
+      if (cmd.description()) {
+        sections.push(`${chalk.bold('Description:')} ${cmd.description()}`, '');
+      }
+
+      // Add command usage pattern if available
+      if (cmd.usage() && cmd.usage() !== '[options] [command]') {
+        const usage = cmd.usage().replace(/^\s*/, '');
+        sections.push(`${chalk.bold('Usage:')} ${cmd.name()} ${chalk.blue(usage)}`, '');
+      }
+
+      // Add options
+      const options = helper.visibleOptions(cmd);
+      if (options.length > 0) {
+        sections.push(chalk.bold('Options:'));
+        sections.push(
+          ...options.map((option) => {
+            // Split the flags and replace parameter placeholders with bright white
+            const formattedFlags = option.flags
+              .split(/\s+/)
+              .map((part) => {
+                // Match parameter placeholders like <curve> or <date>
+                const match = part.match(/^(--?[\w-]+)(?:\s+(<[^>]+>))?/);
+                if (!match) return part;
+
+                const [_, flag, param] = match;
+                // Use blue for parameters and long options for better visibility in light mode
+                const isShortFlag = flag.startsWith('-') && !flag.startsWith('--');
+                const flagColor = isShortFlag ? chalk.cyan : chalk.blue;
+                return param ? `${flagColor(flag)} ${chalk.blue(param)}` : flagColor(flag);
+              })
+              .join(' ');
+
+            return `  ${formattedFlags.padEnd(40)} ${option.description}`;
+          })
+        );
+        sections.push('');
+      }
+
+      // Add commands
+      const commands = helper.visibleCommands(cmd);
+      if (commands.length > 0) {
+        sections.push(chalk.bold('Commands:'));
+
+        // Get the max command + usage length for alignment
+        const maxCommandWidth = Math.max(
+          ...commands.map((c) => {
+            const usage = c.usage() || '';
+            return c.name().length + (usage ? usage.length + 1 : 0);
+          }),
+          25 // Minimum width
+        );
+
+        sections.push(
+          ...commands.map((cmd) => {
+            const name = cmd.name();
+            const usage = cmd.usage() || '';
+            const desc = cmd.description() || '';
+            const _commandPart = usage ? `${name} ${chalk.blue(usage)}` : name;
+            return `  ${chalk.green(name)} ${chalk.blue(usage || '').padEnd(maxCommandWidth - name.length - 1)}  ${desc}`;
+          })
+        );
+        sections.push('');
+      }
+
+      // Add examples for the root command
+      if (cmd.name() === 'amaran-cli') {
+        sections.push(
+          chalk.bold('Examples:'),
+          '  $ amaran-cli power on --all        # Turn on all connected lights',
+          '  $ amaran-cli cct 5000 --intensity 80  # Set color temperature to 5000K at 80%',
+          '  $ amaran-cli color 255 100 50     # Set RGB color (R:255 G:100 B:50)',
+          ''
+        );
+      }
+
+      sections.push(`Run ${chalk.blue('amaran-cli <command> --help')} for more information about a command.`);
+
+      return sections.join('\n');
+    },
+  })
+  .showHelpAfterError('(add --help for additional information)');
+
 // Configuration file path
 const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
 
@@ -224,9 +336,6 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
   return device || null;
 }
 
-// Main CLI setup
-program.name('amaran-cli').description('Command line tool for controlling Aputure Amaran lights').version('1.0.1');
-
 // Configuration command
 program
   .command('config')
@@ -374,6 +483,9 @@ program
 
 // Register all commands
 registerCommands(program, { createController, findDevice, asyncCommand, saveWsUrl, loadConfig });
+
+// Add custom help command that preserves the formatting
+program.addHelpCommand('help [command]', 'Display help for a specific command');
 
 // If this file is run directly, parse the arguments
 if (require.main === module) {

@@ -8,6 +8,7 @@ export function registerCct(program: Command, deps: CommandDeps) {
 
   program
     .command('cct <temperature> [device]')
+    .usage('<temperature> [device] [options]')
     .description(
       `Set color temperature in Kelvin (${VALIDATION_RANGES.cct.min}-${VALIDATION_RANGES.cct.max}). Omit device or use "all" to set all lights.`
     )

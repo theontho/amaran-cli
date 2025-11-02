@@ -76,12 +76,12 @@ function registerSchedule(program: Command, deps: CommandDeps) {
   program
     .command('schedule')
     .description('Preview auto-cct schedule from sunrise to sunset')
-    .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
-    .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
-    .option('--date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
-    .option('--interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
+    .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
+    .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
+    .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
+    .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
     .option(
-      '--curve <curve>',
+      '-C, --curve <curve>',
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
     )
     .action(

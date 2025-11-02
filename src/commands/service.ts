@@ -9,17 +9,16 @@ export function registerService(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
 
   const serviceCommand = program
-    .command('circadian-service')
-    .alias('service')
+    .command('service')
     .description('Manage auto-cct circadian lighting background service');
 
   // Install service
   serviceCommand
     .command('install')
     .description('Install auto-cct as a circadian lighting background service (runs every minute)')
-    .option('--interval <seconds>', 'Interval in seconds (default: 60)', '60')
+    .option('-i, --interval <seconds>', 'Interval in seconds (default: 60)', '60')
     .option(
-      '--curve <curve>',
+      '-C, --curve <curve>',
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
       'hann'
     )
