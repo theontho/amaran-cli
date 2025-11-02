@@ -21,7 +21,8 @@
     "format": "biome format --write src/",
     "format:check": "biome format src/",
     "check": "biome check src/",
-    "check:fix": "biome check --apply src/"
+    "check:fix": "biome check --apply src/",
+    "release": "node scripts/release.js"
   },
   "files": [
     "dist",
