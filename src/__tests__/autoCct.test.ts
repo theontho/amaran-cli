@@ -48,10 +48,7 @@ describe('auto-cct command', () => {
         { node_id: '400J5-F2C009', device_name: 'Off Light' },
       ]),
       getLightSleepStatus: jest.fn(
-        (
-          nodeId: string,
-          cb: (success: boolean, msg: string, data?: { sleep: boolean }) => void
-        ) => {
+        (nodeId: string, cb: (success: boolean, msg: string, data?: { sleep: boolean }) => void) => {
           setImmediate(() => cb(true, 'ok', { sleep: sleepState[nodeId] }));
         }
       ),

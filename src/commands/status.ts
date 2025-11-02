@@ -28,37 +28,29 @@ export function registerStatus(program: Command, deps: CommandDeps) {
 
         const nodeId = device.node_id;
 
-        controller.getLightSleepStatus(
-          nodeId,
-          (success: boolean, message: string, data?: unknown) => {
-            if (success) {
-              const nodeConfig = controller.getNode(nodeId);
-              const displayName =
-                device.device_name || device.name || device.id || device.node_id || 'Unknown';
-              console.log(chalk.blue(`Status for ${displayName}:`));
-              console.log(
-                `  State: ${(data as { sleep?: boolean })?.sleep ? chalk.red('Off') : chalk.green('On')}`
-              );
+        controller.getLightSleepStatus(nodeId, (success: boolean, message: string, data?: unknown) => {
+          if (success) {
+            const nodeConfig = controller.getNode(nodeId);
+            const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            console.log(chalk.blue(`Status for ${displayName}:`));
+            console.log(`  State: ${(data as { sleep?: boolean })?.sleep ? chalk.red('Off') : chalk.green('On')}`);
 
-              if (nodeConfig) {
-                if (nodeConfig.intensity !== undefined) {
-                  console.log(`  Intensity: ${nodeConfig.intensity}%`);
-                }
-                if (nodeConfig.cct !== undefined) {
-                  console.log(`  Temperature: ${nodeConfig.cct}K`);
-                }
-                if (nodeConfig.hue !== undefined && nodeConfig.sat !== undefined) {
-                  console.log(
-                    `  HSI: H:${nodeConfig.hue} S:${nodeConfig.sat} I:${nodeConfig.intensity}`
-                  );
-                }
+            if (nodeConfig) {
+              if (nodeConfig.intensity !== undefined) {
+                console.log(`  Intensity: ${nodeConfig.intensity}%`);
               }
-            } else {
-              console.error(chalk.red(`✗ Failed to get status: ${message}`));
+              if (nodeConfig.cct !== undefined) {
+                console.log(`  Temperature: ${nodeConfig.cct}K`);
+              }
+              if (nodeConfig.hue !== undefined && nodeConfig.sat !== undefined) {
+                console.log(`  HSI: H:${nodeConfig.hue} S:${nodeConfig.sat} I:${nodeConfig.intensity}`);
+              }
             }
-            controller.disconnect();
+          } else {
+            console.error(chalk.red(`✗ Failed to get status: ${message}`));
           }
-        );
+          controller.disconnect();
+        });
       })
     );
 }

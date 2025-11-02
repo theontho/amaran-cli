@@ -11,15 +11,8 @@ interface CaptureData {
 }
 
 interface MockController {
-  setIntensityForAllLights: (
-    intensity: number,
-    cb?: (success: boolean, message: string) => void
-  ) => Promise<void>;
-  setIntensity: (
-    nodeId: string,
-    intensity: number,
-    cb?: (success: boolean, message: string) => void
-  ) => void;
+  setIntensityForAllLights: (intensity: number, cb?: (success: boolean, message: string) => void) => Promise<void>;
+  setIntensity: (nodeId: string, intensity: number, cb?: (success: boolean, message: string) => void) => void;
   setCCTAndIntensityForAllLights: (
     cct: number,
     intensity?: number,
@@ -51,20 +44,13 @@ describe('CLI intensity API usage (0-100 -> 0-1000)', () => {
     program.exitOverride();
 
     const mockController: MockController = {
-      setIntensityForAllLights: async (
-        intensity: number,
-        cb?: (success: boolean, message: string) => void
-      ) => {
+      setIntensityForAllLights: async (intensity: number, cb?: (success: boolean, message: string) => void) => {
         capture.intensityForAll = intensity;
         if (cb) {
           cb(true, 'ok');
         }
       },
-      setIntensity: (
-        nodeId: string,
-        intensity: number,
-        cb?: (success: boolean, message: string) => void
-      ) => {
+      setIntensity: (nodeId: string, intensity: number, cb?: (success: boolean, message: string) => void) => {
         capture.intensityOne = { nodeId, intensity };
         if (cb) {
           cb(true, 'ok');

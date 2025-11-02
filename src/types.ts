@@ -21,15 +21,9 @@ export interface Config {
 }
 
 export interface CommandDeps {
-  createController: (
-    wsUrl?: string,
-    clientId?: string,
-    debug?: boolean
-  ) => Promise<LightController>;
+  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<LightController>;
   findDevice: (controller: LightController, deviceQuery: string) => Device | null;
-  asyncCommand: <T extends unknown[]>(
-    fn: (...args: T) => Promise<void>
-  ) => (...args: T) => Promise<void>;
+  asyncCommand: <T extends unknown[]>(fn: (...args: T) => Promise<void>) => (...args: T) => Promise<void>;
   saveWsUrl?: (url: string) => void;
   loadConfig?: () => Config | null;
 }
@@ -45,5 +39,6 @@ export interface CommandOptions {
   lat?: string;
   lon?: string;
   date?: string;
+  curve?: string;
   [key: string]: unknown;
 }

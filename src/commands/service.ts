@@ -18,12 +18,28 @@ export function registerService(program: Command, deps: CommandDeps) {
     .command('install')
     .description('Install auto-cct as a circadian lighting background service (runs every minute)')
     .option('--interval <seconds>', 'Interval in seconds (default: 60)', '60')
+    .option('--curve <curve>', 'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)', 'hann')
     .action(
       asyncCommand(async (options: CommandOptions) => {
+        const { parseCurveType } = await import('../cctUtil');
+        
         const interval = parseInt(options.interval ?? '60', 10);
         if (Number.isNaN(interval) || interval < 10) {
           console.error(chalk.red('Interval must be at least 10 seconds'));
           process.exit(1);
+        }
+
+        // Validate curve option
+        let curveType: string;
+        if (options.curve) {
+          try {
+            curveType = parseCurveType(options.curve);
+          } catch (error) {
+            console.error(chalk.red((error as Error).message));
+            process.exit(1);
+          }
+        } else {
+          curveType = 'HANN';
         }
 
         // Determine CLI path - check if globally installed or local
@@ -83,6 +99,8 @@ export function registerService(program: Command, deps: CommandDeps) {
         <string>${nodePath}</string>
         <string>${cliPath}</string>
         <string>auto-cct</string>
+        <string>--curve</string>
+        <string>${curveType}</string>
     </array>
     <key>StartInterval</key>
     <integer>${interval}</integer>
@@ -111,18 +129,13 @@ export function registerService(program: Command, deps: CommandDeps) {
           // Load the service
           await runCommand('launchctl', ['load', plistPath]);
           console.log(chalk.green(`✓ Circadian lighting service installed and started`));
-          console.log(
-            chalk.blue(`  Installation type: ${isGlobal ? 'Global' : 'Local development'}`)
-          );
+          console.log(chalk.blue(`  Installation type: ${isGlobal ? 'Global' : 'Local development'}`));
           console.log(chalk.blue(`  CLI path: ${cliPath}`));
           console.log(chalk.blue(`  Running auto-cct every ${interval} seconds`));
+          console.log(chalk.blue(`  Curve type: ${curveType}`));
           console.log(chalk.gray(`  Logs: ${path.join(logDir, 'amaran-circadian-service.log')}`));
-          console.log(
-            chalk.gray(`  Errors: ${path.join(logDir, 'amaran-circadian-service-error.log')}`)
-          );
-          appendServiceLog(
-            `Service installed (${isGlobal ? 'global' : 'local'}) interval=${interval}s`
-          );
+          console.log(chalk.gray(`  Errors: ${path.join(logDir, 'amaran-circadian-service-error.log')}`));
+          appendServiceLog(`Service installed (${isGlobal ? 'global' : 'local'}) interval=${interval}s curve=${curveType}`);
         } catch (error) {
           const err = error as Error;
           console.error(chalk.red('Failed to install circadian lighting service:'), err.message);
@@ -180,12 +193,7 @@ export function registerService(program: Command, deps: CommandDeps) {
         const plistName = 'com.hmmfn.amaran.circadian-service';
         const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', `${plistName}.plist`);
         const logPath = path.join(homeDir, 'Library', 'Logs', 'amaran-circadian-service.log');
-        const errorLogPath = path.join(
-          homeDir,
-          'Library',
-          'Logs',
-          'amaran-circadian-service-error.log'
-        );
+        const errorLogPath = path.join(homeDir, 'Library', 'Logs', 'amaran-circadian-service-error.log');
 
         try {
           if (!fs.existsSync(plistPath)) {
@@ -231,10 +239,7 @@ export function registerService(program: Command, deps: CommandDeps) {
           }
         } catch (error) {
           const err = error as Error;
-          console.error(
-            chalk.red('Failed to check circadian lighting service status:'),
-            err.message
-          );
+          console.error(chalk.red('Failed to check circadian lighting service status:'), err.message);
         }
       })
     );
@@ -289,9 +294,7 @@ export function registerService(program: Command, deps: CommandDeps) {
           process.exit(1);
         }
 
-        const logFile = options.errors
-          ? 'amaran-circadian-service-error.log'
-          : 'amaran-circadian-service.log';
+        const logFile = options.errors ? 'amaran-circadian-service-error.log' : 'amaran-circadian-service.log';
         const logPath = path.join(homeDir, 'Library', 'Logs', logFile);
 
         if (!fs.existsSync(logPath)) {

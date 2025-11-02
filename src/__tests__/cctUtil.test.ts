@@ -95,9 +95,7 @@ describe('calculateCCT', () => {
     });
 
     it('should have smooth progression from sunrise to noon', () => {
-      const quarterWay = new Date(
-        sunrise.getTime() + (solarNoon.getTime() - sunrise.getTime()) / 4
-      );
+      const quarterWay = new Date(sunrise.getTime() + (solarNoon.getTime() - sunrise.getTime()) / 4);
       const result = calculateCCT(NYC_LAT, NYC_LON, quarterWay, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,
@@ -113,9 +111,7 @@ describe('calculateCCT', () => {
     });
 
     it('should have smooth progression from noon to sunset', () => {
-      const threeQuartersWay = new Date(
-        solarNoon.getTime() + (sunset.getTime() - solarNoon.getTime()) / 2
-      );
+      const threeQuartersWay = new Date(solarNoon.getTime() + (sunset.getTime() - solarNoon.getTime()) / 2);
       const result = calculateCCT(NYC_LAT, NYC_LON, threeQuartersWay, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,

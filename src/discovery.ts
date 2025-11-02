@@ -118,8 +118,7 @@ export async function discoverLocalWebSocket(
     }
     // Try LISTEN candidates first (we unshifted those), then others
     for (const c of candidates) {
-      const host =
-        preferredHost === 'localhost' ? 'localhost' : c.iface === '::1' ? '127.0.0.1' : '127.0.0.1';
+      const host = preferredHost === 'localhost' ? 'localhost' : c.iface === '::1' ? '127.0.0.1' : '127.0.0.1';
       const url = `ws://${host}:${c.port}`;
       const ok = await probeWebSocket(url, 1200);
       if (ok) {

@@ -39,8 +39,7 @@ export function registerPower(program: Command, deps: CommandDeps) {
 
         controller.turnLightOn(device.node_id, (success: boolean, message: string) => {
           if (success) {
-            const displayName =
-              device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
             console.log(chalk.green(`✓ ${displayName} turned on`));
           } else {
             console.error(chalk.red(`✗ Failed to turn on light: ${message}`));
@@ -84,8 +83,7 @@ export function registerPower(program: Command, deps: CommandDeps) {
 
         controller.turnLightOff(device.node_id, (success: boolean, message: string) => {
           if (success) {
-            const displayName =
-              device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
             console.log(chalk.green(`✓ ${displayName} turned off`));
           } else {
             console.error(chalk.red(`✗ Failed to turn off light: ${message}`));
@@ -129,8 +127,7 @@ export function registerPower(program: Command, deps: CommandDeps) {
 
         controller.toggleLight(device.node_id, (success: boolean, message: string) => {
           if (success) {
-            const displayName =
-              device.device_name || device.name || device.id || device.node_id || 'Unknown';
+            const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
             console.log(chalk.green(`✓ ${displayName} toggled`));
           } else {
             console.error(chalk.red(`✗ Failed to toggle light: ${message}`));

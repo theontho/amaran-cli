@@ -59,11 +59,7 @@ function saveWsUrl(url: string) {
 }
 
 // Create light controller with connection handling
-async function createController(
-  wsUrl?: string,
-  clientId?: string,
-  debug?: boolean
-): Promise<LightController> {
+async function createController(wsUrl?: string, clientId?: string, debug?: boolean): Promise<LightController> {
   const config = loadConfig();
   let url = wsUrl || config?.wsUrl;
   const id = clientId || config?.clientId || 'amaran-cli';
@@ -158,10 +154,7 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
 }
 
 // Main CLI setup
-program
-  .name('amaran-cli')
-  .description('Command line tool for controlling Aputure Amaran lights')
-  .version('1.0.1');
+program.name('amaran-cli').description('Command line tool for controlling Aputure Amaran lights').version('1.0.1');
 
 // Configuration command
 program
@@ -242,11 +235,7 @@ program
     }
 
     // Ensure logical ordering if both sides provided
-    if (
-      config.cctMin !== undefined &&
-      config.cctMax !== undefined &&
-      config.cctMin > config.cctMax
-    ) {
+    if (config.cctMin !== undefined && config.cctMax !== undefined && config.cctMin > config.cctMax) {
       console.error(chalk.red('cct-min must be <= cct-max'));
       process.exit(1);
     }

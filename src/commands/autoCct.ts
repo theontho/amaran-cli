@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps } from '../types';
 
-export function registerAutoCct(program: Command, deps: CommandDeps) {
+function registerAutoCct(program: Command, deps: CommandDeps) {
   const { createController, asyncCommand, loadConfig } = deps;
 
   program
@@ -15,11 +15,12 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('--time <time>', 'Manual time (ISO 8601 format, e.g., 2025-10-26T14:30:00)')
+    .option('--curve <curve>', 'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)', 'hann')
     .action(
       asyncCommand(async (...args: unknown[]) => {
         const optionsRaw = (args[0] ?? {}) as Record<string, unknown>;
         const { getLocationFromIP } = await import('../geoipUtil');
-        const { calculateCCT } = await import('../cctUtil');
+        const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil');
         const options = optionsRaw as {
           url?: string;
           clientId?: string;
@@ -28,6 +29,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
           lat?: string;
           lon?: string;
           time?: string;
+          curve?: string;
         };
         const controller = await createController(options.url, options.clientId, options.debug);
 
@@ -39,11 +41,22 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
         if (options.time) {
           time = new Date(options.time);
           if (Number.isNaN(time.getTime())) {
-            console.error(
-              chalk.red('Invalid time format. Use ISO 8601 format (e.g., 2025-10-26T14:30:00)')
-            );
+            console.error(chalk.red('Invalid time format. Use ISO 8601 format (e.g., 2025-10-26T14:30:00)'));
             process.exit(1);
           }
+        }
+
+        // Validate curve option
+        let curveType: keyof typeof CurveType;
+        if (options.curve) {
+          try {
+            curveType = parseCurveType(options.curve);
+          } catch (error) {
+            console.error(chalk.red((error as Error).message));
+            process.exit(1);
+          }
+        } else {
+          curveType = 'HANN';
         }
 
         if (options.lat !== undefined && options.lon !== undefined) {
@@ -96,10 +109,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
         }
 
         // Load optional bounds from config; fall back to built-in defaults for auto-cct
-        const cfg = (typeof loadConfig === 'function' ? (loadConfig() ?? {}) : {}) as Record<
-          string,
-          unknown
-        >;
+        const cfg = (typeof loadConfig === 'function' ? (loadConfig() ?? {}) : {}) as Record<string, unknown>;
         const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
         const minKRaw = cfg.cctMin;
@@ -122,12 +132,13 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
           cctMaxK: Math.max(loK, hiK),
           intensityMinPct: loPct,
           intensityMaxPct: hiPct,
-        });
+        }, CurveType[curveType]);
 
         const percent = Math.round((result.intensity / 10) * 10) / 10;
         console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
         console.log(chalk.gray(`  Location: ${lat.toFixed(4)}, ${lon.toFixed(4)} (${source})`));
         console.log(chalk.gray(`  Time: ${time.toISOString()}`));
+        console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
 
         const devices = controller.getDevices?.() ?? [];
         const lightPattern = /^[A-Z0-9]+-[A-Z0-9]+$/i;
@@ -170,70 +181,67 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
               }
             }, 3000);
 
-            controller.getLightSleepStatus?.(
-              nodeId,
-              (success: boolean, _message: string, data?: unknown) => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                if (!success) {
-                  resolve(undefined);
-                  return;
-                }
-                // Normalize various possible representations of sleep state
-                if (data) {
-                  // Direct sleep field
-                  if (hasSleep(data)) {
-                    const v = (data as { sleep: unknown }).sleep;
-                    if (typeof v === 'boolean') {
-                      resolve(v);
-                      return;
-                    }
-                    if (typeof v === 'number') {
-                      resolve(v !== 0);
-                      return;
-                    }
-                    if (typeof v === 'string') {
-                      const s = v.trim().toLowerCase();
-                      resolve(s === 'true' || s === '1' || s === 'on' || s === 'sleep');
-                      return;
-                    }
-                  }
-                  // Server may return { data: boolean }
-                  const inner = (data as { data?: unknown }).data;
-                  if (typeof inner === 'boolean') {
-                    resolve(inner);
+            controller.getLightSleepStatus?.(nodeId, (success: boolean, _message: string, data?: unknown) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timeout);
+              if (!success) {
+                resolve(undefined);
+                return;
+              }
+              // Normalize various possible representations of sleep state
+              if (data) {
+                // Direct sleep field
+                if (hasSleep(data)) {
+                  const v = (data as { sleep: unknown }).sleep;
+                  if (typeof v === 'boolean') {
+                    resolve(v);
                     return;
                   }
-                  if (typeof inner === 'number') {
-                    resolve(inner !== 0);
+                  if (typeof v === 'number') {
+                    resolve(v !== 0);
                     return;
                   }
-                  if (typeof inner === 'string') {
-                    const s = inner.trim().toLowerCase();
+                  if (typeof v === 'string') {
+                    const s = v.trim().toLowerCase();
                     resolve(s === 'true' || s === '1' || s === 'on' || s === 'sleep');
                     return;
                   }
-                  if (hasSleep(inner)) {
-                    const v = (inner as { sleep: unknown }).sleep;
-                    if (typeof v === 'boolean') {
-                      resolve(v);
-                      return;
-                    }
-                    if (typeof v === 'number') {
-                      resolve(v !== 0);
-                      return;
-                    }
-                    if (typeof v === 'string') {
-                      const s = v.trim().toLowerCase();
-                      resolve(s === 'true' || s === '1' || s === 'on' || s === 'sleep');
-                      return;
-                    }
+                }
+                // Server may return { data: boolean }
+                const inner = (data as { data?: unknown }).data;
+                if (typeof inner === 'boolean') {
+                  resolve(inner);
+                  return;
+                }
+                if (typeof inner === 'number') {
+                  resolve(inner !== 0);
+                  return;
+                }
+                if (typeof inner === 'string') {
+                  const s = inner.trim().toLowerCase();
+                  resolve(s === 'true' || s === '1' || s === 'on' || s === 'sleep');
+                  return;
+                }
+                if (hasSleep(inner)) {
+                  const v = (inner as { sleep: unknown }).sleep;
+                  if (typeof v === 'boolean') {
+                    resolve(v);
+                    return;
+                  }
+                  if (typeof v === 'number') {
+                    resolve(v !== 0);
+                    return;
+                  }
+                  if (typeof v === 'string') {
+                    const s = v.trim().toLowerCase();
+                    resolve(s === 'true' || s === '1' || s === 'on' || s === 'sleep');
+                    return;
                   }
                 }
-                resolve(undefined);
               }
-            );
+              resolve(undefined);
+            });
           });
         };
 
@@ -250,9 +258,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
         if (activeDevices.length === 0) {
           console.log(chalk.yellow('All discovered lights are off; nothing to update.'));
           if (offDevices.length > 0) {
-            console.log(
-              chalk.gray(`  Skipped ${offDevices.length} light(s) to avoid turning them on.`)
-            );
+            console.log(chalk.gray(`  Skipped ${offDevices.length} light(s) to avoid turning them on.`));
           }
           await controller.disconnect();
           return;
@@ -276,9 +282,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
                 : typeof device.id === 'string'
                   ? device.id
                   : device.node_id;
-          console.log(
-            `  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`
-          );
+          console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`);
           controller.setCCT(device.node_id, result.cct, result.intensity);
           if (i < activeDevices.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, waitMs));

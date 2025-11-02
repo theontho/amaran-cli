@@ -125,11 +125,7 @@ class LightController {
    * Only targets devices with node_ids matching the light pattern (e.g., '400J5-F2C008').
    * Throttles commands with 250ms delay between each to avoid overwhelming the server.
    */
-  public async setCCTAndIntensityForAllLights(
-    cct: number,
-    intensity?: number,
-    callback?: CommandCallback
-  ) {
+  public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
     await this.applyToAllLights(
       (nodeId) => this.setCCT(nodeId, cct, intensity, callback),
       'Setting CCT',
@@ -183,16 +179,11 @@ class LightController {
   /**
    * Increment CCT for all lights.
    */
-  public async incrementCCTForAllLights(
-    delta: number,
-    intensity?: number,
-    callback?: CommandCallback
-  ) {
+  public async incrementCCTForAllLights(delta: number, intensity?: number, callback?: CommandCallback) {
     await this.applyToAllLights(
       (nodeId) => this.incrementCCT(nodeId, delta, intensity, callback),
       'Incrementing CCT',
-      () =>
-        ` by ${delta > 0 ? '+' : ''}${delta}K${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
+      () => ` by ${delta > 0 ? '+' : ''}${delta}K${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
     );
   }
 
@@ -228,11 +219,7 @@ class LightController {
   /**
    * Set system effect for all lights.
    */
-  public async setSystemEffectForAllLights(
-    effectType: string,
-    intensity?: number,
-    callback?: CommandCallback
-  ) {
+  public async setSystemEffectForAllLights(effectType: string, intensity?: number, callback?: CommandCallback) {
     await this.applyToAllLights(
       (nodeId) => this.setSystemEffect(nodeId, effectType, intensity, callback),
       'Setting effect',
@@ -273,12 +260,7 @@ class LightController {
     callback?: CommandCallback;
   }> = [];
 
-  constructor(
-    wsUrl: string,
-    clientId?: string,
-    onInitialized?: () => void,
-    debug: boolean = false
-  ) {
+  constructor(wsUrl: string, clientId?: string, onInitialized?: () => void, debug: boolean = false) {
     this.ws = new WebSocket(wsUrl);
     if (clientId) {
       this.clientId = clientId;
@@ -353,12 +335,7 @@ class LightController {
     this.getDeviceList();
   }
 
-  private sendCommand(
-    nodeId: string | undefined,
-    type: CommandType,
-    args?: CommandArgs,
-    callback?: CommandCallback
-  ) {
+  private sendCommand(nodeId: string | undefined, type: CommandType, args?: CommandArgs, callback?: CommandCallback) {
     if (this.ws.readyState === WebSocket.OPEN) {
       const command: Command = {
         version: 1,
@@ -495,12 +472,7 @@ class LightController {
     this.sendCommand(nodeId, 'set_color', args, callback);
   }
 
-  setSystemEffect(
-    nodeId: string,
-    effectType: string,
-    intensity?: number,
-    callback?: CommandCallback
-  ) {
+  setSystemEffect(nodeId: string, effectType: string, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { effect_type: effectType };
     if (intensity !== undefined) {
       args.intensity = intensity;

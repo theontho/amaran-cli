@@ -80,13 +80,8 @@ export function registerHsi(program: Command, deps: CommandDeps) {
             undefined,
             (success: boolean, message: string) => {
               if (success) {
-                const displayName =
-                  device.device_name || device.name || device.id || device.node_id || 'Unknown';
-                console.log(
-                  chalk.green(
-                    `✓ ${displayName} color set to H:${hue} S:${saturation} I:${intensity}`
-                  )
-                );
+                const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
+                console.log(chalk.green(`✓ ${displayName} color set to H:${hue} S:${saturation} I:${intensity}`));
               } else {
                 console.error(chalk.red(`✗ Failed to set HSI color: ${message}`));
               }
