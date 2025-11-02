@@ -352,9 +352,10 @@ program
   .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
   .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
   .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
+  .option('--default-curve <curve>', 'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)')
   .option('--auto-start-app <boolean>', 'Automatically start Amaran desktop app on connection failure (default: true)')
   .option('--show', 'Show current configuration')
-  .action((options: Record<string, unknown>) => {
+  .action(async (options: Record<string, unknown>) => {
     if (options.show) {
       const config = loadConfig();
       console.log(chalk.blue('Current configuration:'));
@@ -446,6 +447,19 @@ program
       }
       config.intensityMax = clamp(p, 0, 100);
       changes.push(`Intensity maximum: ${config.intensityMax}%`);
+    }
+
+    // Handle default curve option
+    if (options.defaultCurve !== undefined) {
+      const { parseCurveType } = await import('./cctUtil');
+      try {
+        parseCurveType(options.defaultCurve as string);
+        config.defaultCurve = options.defaultCurve as string;
+        changes.push(`Default curve: ${config.defaultCurve}`);
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
+        process.exit(1);
+      }
     }
 
     // Handle auto-start-app option

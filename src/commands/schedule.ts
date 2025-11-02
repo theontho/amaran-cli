@@ -112,7 +112,7 @@ function registerSchedule(program: Command, deps: CommandDeps) {
           }
         }
 
-        // Validate curve option - if no curve specified, show all curves
+        // Validate curve option - if no curve specified, check config or show all curves
         let showAllCurves = false;
         let curveType: keyof typeof CurveType;
         if (options.curve) {
@@ -121,6 +121,22 @@ function registerSchedule(program: Command, deps: CommandDeps) {
           } catch (error) {
             console.error(chalk.red((error as Error).message));
             process.exit(1);
+          }
+        } else if (loadConfig) {
+          // Try to get default curve from config
+          const config = loadConfig();
+          if (config?.defaultCurve) {
+            try {
+              curveType = parseCurveType(config.defaultCurve);
+              showAllCurves = false; // Use the specified curve from config
+            } catch (_) {
+              console.warn(chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Showing all curves.`));
+              showAllCurves = true;
+              curveType = 'HANN'; // fallback for single curve calculations
+            }
+          } else {
+            showAllCurves = true;
+            curveType = 'HANN'; // fallback for single curve calculations
           }
         } else {
           showAllCurves = true;

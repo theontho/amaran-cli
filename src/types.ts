@@ -17,6 +17,7 @@ export interface Config {
   wsUrl?: string;
   latitude?: number;
   longitude?: number;
+  defaultCurve?: string;
   [key: string]: unknown;
 }
 
@@ -26,6 +27,7 @@ export interface CommandDeps {
   asyncCommand: <T extends unknown[]>(fn: (...args: T) => Promise<void>) => (...args: T) => Promise<void>;
   saveWsUrl?: (url: string) => void;
   loadConfig?: () => Config | null;
+  saveConfig?: (config: Config, changes?: string[]) => void;
 }
 
 export interface CommandOptions {

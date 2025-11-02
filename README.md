@@ -10,14 +10,19 @@ Written with AI mostly, including this documentation.  Thanks to [Zac for his co
 
 1. Clone this repository or download the files
 2. Install dependencies:
+
    ```bash
    npm install
    ```
+
 3. Build the project:
+
    ```bash
    npm run build
    ```
+
 4. Optionally, install globally:
+
    ```bash
    npm install -g .
    ```
@@ -67,12 +72,14 @@ This command uses `lsof` to find the WebSocket port that the Amaran Desktop appl
 ## Device Identification
 
 Devices can be identified by:
+
 - **Device name**: Case-insensitive partial matching (e.g., "key" matches "Key Light")
 - **Node ID**: Exact match of the device's node_id
 
 ## Usage
 
 ### List all available lights
+
 ```bash
 amaran-cli list
 # or
@@ -80,6 +87,7 @@ amaran-cli ls
 ```
 
 ### Control lights
+
 ```bash
 # Turn light on
 amaran-cli on "Light Name"
@@ -102,6 +110,7 @@ amaran-cli toggle
 ```
 
 ### Set light properties
+
 ```bash
 # Set intensity (0-100%)
 amaran-cli intensity 75 "Light Name"
@@ -141,6 +150,7 @@ amaran-cli color blue -i 50
 **Note:** For all commands that support device names, you can omit the device name or use `all` to apply the command to all lights. Commands are throttled with 250ms delay between each device to prevent overwhelming the server.
 
 ### Auto CCT (Circadian Lighting)
+
 ```bash
 # Set CCT for all lights based on current time and location (auto-detected via geoip)
 amaran-cli auto-cct
@@ -162,6 +172,7 @@ amaran-cli auto-cct -d
 ```
 
 The `auto-cct` command automatically adjusts color temperature based on sunrise/sunset times for your location. By default, it maps the circadian curve to:
+
 - **Before sunrise / After sunset**: 2000K at 5% intensity (warm, dim night lighting)
 - **Solar noon**: 6500K at 100% intensity (cool, bright daylight)
 - **Between sunrise and sunset**: Smooth bell curve transition from 2000K/5% → 6500K/100% → 2000K/5%
@@ -169,6 +180,7 @@ The `auto-cct` command automatically adjusts color temperature based on sunrise/
 This mimics natural daylight changes throughout the day for more comfortable, circadian-friendly lighting. Both color temperature and brightness follow the same curve, providing natural dimming at dawn/dusk.
 
 **Location Priority:**
+
 1. Command-line `--lat` and `--lon` arguments (highest priority)
 2. Config file defaults (set with `amaran-cli config --lat <lat> --lon <lon>`)
 3. GeoIP lookup based on public IP address (fallback)
@@ -186,6 +198,7 @@ amaran-cli config --intensity-min 10 --intensity-max 80
 # Show the saved configuration
 amaran-cli config --show
 ```
+
 If a bound is not set, the default is used. When both min and max are set, min must be <= max.
 
 ### Running Auto-CCT as a Circadian Lighting Service
@@ -226,6 +239,7 @@ amaran-cli circadian-service uninstall
 
 **Backward Compatibility:**
 The `service` command is still available as an alias to `circadian-service`:
+
 ```bash
 # These commands work the same way
 amaran-cli service install
@@ -233,6 +247,7 @@ amaran-cli circadian-service install
 ```
 
 **Installation Detection:**
+
 - The service automatically detects if amaran-cli is installed globally (via `npm install -g`) or running from a local development build
 - Global installations run the executable directly for better performance
 - Local development builds use Node.js to run the built JavaScript files
@@ -350,6 +365,7 @@ amaran-cli schedule --lat 51.5074 --lon -0.1278 --date 2025-06-21 --interval 60
 ```
 
 The schedule shows CCT and intensity values from 30 minutes before sunrise to 30 minutes after sunset, with special highlighting for:
+
 - **Sunrise** (yellow)
 - **Solar Noon** (green, bold)
 - **Sunset** (magenta)
@@ -359,17 +375,21 @@ This helps you visualize and plan your automated lighting schedule before implem
 Note: The schedule respects any configured bounds set via `amaran-cli config --cct-min/--cct-max` and `--intensity-min/--intensity-max`. If no bounds are set, it uses the default curve from `calculateCCT`.
 
 ### Get light status
+
 ```bash
 amaran-cli status "Light Name"
 ```
 
 ### Global options
+
 All commands support these options:
+
 - `-u, --url <url>`: Override WebSocket URL
 - `-c, --client-id <id>`: Override client ID  
 - `-d, --debug`: Enable debug mode
 
 Example:
+
 ```bash
 amaran-cli list -u ws://192.168.1.100:60124 -d
 ```
@@ -413,7 +433,7 @@ amaran-cli off
 
 ## Development
 
-The localhost amaran desktop websocket API looks like to be near identical or identical to the Open API Sidus has published at https://tools.sidus.link/openapi/docs/usage .   So if `lightControl.ts` is missing any functionality you can probably use the OpenAPI spec to implement the new functionality fairly quickly.  This cli would probably work with the Sidus desktop apps as well, as well as Windows verisons of the Amaran desktop app but I haven't tested it.  If you want to submit PRs for it, feel free!
+The localhost amaran desktop websocket API looks like to be near identical or identical to the Open API Sidus has published at <https://tools.sidus.link/openapi/docs/usage> .   So if `lightControl.ts` is missing any functionality you can probably use the OpenAPI spec to implement the new functionality fairly quickly.  This cli would probably work with the Sidus desktop apps as well, as well as Windows verisons of the Amaran desktop app but I haven't tested it.  If you want to submit PRs for it, feel free!
 
 Extending command line tool to work with their networked Open API would probably be fairly simple to do since the local Websocket API is very similar to the Open API.  
 

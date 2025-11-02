@@ -61,8 +61,21 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
             console.error(chalk.red((error as Error).message));
             process.exit(1);
           }
+        } else if (loadConfig) {
+          // Try to get default curve from config
+          const config = loadConfig();
+          if (config?.defaultCurve) {
+            try {
+              curveType = parseCurveType(config.defaultCurve);
+            } catch (_) {
+              console.warn(chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Using 'hann' as fallback.`));
+              curveType = 'HANN';
+            }
+          } else {
+            curveType = 'HANN'; // Default fallback
+          }
         } else {
-          curveType = 'HANN';
+          curveType = 'HANN'; // Fallback if loadConfig is not available
         }
 
         if (options.lat !== undefined && options.lon !== undefined) {
