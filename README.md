@@ -409,6 +409,19 @@ Devices can be identified by:
 
 MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Changelog
+
+### v1.1.0
+- Updated GitHub Actions workflow for automatic npm publishing on release
+- Improved build and test process in CI/CD pipeline
+- Enhanced release automation
+
+### v1.0.3
+- Initial stable release with full CLI functionality
+- WebSocket control for Aputure Amaran lights
+- Auto-CCT circadian lighting feature
+- Service automation for continuous lighting adjustment
+
 ## Credits
 
 - Original WebSocket control implementation by S. Zachariah Sprackett
