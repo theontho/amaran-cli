@@ -10,6 +10,8 @@ describe('calculateCCT', () => {
     let sunrise: Date;
     let sunset: Date;
     let solarNoon: Date;
+    let nightEnd: Date;
+    let night: Date;
     const MIN_INTENSITY_PCT = 5;
     const MAX_INTENSITY_PCT = 100;
     const MIN_CCT = 2000;
@@ -24,11 +26,13 @@ describe('calculateCCT', () => {
       sunrise = times.sunrise;
       sunset = times.sunset;
       solarNoon = times.solarNoon;
+      nightEnd = times.nightEnd;
+      night = times.night;
     });
 
-    it('should return minimum CCT and intensity before sunrise', () => {
-      const beforeSunrise = new Date(sunrise.getTime() - 60_000); // 1 minute before
-      const result = calculateCCT(NYC_LAT, NYC_LON, beforeSunrise, {
+    it('should return minimum CCT and intensity before nightEnd', () => {
+      const beforeNightEnd = new Date(nightEnd.getTime() - 60_000); // 1 minute before
+      const result = calculateCCT(NYC_LAT, NYC_LON, beforeNightEnd, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,
         cctMinK: MIN_CCT,
@@ -39,16 +43,16 @@ describe('calculateCCT', () => {
       expect(result.intensity).toBe(MIN_INTENSITY_API);
     });
 
-    it('should return minimum CCT and intensity at sunrise edge', () => {
-      const atSunrise = new Date(sunrise.getTime());
-      const result = calculateCCT(NYC_LAT, NYC_LON, atSunrise, {
+    it('should return minimum CCT and intensity at nightEnd edge', () => {
+      const atNightEnd = new Date(nightEnd.getTime());
+      const result = calculateCCT(NYC_LAT, NYC_LON, atNightEnd, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,
         cctMinK: MIN_CCT,
         cctMaxK: MAX_CCT,
       });
 
-      // At the exact sunrise moment, should be at minimum
+      // At the exact nightEnd moment, should be at minimum for empirical curves
       expect(result.cct).toBe(MIN_CCT);
       expect(result.intensity).toBe(MIN_INTENSITY_API);
     });
@@ -67,23 +71,23 @@ describe('calculateCCT', () => {
       expect(result.intensity).toBe(MAX_INTENSITY_API);
     });
 
-    it('should return minimum CCT and intensity at sunset edge', () => {
-      const atSunset = new Date(sunset.getTime());
-      const result = calculateCCT(NYC_LAT, NYC_LON, atSunset, {
+    it('should return minimum CCT and intensity at night edge', () => {
+      const atNight = new Date(night.getTime());
+      const result = calculateCCT(NYC_LAT, NYC_LON, atNight, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,
         cctMinK: MIN_CCT,
         cctMaxK: MAX_CCT,
       });
 
-      // At the exact sunset moment, should be at minimum
+      // At the exact night moment, should be at minimum
       expect(result.cct).toBe(MIN_CCT);
       expect(result.intensity).toBe(MIN_INTENSITY_API);
     });
 
-    it('should return minimum CCT and intensity after sunset', () => {
-      const afterSunset = new Date(sunset.getTime() + 60_000); // 1 minute after
-      const result = calculateCCT(NYC_LAT, NYC_LON, afterSunset, {
+    it('should return minimum CCT and intensity after night', () => {
+      const afterNight = new Date(night.getTime() + 60_000); // 1 minute after
+      const result = calculateCCT(NYC_LAT, NYC_LON, afterNight, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,
         cctMinK: MIN_CCT,
@@ -94,8 +98,8 @@ describe('calculateCCT', () => {
       expect(result.intensity).toBe(MIN_INTENSITY_API);
     });
 
-    it('should have smooth progression from sunrise to noon', () => {
-      const quarterWay = new Date(sunrise.getTime() + (solarNoon.getTime() - sunrise.getTime()) / 4);
+    it('should have smooth progression from nightEnd to noon', () => {
+      const quarterWay = new Date(nightEnd.getTime() + (solarNoon.getTime() - nightEnd.getTime()) / 4);
       const result = calculateCCT(NYC_LAT, NYC_LON, quarterWay, {
         intensityMinPct: MIN_INTENSITY_PCT,
         intensityMaxPct: MAX_INTENSITY_PCT,

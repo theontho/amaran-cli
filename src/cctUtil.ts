@@ -150,29 +150,45 @@ function calculateCCTCore(
   const nightEnd = times.nightEnd;
   const night = times.night;
 
-  // Enhanced calculations for scientific curve types using additional suncalc data
-  if (isValidSunTimes(sunrise, sunset, _solarNoon) && nightEnd && night) {
-    const [t, _start, _endd, noon, nightStart, nightEndTime] = [
-      date.getTime(),
-      nightEnd.getTime(),
-      night.getTime(),
-      _solarNoon.getTime(),
-      night.getTime(),
-      nightEnd.getTime(),
-    ];
+  let f: number;
 
-    if (t <= nightEndTime || t >= nightStart) {
-      return { cct: minK, intensity: minIntensity };
-    }
+  // Scientific curves (CIE, SUN_ALTITUDE, PEREZ) use altitude-based calculations
+  if (
+    curveType === CurveType.CIE_DAYLIGHT ||
+    curveType === CurveType.SUN_ALTITUDE ||
+    curveType === CurveType.PEREZ_DAYLIGHT
+  ) {
+    f = 0; // Initialize f
+    if (isValidSunTimes(sunrise, sunset, _solarNoon)) {
+      const [t, noon] = [
+        date.getTime(),
+        _solarNoon.getTime(),
+      ];
 
-    let f: number;
+      // For scientific curves, handle cases where nightEnd/night might not be available
+      let nightEndTime: number;
+      let nightStartTime: number;
+      
+      if (nightEnd instanceof Date && !isNaN(nightEnd.getTime()) && 
+          night instanceof Date && !isNaN(night.getTime())) {
+        // Normal case: both nightEnd and night are available
+        nightEndTime = nightEnd.getTime();
+        nightStartTime = night.getTime();
+        
+        if (t <= nightEndTime || t >= nightStartTime) {
+          return { cct: minK, intensity: minIntensity };
+        }
+      } else {
+        // Edge case: no proper night (e.g., summer in high latitudes)
+        // Use sunrise/sunset as boundaries for scientific curves
+        nightEndTime = sunrise.getTime() - 30 * 60 * 1000; // 30 min before sunrise
+        nightStartTime = sunset.getTime() + 30 * 60 * 1000; // 30 min after sunset
+        
+        if (t <= nightEndTime || t >= nightStartTime) {
+          return { cct: minK, intensity: minIntensity };
+        }
+      }
 
-    // Use enhanced calculations for scientific curve types
-    if (
-      curveType === CurveType.CIE_DAYLIGHT ||
-      curveType === CurveType.SUN_ALTITUDE ||
-      curveType === CurveType.PEREZ_DAYLIGHT
-    ) {
       const pos = getPosition(date, lat, lon);
       const altitude = pos.altitude;
 
@@ -182,42 +198,67 @@ function calculateCCTCore(
 
       if (curveType === CurveType.SUN_ALTITUDE) {
         // Direct sun altitude-based CCT calculation
-        // Real daylight ranges from ~2000K at sunrise to ~6500-7500K at midday
-        const altitudeFactor = Math.max(0, Math.sin(altitude));
-        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude));
+        // Real daylight ranges from ~2000K at dawn to ~6500-7500K at midday
+        // Allow dawn (-6°) to contribute by shifting altitude calculation
+        const altitudeFactor = Math.max(0, Math.sin(altitude + Math.PI/6));
+        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude + Math.PI/6));
         f = maxAltitudeFactor > 0 ? altitudeFactor / maxAltitudeFactor : 0;
       } else if (curveType === CurveType.CIE_DAYLIGHT) {
         // CIE daylight locus with atmospheric considerations
-        const altitudeFactor = Math.max(0, Math.sin(altitude));
-        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude));
+        // Allow dawn (-6°) to contribute by shifting altitude calculation
+        const altitudeFactor = Math.max(0, Math.sin(altitude + Math.PI/6));
+        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude + Math.PI/6));
         f = maxAltitudeFactor > 0 ? (altitudeFactor / maxAltitudeFactor) ** 0.8 : 0;
       } else if (curveType === CurveType.PEREZ_DAYLIGHT) {
         // Perez model with atmospheric turbidity approximation
-        const altitudeFactor = Math.max(0, Math.sin(altitude));
-        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude));
+        // Allow dawn (-6°) to contribute by shifting altitude calculation
+        const altitudeFactor = Math.max(0, Math.sin(altitude + Math.PI/6));
+        const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude + Math.PI/6));
         f = maxAltitudeFactor > 0 ? (altitudeFactor / maxAltitudeFactor) ** 0.6 : 0;
-      } else {
-        // Fallback to time-based calculation
-        let x: number;
-        if (t <= noon) {
-          x = ((t - nightEndTime) / (noon - nightEndTime)) * 0.5;
-        } else {
-          x = 0.5 + ((t - noon) / (nightStart - noon)) * 0.5;
-        }
-        f = curve(x);
       }
+
+      const cct = minK + (maxK - minK) * f;
+      const intensity = minIntensity + (maxIntensity - minIntensity) * f;
+
+      return {
+        cct: Math.round(cct),
+        intensity: Math.round(intensity),
+      };
     } else {
-      // Original time-based calculation for empirical curves
-      let x: number;
-      if (t <= noon) {
-        // Morning: map [nightEnd, solarNoon] to [0, 0.5]
-        x = ((t - nightEndTime) / (noon - nightEndTime)) * 0.5;
-      } else {
-        // Afternoon: map [solarNoon, night] to [0.5, 1]
-        x = 0.5 + ((t - noon) / (nightStart - noon)) * 0.5;
-      }
-      f = curve(x);
+      // Fallback for scientific curves when sun times are invalid
+      f = 0;
+      const cct = minK + (maxK - minK) * f;
+      const intensity = minIntensity + (maxIntensity - minIntensity) * f;
+      return {
+        cct: Math.round(cct),
+        intensity: Math.round(intensity),
+      };
     }
+  }
+
+  // Empirical curves (HANN, WIDER_MIDDLE) use time-based calculations with nightEnd/night like scientific curves
+  if (isValidSunTimes(sunrise, sunset, _solarNoon) && nightEnd instanceof Date && !isNaN(nightEnd.getTime()) && 
+      night instanceof Date && !isNaN(night.getTime())) {
+    const [t, noon, nightStartTime, nightEndTime] = [
+      date.getTime(),
+      _solarNoon.getTime(),
+      night.getTime(),
+      nightEnd.getTime(),
+    ];
+
+    if (t <= nightEndTime || t >= nightStartTime) {
+      return { cct: minK, intensity: minIntensity };
+    }
+
+    let x: number;
+    if (t <= noon) {
+      // Morning: map [nightEnd, solarNoon] to [0, 0.5]
+      x = ((t - nightEndTime) / (noon - nightEndTime)) * 0.5;
+    } else {
+      // Afternoon: map [solarNoon, night] to [0.5, 1]
+      x = 0.5 + ((t - noon) / (nightStartTime - noon)) * 0.5;
+    }
+    f = curve(x);
 
     const cct = minK + (maxK - minK) * f;
     const intensity = minIntensity + (maxIntensity - minIntensity) * f;
@@ -228,30 +269,13 @@ function calculateCCTCore(
     };
   }
 
-  // Fallback using sun position for all curve types
+  // Fallback for empirical curves when night times are not available
   try {
     const pos = getPosition(date, lat, lon);
     const altitude = pos.altitude;
     if (altitude <= 0) return { cct: minK, intensity: minIntensity };
-
-    // Get maximum altitude for normalization (at solar noon on this day)
-    const noonPos = getPosition(_solarNoon, lat, lon);
-    const maxAltitude = noonPos.altitude;
-    const maxAltitudeFactor = Math.max(0, Math.sin(maxAltitude));
-
-    let f: number;
-    if (curveType === CurveType.SUN_ALTITUDE) {
-      const altitudeFactor = Math.max(0, Math.sin(altitude));
-      f = maxAltitudeFactor > 0 ? altitudeFactor / maxAltitudeFactor : 0;
-    } else if (curveType === CurveType.CIE_DAYLIGHT) {
-      const altitudeFactor = Math.max(0, Math.sin(altitude));
-      f = maxAltitudeFactor > 0 ? (altitudeFactor / maxAltitudeFactor) ** 0.8 : 0;
-    } else if (curveType === CurveType.PEREZ_DAYLIGHT) {
-      const altitudeFactor = Math.max(0, Math.sin(altitude));
-      f = maxAltitudeFactor > 0 ? (altitudeFactor / maxAltitudeFactor) ** 0.6 : 0;
-    } else {
-      f = Math.max(0, Math.sin(altitude));
-    }
+    
+    f = Math.max(0, Math.sin(altitude));
 
     const cct = minK + (maxK - minK) * f;
     const intensity = minIntensity + (maxIntensity - minIntensity) * f;

@@ -353,7 +353,7 @@ function registerSchedule(program: Command, deps: CommandDeps) {
             chalk.yellow('🌇 Golden Hour End')
         );
         console.log(
-          chalk.gray('         ') +
+          chalk.gray('        ') +
             chalk.green.bold('🌞 Solar Noon') +
             chalk.gray(' | ') +
             chalk.yellow('🌆 Golden Hour') +
