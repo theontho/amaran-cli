@@ -54,16 +54,16 @@ function displayAllSpecialTimes(times: Record<string, Date | undefined>): void {
     const right = allSpecialTimes[i + halfLength];
     
     let line = '';
-    if (left && left.time) {
+    if (left?.time) {
       const timeStr = left.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       const label = `${left.emoji} ${formatTitle(left.key)}`.padEnd(20);
       line += left.color(`${label}: ${timeStr}`);
     }
     
-    if (right && right.time) {
+    if (right?.time) {
       const timeStr = right.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       const label = `${right.emoji} ${formatTitle(right.key)}`.padEnd(20);
-      line += '   ' + right.color(`${label}: ${timeStr}`);
+      line += `   ${right.color(`${label}: ${timeStr}`)}`;
     }
     
     console.log(line);
