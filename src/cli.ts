@@ -130,12 +130,11 @@ program
 // Configuration file path
 const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
 
-interface Config {
-  wsUrl?: string;
+import type { Config } from './types';
+
+type CliConfig = Config & {
   clientId?: string;
   debug?: boolean;
-  latitude?: number;
-  longitude?: number;
   // Auto-CCT bounds
   cctMin?: number; // Kelvin
   cctMax?: number; // Kelvin
@@ -143,15 +142,14 @@ interface Config {
   intensityMax?: number; // percent [0-100]
   // Autostart behavior
   autoStartApp?: boolean; // Whether to automatically start the Amaran desktop app on connection failure
-  [key: string]: unknown;
-}
+};
 
 // Load configuration
-function loadConfig(): Config | null {
+function loadConfig(): CliConfig | null {
   try {
     if (fs.existsSync(configPath)) {
       const configData = fs.readFileSync(configPath, 'utf8');
-      return JSON.parse(configData);
+      return JSON.parse(configData) as CliConfig;
     }
     return null;
   } catch (_error) {
@@ -339,167 +337,7 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
   return device || null;
 }
 
-// Configuration command
-program
-  .command('config')
-  .description('Configure WebSocket URL and other settings')
-  .option('-u, --url <url>', 'WebSocket URL (default: ws://localhost:60124)')
-  .option('-c, --client-id <id>', 'Client ID (default: amaran-cli)')
-  .option('-d, --debug <boolean>', 'Enable debug mode')
-  .option('--lat <latitude>', 'Default latitude for auto-cct (overrides geoip)')
-  .option('--lon <longitude>', 'Default longitude for auto-cct (overrides geoip)')
-  .option('--cct-min <kelvin>', 'Minimum CCT for auto-cct in Kelvin (default: 2000)')
-  .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
-  .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
-  .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
-  .option(
-    '--default-curve <curve>',
-    'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
-  )
-  .option('--auto-start-app <boolean>', 'Automatically start Amaran desktop app on connection failure (default: true)')
-  .option('--show', 'Show current configuration')
-  .action(async (options: Record<string, unknown>) => {
-    if (options.show) {
-      const config = loadConfig();
-      console.log(chalk.blue('Current configuration:'));
-      console.log(JSON.stringify(config, null, 2));
-      return;
-    }
-
-    const config = loadConfig() || {};
-    const changes: string[] = [];
-
-    if (options.url) {
-      config.wsUrl = options.url as string;
-      changes.push(`WebSocket URL: ${options.url}`);
-    }
-    if (options.clientId) {
-      config.clientId = options.clientId as string;
-      changes.push(`Client ID: ${options.clientId}`);
-    }
-    if (options.debug !== undefined) {
-      const value = options.debug as string;
-      if (typeof value === 'boolean') {
-        config.debug = value;
-      } else {
-        const lowerValue = value.toLowerCase().trim();
-        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
-          config.debug = true;
-        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
-          config.debug = false;
-        } else {
-          console.error(chalk.red('debug must be true or false'));
-          process.exit(1);
-        }
-      }
-      changes.push(`Debug mode: ${config.debug ? 'enabled' : 'disabled'}`);
-    }
-    if (options.lat !== undefined) {
-      const lat = parseFloat(options.lat as string);
-      if (Number.isNaN(lat) || lat < -90 || lat > 90) {
-        console.error(chalk.red('Latitude must be between -90 and 90'));
-        process.exit(1);
-      }
-      config.latitude = lat;
-      changes.push(`Latitude: ${lat}`);
-    }
-    if (options.lon !== undefined) {
-      const lon = parseFloat(options.lon as string);
-      if (Number.isNaN(lon) || lon < -180 || lon > 180) {
-        console.error(chalk.red('Longitude must be between -180 and 180'));
-        process.exit(1);
-      }
-      config.longitude = lon;
-      changes.push(`Longitude: ${lon}`);
-    }
-
-    // Bounds validation helpers
-    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-    if (options.cctMin !== undefined) {
-      const k = parseInt(options.cctMin as string, 10);
-      if (Number.isNaN(k)) {
-        console.error(chalk.red('cct-min must be a number (Kelvin)'));
-        process.exit(1);
-      }
-      config.cctMin = clamp(k, 1000, 20000);
-      changes.push(`CCT minimum: ${config.cctMin}K`);
-    }
-    if (options.cctMax !== undefined) {
-      const k = parseInt(options.cctMax as string, 10);
-      if (Number.isNaN(k)) {
-        console.error(chalk.red('cct-max must be a number (Kelvin)'));
-        process.exit(1);
-      }
-      config.cctMax = clamp(k, 1000, 20000);
-      changes.push(`CCT maximum: ${config.cctMax}K`);
-    }
-    if (options.intensityMin !== undefined) {
-      const p = parseFloat(options.intensityMin as string);
-      if (Number.isNaN(p)) {
-        console.error(chalk.red('intensity-min must be a number (percent)'));
-        process.exit(1);
-      }
-      config.intensityMin = clamp(p, 0, 100);
-      changes.push(`Intensity minimum: ${config.intensityMin}%`);
-    }
-    if (options.intensityMax !== undefined) {
-      const p = parseFloat(options.intensityMax as string);
-      if (Number.isNaN(p)) {
-        console.error(chalk.red('intensity-max must be a number (percent)'));
-        process.exit(1);
-      }
-      config.intensityMax = clamp(p, 0, 100);
-      changes.push(`Intensity maximum: ${config.intensityMax}%`);
-    }
-
-    // Handle default curve option
-    if (options.defaultCurve !== undefined) {
-      const { parseCurveType } = await import('./cctUtil');
-      try {
-        parseCurveType(options.defaultCurve as string);
-        config.defaultCurve = options.defaultCurve as string;
-        changes.push(`Default curve: ${config.defaultCurve}`);
-      } catch (error) {
-        console.error(chalk.red((error as Error).message));
-        process.exit(1);
-      }
-    }
-
-    // Handle auto-start-app option
-    if (options.autoStartApp !== undefined) {
-      const value = options.autoStartApp as string;
-      if (typeof value === 'boolean') {
-        config.autoStartApp = value;
-      } else {
-        const lowerValue = value.toLowerCase().trim();
-        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
-          config.autoStartApp = true;
-        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
-          config.autoStartApp = false;
-        } else {
-          console.error(chalk.red('auto-start-app must be true or false'));
-          process.exit(1);
-        }
-      }
-      changes.push(`Auto-start app: ${config.autoStartApp ? 'enabled' : 'disabled'}`);
-    }
-
-    // Ensure logical ordering if both sides provided
-    if (config.cctMin !== undefined && config.cctMax !== undefined && config.cctMin > config.cctMax) {
-      console.error(chalk.red('cct-min must be <= cct-max'));
-      process.exit(1);
-    }
-    if (
-      config.intensityMin !== undefined &&
-      config.intensityMax !== undefined &&
-      config.intensityMin > config.intensityMax
-    ) {
-      console.error(chalk.red('intensity-min must be <= intensity-max'));
-      process.exit(1);
-    }
-
-    saveConfig(config, changes);
-  });
+// (The 'config' command is registered centrally in src/commands/config.ts via registerCommands.)
 
 // Register all commands
 registerCommands(program, { createController, findDevice, asyncCommand, saveWsUrl, loadConfig });

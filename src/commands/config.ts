@@ -12,13 +12,14 @@ interface ConfigOptions {
   cctMax?: string;
   intensityMin?: string;
   intensityMax?: string;
+  intensityMultiplier?: string; // key=value pair, e.g. AAA-333=0.8
   defaultCurve?: string;
   autoStartApp?: string;
   show?: boolean;
 }
 
 export default function registerConfig(program: Command, deps: CommandDeps) {
-  const { loadConfig } = deps;
+  const { loadConfig, saveConfig } = deps;
 
   if (!loadConfig) {
     throw new Error('loadConfig dependency is required');
@@ -36,6 +37,10 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
     .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
     .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
     .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
+    .option(
+      '--intensity-multiplier <lightId=multiplier>',
+      'Set per-light intensity multiplier for auto-cct (e.g. AAA-333=0.8). Default is 1.0 when unset.'
+    )
     .option(
       '--default-curve <curve>',
       'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
@@ -139,6 +144,36 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
         changes.push(`Intensity maximum: ${config.intensityMax}%`);
       }
 
+      // Per-light intensity multiplier mapping (single pair per invocation)
+      if (options.intensityMultiplier !== undefined) {
+        const pair = options.intensityMultiplier.trim();
+        const eqIdx = pair.indexOf('=');
+        if (eqIdx === -1) {
+          console.error(chalk.red('intensity-multiplier must be in the form <lightId>=<multiplier>, e.g. AAA-333=0.8'));
+          process.exit(1);
+        }
+        const lightId = pair.slice(0, eqIdx).trim();
+        const valueStr = pair.slice(eqIdx + 1).trim();
+        if (!lightId) {
+          console.error(chalk.red('intensity-multiplier: lightId cannot be empty'));
+          process.exit(1);
+        }
+        const mult = parseFloat(valueStr);
+        if (Number.isNaN(mult)) {
+          console.error(chalk.red('intensity-multiplier value must be a number (e.g. 0.8 for 80%)'));
+          process.exit(1);
+        }
+        if (mult < 0 || mult > 1) {
+          console.error(chalk.red('intensity-multiplier must be between 0 and 1 (e.g. 0.8 for 80%)'));
+          process.exit(1);
+        }
+        if (!config.intensityMultiplier || typeof config.intensityMultiplier !== 'object') {
+          (config as Config).intensityMultiplier = {} as Record<string, number>;
+        }
+        (config.intensityMultiplier as Record<string, number>)[lightId] = mult;
+        changes.push(`Intensity multiplier for ${lightId}: ${mult}`);
+      }
+
       // Handle default curve option
       if (options.defaultCurve !== undefined) {
         const { parseCurveType } = await import('../cctUtil');
@@ -193,19 +228,23 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
         process.exit(1);
       }
 
-      // Save the config
-      const fs = require('node:fs');
-      const path = require('node:path');
-      const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-
-      if (changes && changes.length > 0) {
-        console.log(chalk.green('Configuration saved successfully:'));
-        changes.forEach((change) => {
-          console.log(chalk.green(`  • ${change}`));
-        });
+      // Save the config using provided deps if available, otherwise fallback to local write
+      if (typeof saveConfig === 'function') {
+        saveConfig(config, changes);
       } else {
-        console.log(chalk.green('Configuration saved successfully'));
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+        if (changes && changes.length > 0) {
+          console.log(chalk.green('Configuration saved successfully:'));
+          changes.forEach((change) => {
+            console.log(chalk.green(`  • ${change}`));
+          });
+        } else {
+          console.log(chalk.green('Configuration saved successfully'));
+        }
       }
     });
 }
