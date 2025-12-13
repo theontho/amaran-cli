@@ -137,6 +137,7 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
 
         const minKRaw = cfg.cctMin;
         const maxKRaw = cfg.cctMax;
+        const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
         const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
         const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
         const loK =
@@ -325,8 +326,32 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
                 : typeof device.id === 'string'
                   ? device.id
                   : device.node_id;
-          console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`);
-          controller.setCCT(device.node_id, result.cct, result.intensity);
+
+          let targetIntensity = percent;
+          let multiplierApplied = false;
+
+          // Check for intensity multiplier
+          if (intensityMultMap) {
+            // Check by ID and node_id
+            const mult = intensityMultMap[device.node_id] ?? (device.id ? intensityMultMap[device.id] : undefined);
+
+            if (mult !== undefined && typeof mult === 'number') {
+              targetIntensity = Math.round(percent * mult);
+              // Clamp to safe range [0, 100] just in case
+              targetIntensity = Math.max(0, Math.min(100, targetIntensity));
+              multiplierApplied = true;
+            }
+          }
+
+          if (multiplierApplied) {
+            console.log(
+              `  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${targetIntensity}% (multiplied)`
+            );
+          } else {
+            console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${targetIntensity}%`);
+          }
+
+          controller.setCCT(device.node_id, result.cct, result.intensity * (targetIntensity / percent));
           if (i < activeDevices.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, waitMs));
           }

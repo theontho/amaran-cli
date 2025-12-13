@@ -340,7 +340,7 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
 // (The 'config' command is registered centrally in src/commands/config.ts via registerCommands.)
 
 // Register all commands
-registerCommands(program, { createController, findDevice, asyncCommand, saveWsUrl, loadConfig });
+registerCommands(program, { createController, findDevice, asyncCommand, saveWsUrl, loadConfig, saveConfig });
 
 // Add custom help command that preserves the formatting
 program.addHelpCommand('help [command]', 'Display help for a specific command');

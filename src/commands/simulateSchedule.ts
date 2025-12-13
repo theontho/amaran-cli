@@ -147,6 +147,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
           VALIDATION_RANGES.intensity.min,
           VALIDATION_RANGES.intensity.max
         );
+        const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
 
         console.log(chalk.gray(`CCT Range: ${Math.min(loK, hiK)}K - ${Math.max(loK, hiK)}K`));
         console.log(chalk.gray(`Intensity Range: ${loPct}% - ${hiPct}%\n`));
@@ -195,18 +196,39 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
             );
 
             const percent = Math.round((result.intensity / 10) * 10) / 10;
+
+            let targetIntensity = percent;
+            let multiplierApplied = false;
+
+            // Check for intensity multiplier
+            if (intensityMultMap) {
+              const mult = intensityMultMap[nodeId as string] ?? (device.id ? intensityMultMap[device.id] : undefined);
+              if (mult !== undefined && typeof mult === 'number') {
+                targetIntensity = Math.round(percent * mult);
+                targetIntensity = Math.max(0, Math.min(100, targetIntensity));
+                multiplierApplied = true;
+              }
+            }
+
             const progress = Math.round((i / totalUpdates) * 100);
             const timeStr = simulatedTime.toLocaleTimeString(undefined, {
               hour: '2-digit',
               minute: '2-digit',
             });
 
-            console.log(
-              chalk.white(`[${progress}% | ${timeStr}] `) +
-                chalk.green(`Setting ${displayName} to ${result.cct}K at ${percent}%`)
-            );
+            if (multiplierApplied) {
+              console.log(
+                chalk.white(`[${progress}% | ${timeStr}] `) +
+                  chalk.green(`Setting ${displayName} to ${result.cct}K at ${targetIntensity}% (multiplied)`)
+              );
+            } else {
+              console.log(
+                chalk.white(`[${progress}% | ${timeStr}] `) +
+                  chalk.green(`Setting ${displayName} to ${result.cct}K at ${targetIntensity}%`)
+              );
+            }
 
-            controller.setCCT(nodeId as string, result.cct, result.intensity);
+            controller.setCCT(nodeId as string, result.cct, result.intensity * (targetIntensity / percent || 1));
 
             // Wait for the next update (except for the last one)
             if (i < totalUpdates) {
