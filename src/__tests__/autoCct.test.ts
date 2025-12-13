@@ -1,15 +1,15 @@
-import { jest } from '@jest/globals';
 import { Command } from 'commander';
+import { vi } from 'vitest';
 import registerCommands from '../commands';
 import type LightController from '../lightControl';
 
-jest.mock('../geoipUtil', () => ({
-  getLocationFromIP: jest.fn(() => ({ ll: [37.7749, -122.4194] })),
+vi.mock('../geoipUtil', () => ({
+  getLocationFromIP: vi.fn(() => ({ ll: [37.7749, -122.4194] })),
 }));
 
-jest.mock('../cctUtil', () => ({
-  calculateCCT: jest.fn(() => ({ cct: 5600, intensity: 500 })),
-  parseCurveType: jest.fn(() => 'HANN'),
+vi.mock('../cctUtil', () => ({
+  calculateCCT: vi.fn(() => ({ cct: 5600, intensity: 500 })),
+  parseCurveType: vi.fn(() => 'HANN'),
   CurveType: {
     HANN: 'hann',
     WIDER_MIDDLE_SMALL: 'wider-middle-small',
@@ -23,7 +23,7 @@ jest.mock('../cctUtil', () => ({
 
 describe('auto-cct command', () => {
   const originalFetch = global.fetch;
-  const mockFetch = jest.fn();
+  const mockFetch = vi.fn();
 
   beforeAll(() => {
     mockFetch.mockImplementation(
@@ -44,8 +44,8 @@ describe('auto-cct command', () => {
   });
 
   test('skips sleeping lights when running auto-cct', async () => {
-    const setCCT = jest.fn();
-    const disconnect = jest.fn(async () => Promise.resolve());
+    const setCCT = vi.fn();
+    const disconnect = vi.fn(async () => Promise.resolve());
 
     const sleepState: Record<string, boolean> = {
       '400J5-F2C008': false,
@@ -53,11 +53,11 @@ describe('auto-cct command', () => {
     };
 
     const controllerStub = {
-      getDevices: jest.fn(() => [
+      getDevices: vi.fn(() => [
         { node_id: '400J5-F2C008', device_name: 'On Light' },
         { node_id: '400J5-F2C009', device_name: 'Off Light' },
       ]),
-      getLightSleepStatus: jest.fn(
+      getLightSleepStatus: vi.fn(
         (nodeId: string, cb: (success: boolean, msg: string, data?: { sleep: boolean }) => void) => {
           setImmediate(() => cb(true, 'ok', { sleep: sleepState[nodeId] }));
         }

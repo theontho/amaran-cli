@@ -1,43 +1,51 @@
+import { exec } from 'node:child_process';
+import * as fs from 'node:fs';
+import { vi } from 'vitest';
 import { handleAutostart, isAmaranAppRunning, startAmaranApp } from '../autostart';
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
 // Mock the child_process module
-jest.mock('node:util', () => ({
-  promisify: jest.fn((fn) => fn),
+vi.mock('node:util', () => ({
+  promisify: vi.fn((fn) => fn),
 }));
 
-jest.mock('node:child_process', () => ({
-  exec: jest.fn(),
+vi.mock('node:child_process', () => ({
+  exec: vi.fn(),
 }));
 
-jest.mock('node:fs', () => ({
-  existsSync: jest.fn(),
-  readFileSync: jest.fn(),
-  writeFileSync: jest.fn(),
-  appendFileSync: jest.fn(),
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn(),
+  readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  appendFileSync: vi.fn(),
 }));
 
-jest.mock('chalk', () => ({
-  yellow: jest.fn((text) => text),
-  green: jest.fn((text) => text),
-  gray: jest.fn((text) => text),
-  red: jest.fn((text) => text),
-  blue: jest.fn((text) => text),
-}));
+vi.mock('chalk', () => {
+  const mocks = {
+    yellow: vi.fn((text) => text),
+    green: vi.fn((text) => text),
+    gray: vi.fn((text) => text),
+    red: vi.fn((text) => text),
+    blue: vi.fn((text) => text),
+  };
+  return { default: mocks };
+});
 
 describe('autostart', () => {
-  const mockExec = require('node:child_process').exec;
-  const mockFs = require('node:fs');
+  // The imported 'exec' and 'fs' are already the mocked versions due to vi.mock calls.
+  // We use vi.mocked() to get the typed mock objects.
+  const mockExec = vi.mocked(exec);
+  const mockFs = vi.mocked(fs);
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('isAmaranAppRunning', () => {
@@ -79,11 +87,13 @@ describe('autostart', () => {
 
   describe('startAmaranApp', () => {
     it('should start app successfully when autostart is enabled', async () => {
-      mockExec.mockImplementation((command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
-        if (command.includes('open -a "amaran Desktop"')) {
-          callback(null, '', '');
+      mockExec.mockImplementation(
+        (command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
+          if (command.includes('open -a "amaran Desktop"')) {
+            callback(null, '', '');
+          }
         }
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({ autoStartApp: true }));
@@ -136,15 +146,17 @@ describe('autostart', () => {
     });
 
     it('should return true when app is already running', async () => {
-      mockExec.mockImplementation((command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
-        if (command.includes('ps aux')) {
-          callback(
-            null,
-            'amaran Desktop 12345 0.0  0.1  123456  1234 ??  10:30AM 0:00.01 /Applications/amaran Desktop.app/Contents/MacOS/amaran Desktop',
-            ''
-          );
+      mockExec.mockImplementation(
+        (command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
+          if (command.includes('ps aux')) {
+            callback(
+              null,
+              'amaran Desktop 12345 0.0  0.1  123456  1234 ??  10:30AM 0:00.01 /Applications/amaran Desktop.app/Contents/MacOS/amaran Desktop',
+              ''
+            );
+          }
         }
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({}));
@@ -155,13 +167,15 @@ describe('autostart', () => {
     });
 
     it('should attempt to start app when not running', async () => {
-      mockExec.mockImplementation((command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
-        if (command.includes('ps aux')) {
-          callback(null, '', '');
-        } else if (command.includes('open -a "amaran Desktop"')) {
-          callback(null, '', '');
+      mockExec.mockImplementation(
+        (command: string, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
+          if (command.includes('ps aux')) {
+            callback(null, '', '');
+          } else if (command.includes('open -a "amaran Desktop"')) {
+            callback(null, '', '');
+          }
         }
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({}));

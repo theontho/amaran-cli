@@ -1,4 +1,4 @@
-import { Server as WebSocketServer } from 'ws';
+import { WebSocketServer } from 'ws';
 import LightController from '../lightControl';
 
 const TEST_PORT = 8089;
@@ -55,14 +55,16 @@ describe('LightController', () => {
   let server: MockLightServer;
   let controller: LightController | undefined;
 
-  beforeAll((done) => {
+  beforeAll(async () => {
     server = new MockLightServer(TEST_PORT);
-    setTimeout(done, 200); // Give server time to start
+    await new Promise((resolve) => setTimeout(resolve, 200)); // Give server time to start
   });
 
-  afterAll((done) => {
-    server.close(() => {
-      setTimeout(done, 100); // Give server time to fully close
+  afterAll(async () => {
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        setTimeout(resolve, 100); // Give server time to fully close
+      });
     });
   });
 
@@ -73,17 +75,19 @@ describe('LightController', () => {
     }
   });
 
-  it('should initialize and fetch devices', (done) => {
+  it('should initialize and fetch devices', async () => {
     controller = new LightController(
       WS_URL,
       'test_client',
       () => {
         expect(controller?.getDevices().length).toBe(2);
-        done();
       },
       false
     );
-  }, 5000); // Add timeout
+    // Wait for connection/init
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(controller?.getDevices().length).toBe(2);
+  }, 5000);
 
   it('should turn on all lights', async () => {
     controller = new LightController(WS_URL, 'test_client', undefined, false);
