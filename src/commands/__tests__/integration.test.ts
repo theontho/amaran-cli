@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import registerCommands from '../../commands.js';
 import LightController from '../../lightControl.js';
 import { MockLightServer } from '../../test/MockLightServer.js';
-import type { LightController as LightControllerType } from '../../types.js';
+import type { Device, LightController as LightControllerType } from '../../types.js';
 
 const TEST_PORT = 8090;
 const WS_URL = `ws://localhost:${TEST_PORT}`;
@@ -65,10 +65,10 @@ describe('CLI Integration Tests', () => {
       },
       findDevice: (ctrl: LightControllerType, deviceQuery: string) => {
         const devices = ctrl.getDevices();
-        let device = devices.find((d: any) => d.node_id === deviceQuery || d.id === deviceQuery);
+        let device = devices.find((d: Device) => d.node_id === deviceQuery || d.id === deviceQuery);
         if (!device) {
           const q = deviceQuery.toLowerCase();
-          device = devices.find((d: any) => {
+          device = devices.find((d: Device) => {
             const nm = (d.device_name || d.name || '').toLowerCase();
             return nm.includes(q);
           });
@@ -96,7 +96,9 @@ describe('CLI Integration Tests', () => {
     registerCommands(program, deps);
 
     // Capture console output
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     await program.parseAsync(['node', 'test', 'on', '400J5-F2C008']);
     // Wait for async command to complete (single device commands in CLI are not awaited)
@@ -120,7 +122,9 @@ describe('CLI Integration Tests', () => {
     // Wait, MockLightServer: sleep: false by default.
     // So "Off" should make sleep: true.
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     await program.parseAsync(['node', 'test', 'off', '400J5-F2C008']);
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -138,7 +142,9 @@ describe('CLI Integration Tests', () => {
     const deps = createDeps();
     registerCommands(program, deps);
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     await program.parseAsync(['node', 'test', 'intensity', '50', '400J5-F2C008']);
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -158,7 +164,9 @@ describe('CLI Integration Tests', () => {
     const deps = createDeps();
     registerCommands(program, deps);
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     await program.parseAsync(['node', 'test', 'cct', '5600', '400J5-F2C008']);
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -215,7 +223,9 @@ describe('CLI Integration Tests', () => {
     // but the command logic should proceed and succeed.
 
     // Check if color command throws
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     await program.parseAsync(['node', 'test', 'color', 'red', '400J5-F2C008']);
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -230,7 +240,9 @@ describe('CLI Integration Tests', () => {
     const deps = createDeps();
     registerCommands(program, deps);
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     await program.parseAsync(['node', 'test', 'list']);
     // No async wait needed as list doesn't have an async device operation after the initial fetch which createController handles?
@@ -248,7 +260,9 @@ describe('CLI Integration Tests', () => {
     const deps = createDeps();
     registerCommands(program, deps);
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     // Ensure some known state
     server.resetState();
@@ -271,7 +285,9 @@ describe('CLI Integration Tests', () => {
     const deps = createDeps();
     registerCommands(program, deps);
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     // Ensure we have devices via reset
     server.resetState();
@@ -309,7 +325,9 @@ describe('CLI Integration Tests', () => {
     deps.saveConfig = saveConfigSpy;
 
     registerCommands(program, deps);
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
 
     // Set config
     await program.parseAsync(['node', 'test', 'config', '--cct-min', '2500']);
