@@ -39,6 +39,7 @@ describe('autostart', () => {
   const mockFs = vi.mocked(fs);
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {
       // no-op
@@ -49,6 +50,7 @@ describe('autostart', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -116,7 +118,9 @@ describe('autostart', () => {
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({ autoStartApp: true }));
 
-      const result = await startAmaranApp(true);
+      const promise = startAmaranApp(true);
+      await vi.runAllTimersAsync();
+      const result = await promise;
 
       expect(result).toBe(true);
       expect(mockExec).toHaveBeenCalledWith('open -a "amaran Desktop" 2>/dev/null', expect.any(Function));
@@ -150,7 +154,9 @@ describe('autostart', () => {
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({}));
 
-      const result = await startAmaranApp(true);
+      const promise = startAmaranApp(true);
+      await vi.runAllTimersAsync();
+      const result = await promise;
 
       expect(result).toBe(true);
       expect(mockExec).toHaveBeenCalledTimes(3);
@@ -206,7 +212,9 @@ describe('autostart', () => {
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({}));
 
-      const result = await handleAutostart(true);
+      const promise = handleAutostart(true);
+      await vi.runAllTimersAsync();
+      const result = await promise;
 
       expect(result).toBe(true);
     });
