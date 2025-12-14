@@ -1,3 +1,7 @@
+## [1.3.5] - 2025-12-14
+
+- **Fix**: Re-applied `registry-url` configuration fix (previous attempt in v1.3.4 failed to update workflow).
+
 ## [1.3.4] - 2025-12-14
 
 - **Fix**: Restored `registry-url` configuration (required for OIDC `ENEEDAUTH` fix).
