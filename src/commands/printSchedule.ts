@@ -79,11 +79,11 @@ function displayAllSpecialTimes(times: Record<string, Date | undefined>): void {
   }
 }
 
-function registerSchedule(program: Command, deps: CommandDeps) {
+function registerPrintSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand, loadConfig } = deps;
 
   program
-    .command('schedule')
+    .command('print-schedule')
     .description('Preview auto-cct schedule from sunrise to sunset')
     .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
@@ -91,14 +91,16 @@ function registerSchedule(program: Command, deps: CommandDeps) {
     .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
     .option(
       '-C, --curve <curve>',
-      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
+      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, or all)',
+      'all'
     )
     .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
     .action(
       asyncCommand(async (options: CommandOptions & ScheduleCommandOptions) => {
         const { getLocationFromIP } = await import('../geoipUtil.js');
         const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
-        const { getTimes } = await import('suncalc');
+        const SunCalc = (await import('suncalc')).default;
+        const { getTimes } = SunCalc;
 
         let lat: number | undefined;
         let lon: number | undefined;
@@ -115,13 +117,19 @@ function registerSchedule(program: Command, deps: CommandDeps) {
 
         // Validate curve option - if no curve specified, check config or show all curves
         let showAllCurves = false;
-        let curveType: keyof typeof CurveType;
+        let curveType: keyof typeof CurveType = 'HANN';
+
         if (options.curve) {
-          try {
-            curveType = parseCurveType(options.curve);
-          } catch (error) {
-            console.error(chalk.red((error as Error).message));
-            process.exit(1);
+          if (options.curve.toLowerCase() === 'all') {
+            showAllCurves = true;
+          } else {
+            try {
+              curveType = parseCurveType(options.curve);
+              showAllCurves = false;
+            } catch (error) {
+              console.error(chalk.red((error as Error).message));
+              process.exit(1);
+            }
           }
         } else if (loadConfig) {
           // Try to get default curve from config
@@ -211,9 +219,9 @@ function registerSchedule(program: Command, deps: CommandDeps) {
           process.exit(1);
         }
 
-        console.log(chalk.blue.bold('\n═══════════════════════════════════════════════════════════'));
-        console.log(chalk.blue.bold('               Auto-CCT Schedule Preview'));
-        console.log(chalk.blue.bold('═══════════════════════════════════════════════════════════\n'));
+        console.log(chalk.blue('\n═══════════════════════════════════════════════════════════'));
+        console.log(chalk.blue('               Auto-CCT Schedule Preview'));
+        console.log(chalk.blue('═══════════════════════════════════════════════════════════\n'));
 
         // Format location based on private mode
         const formatCoordinate = (coord: number, isPrivate: boolean) => {
@@ -375,7 +383,7 @@ function registerSchedule(program: Command, deps: CommandDeps) {
           });
 
           console.log(chalk.blue('─'.repeat(totalWidth)));
-          console.log(chalk.bold(headerLine));
+          console.log(chalk.blue(headerLine));
           console.log(chalk.blue('─'.repeat(totalWidth)));
 
           for (const currentTime of uniqueTimes) {
@@ -441,7 +449,7 @@ function registerSchedule(program: Command, deps: CommandDeps) {
         } else {
           // Show single curve (original behavior)
           console.log(chalk.blue('─'.repeat(singleCurveWidth)));
-          console.log(chalk.bold('Time           CCT/Intensity'));
+          console.log(chalk.blue('Time           CCT/Intensity'));
           console.log(chalk.blue('─'.repeat(singleCurveWidth)));
 
           for (const currentTime of uniqueTimes) {
@@ -497,4 +505,4 @@ function registerSchedule(program: Command, deps: CommandDeps) {
     );
 }
 
-export default registerSchedule;
+export default registerPrintSchedule;

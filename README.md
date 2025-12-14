@@ -288,7 +288,7 @@ View how color temperature and intensity will change throughout the day:
 
 ```console
 # Preview schedule for today at your current location
-$ amaran-cli schedule
+$ amaran-cli print-schedule
 
 ═══════════════════════════════════════════════════════════
                Auto-CCT Schedule Preview
@@ -354,16 +354,16 @@ Time         HANN        WM_SMALL    WM_MEDIUM   WM_LARGE    CIE         SUN_ALT
 ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 # Preview with manual location
-amaran-cli schedule --lat 40.7128 --lon -74.0060
+amaran-cli print-schedule --lat 40.7128 --lon -74.0060
 
 # Preview for a specific date
-amaran-cli schedule --date 2025-12-21
+amaran-cli print-schedule --date 2025-12-21
 
 # Change time interval (default: 30 minutes)
-amaran-cli schedule --interval 15
+amaran-cli print-schedule --interval 15
 
 # Combine options
-amaran-cli schedule --lat 51.5074 --lon -0.1278 --date 2025-06-21 --interval 60
+amaran-cli print-schedule --lat 51.5074 --lon -0.1278 --date 2025-06-21 --interval 60
 ```
 
 The schedule shows CCT and intensity values from 30 minutes before sunrise to 30 minutes after sunset, with special highlighting for:

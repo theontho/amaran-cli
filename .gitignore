@@ -19,6 +19,7 @@ pnpm-debug.log*
 # Testing
 coverage/
 .nyc_output/
+.test-storage/
 
 # macOS
 .DS_Store

@@ -40,27 +40,27 @@ program
       const displayName = 'amaran-cli';
 
       const sections = [
-        `${chalk.blue.bold('Amaran Light Control CLI')}`,
+        `${chalk.blue('Amaran Light Control CLI')}`,
         '',
-        `${chalk.bold('Usage:')} ${displayName}${commandName ? ` ${commandName}` : ''} [options]${isRoot ? ' [command]' : ''}`,
+        `${chalk.blue('Usage:')} ${displayName}${commandName ? ` ${commandName}` : ''} [options]${isRoot ? ' [command]' : ''}`,
         '',
       ];
 
       // Add command description if available
       if (cmd.description()) {
-        sections.push(`${chalk.bold('Description:')} ${cmd.description()}`, '');
+        sections.push(`${chalk.blue('Description:')} ${cmd.description()}`, '');
       }
 
       // Add command usage pattern if available
       if (cmd.usage() && cmd.usage() !== '[options] [command]') {
         const usage = cmd.usage().replace(/^\s*/, '');
-        sections.push(`${chalk.bold('Usage:')} ${cmd.name()} ${chalk.blue(usage)}`, '');
+        sections.push(`${chalk.blue('Usage:')} ${cmd.name()} ${chalk.blue(usage)}`, '');
       }
 
       // Add options
       const options = helper.visibleOptions(cmd);
       if (options.length > 0) {
-        sections.push(chalk.bold('Options:'));
+        sections.push(chalk.blue('Options:'));
         sections.push(
           ...options.map((option) => {
             // Split the flags and replace parameter placeholders with bright white
@@ -88,7 +88,7 @@ program
       // Add commands
       const commands = helper.visibleCommands(cmd);
       if (commands.length > 0) {
-        sections.push(chalk.bold('Commands:'));
+        sections.push(chalk.blue('Commands:'));
 
         // Get the max command + usage length for alignment
         const maxCommandWidth = Math.max(
@@ -114,7 +114,7 @@ program
       // Add examples for the root command
       if (cmd.name() === 'amaran-cli') {
         sections.push(
-          chalk.bold('Examples:'),
+          chalk.blue('Examples:'),
           '  $ amaran-cli power on --all        # Turn on all connected lights',
           '  $ amaran-cli cct 5000 --intensity 80  # Set color temperature to 5000K at 80%',
           '  $ amaran-cli color 255 100 50     # Set RGB color (R:255 G:100 B:50)',
@@ -211,7 +211,7 @@ async function createController(wsUrl?: string, clientId?: string, debug?: boole
           // Extract address and port from the error message for cleaner output
           const addressMatch = error.message.match(/(\S+:\d+)/);
           const addressPort = addressMatch ? addressMatch[1] : candidateUrl;
-          console.error(chalk.red(`WebSocket connection failed to ${chalk.bold(addressPort)}`));
+          console.error(chalk.red(`WebSocket connection failed to ${addressPort}`));
         }
         if (!hasResolved && !hasRejected) {
           hasRejected = true;

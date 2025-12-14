@@ -25,7 +25,8 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
         const { getLocationFromIP } = await import('../geoipUtil.js');
         const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
         const { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES, ERROR_MESSAGES } = await import('../constants.js');
-        const { getTimes } = await import('suncalc');
+        const SunCalc = (await import('suncalc')).default;
+        const { getTimes } = SunCalc;
 
         let lat: number | undefined;
         let lon: number | undefined;
@@ -106,9 +107,9 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
         const displayName = device.device_name || device.name || device.id || device.node_id;
         const nodeId = device.node_id;
 
-        console.log(chalk.blue.bold('\n═══════════════════════════════════════════════════════════'));
-        console.log(chalk.blue.bold('               CCT Schedule Simulation'));
-        console.log(chalk.blue.bold('═══════════════════════════════════════════════════════════\n'));
+        console.log(chalk.blue('\n═══════════════════════════════════════════════════════════'));
+        console.log(chalk.blue('               CCT Schedule Simulation'));
+        console.log(chalk.blue('═══════════════════════════════════════════════════════════\n'));
 
         console.log(chalk.cyan(`Device: ${displayName} (${nodeId})`));
         console.log(chalk.cyan(`Location: ${lat.toFixed(4)}°, ${lon.toFixed(4)}° (${source})`));
@@ -218,12 +219,12 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
 
             if (multiplierApplied) {
               console.log(
-                chalk.white(`[${progress}% | ${timeStr}] `) +
+                chalk.gray(`[${progress}% | ${timeStr}] `) +
                   chalk.green(`Setting ${displayName} to ${result.cct}K at ${targetIntensity}% (multiplied)`)
               );
             } else {
               console.log(
-                chalk.white(`[${progress}% | ${timeStr}] `) +
+                chalk.gray(`[${progress}% | ${timeStr}] `) +
                   chalk.green(`Setting ${displayName} to ${result.cct}K at ${targetIntensity}%`)
               );
             }

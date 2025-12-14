@@ -16,7 +16,7 @@ export const SPECIAL_TIME_CONFIG = [
   { key: 'sunrise', color: chalk.yellow, emoji: 'SR' },
   { key: 'sunriseEnd', color: chalk.yellow, emoji: 'SE' },
   { key: 'goldenHourEnd', color: chalk.yellow, emoji: 'GE' },
-  { key: 'solarNoon', color: chalk.green.bold, emoji: 'SN' },
+  { key: 'solarNoon', color: chalk.green, emoji: 'SN' },
   { key: 'goldenHour', color: chalk.yellow, emoji: 'GH' },
   { key: 'sunsetStart', color: chalk.magenta, emoji: 'SB' },
   { key: 'sunset', color: chalk.magenta, emoji: 'SS' },

@@ -1,4 +1,7 @@
-import { getTimes } from 'suncalc';
+import SunCalc from 'suncalc';
+
+const { getTimes } = SunCalc;
+
 import { calculateCCT } from '../cctUtil.js';
 import { CCT_DEFAULTS } from '../constants.js';
 

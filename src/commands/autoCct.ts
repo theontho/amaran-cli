@@ -4,12 +4,12 @@ import { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES } from '../constants.j
 import type { CommandDeps } from '../types.js';
 
 function registerAutoCct(program: Command, deps: CommandDeps) {
-  const { createController, asyncCommand, loadConfig } = deps;
+  const { createController, asyncCommand, loadConfig, findDevice } = deps;
 
   program
-    .command('auto-cct')
-    .usage('[options]')
-    .description('Set CCT for all lights based on current location and time (geoip)')
+    .command('auto-cct [device]')
+    .usage('[device] [options]')
+    .description('Set CCT for lights (or specific device) based on current location and time (geoip)')
     .option('-u, --url <url>', 'WebSocket URL')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
@@ -23,8 +23,15 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
       'hann'
     )
     .action(
-      asyncCommand(async (...args: unknown[]) => {
-        const optionsRaw = (args[0] ?? {}) as Record<string, unknown>;
+      asyncCommand(async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
+        // If the first arg is an object, it means no device was passed (commander behavior depends on exact signature match,
+        // but with optional [device], if omitted, first arg might be options? No, usually it's undefined for the arg.
+        // Let's verify standard commander behavior: action(arg, options, command)
+
+        // Actually, let's look at power.ts: async (deviceQuery: string | undefined, options: CommandOptions)
+        // If I change .command('auto-cct [device]'), then action receives (device, options).
+        // Since I'm typing optionsRaw explicitly, I should just use the second arg as options.
+
         const { getLocationFromIP } = await import('../geoipUtil.js');
         const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
         const options = optionsRaw as {
@@ -184,7 +191,19 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
         console.log(chalk.gray(`  Time: ${time.toISOString()}`));
         console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
 
-        const devices = controller.getDevices?.() ?? [];
+        let candidateDevices: unknown[] = [];
+        if (deviceQuery && deviceQuery.toLowerCase() !== 'all') {
+          const device = findDevice(controller, deviceQuery);
+          if (!device) {
+            console.error(chalk.red(`Device "${deviceQuery}" not found`));
+            await controller.disconnect();
+            process.exit(1);
+          }
+          candidateDevices = [device];
+        } else {
+          candidateDevices = controller.getDevices?.() ?? [];
+        }
+
         const lightPattern = /^[A-Z0-9]+-[A-Z0-9]+$/i;
         type LightDevice = {
           node_id: string;
@@ -194,7 +213,7 @@ function registerAutoCct(program: Command, deps: CommandDeps) {
           [key: string]: unknown;
         };
 
-        const lightDevices = (devices as unknown[]).filter((device): device is LightDevice => {
+        const lightDevices = candidateDevices.filter((device): device is LightDevice => {
           if (!device || typeof device !== 'object') {
             return false;
           }

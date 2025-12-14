@@ -338,7 +338,7 @@ class LightController {
         // Extract address and port from the error message for cleaner output
         const addressMatch = error.message.match(/(\S+:\d+)/);
         const addressPort = addressMatch ? addressMatch[1] : this.ws.url;
-        console.error(chalk.red(`WebSocket connection failed to ${chalk.bold(addressPort)}`));
+        console.error(chalk.red(`WebSocket connection failed to ${addressPort}`));
       }
     });
 

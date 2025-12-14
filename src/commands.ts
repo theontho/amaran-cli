@@ -11,7 +11,7 @@ import registerHsi from './commands/hsi.js';
 import registerIntensity from './commands/intensity.js';
 import registerList from './commands/list.js';
 import registerPower from './commands/power.js';
-import registerSchedule from './commands/schedule.js';
+import registerPrintSchedule from './commands/printSchedule.js';
 import registerService from './commands/service.js';
 import registerSimulateSchedule from './commands/simulateSchedule.js';
 import registerStatus from './commands/status.js';
@@ -49,7 +49,7 @@ export function registerCommands(program: Command, deps: CommandDeps) {
   // Register all commands
   registerConfig(program, configDeps);
   registerAutoCct(program, deps);
-  registerSchedule(program, deps);
+  registerPrintSchedule(program, deps);
   registerSimulateSchedule(program, deps);
   registerDiscover(program, deps);
   registerList(program, deps);

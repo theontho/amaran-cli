@@ -1,4 +1,7 @@
-import { getPosition, getTimes } from 'suncalc';
+import SunCalc from 'suncalc';
+
+const { getPosition, getTimes } = SunCalc;
+
 import { CCT_DEFAULTS } from './constants.js';
 
 export interface CCTResult {

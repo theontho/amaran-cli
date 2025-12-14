@@ -140,4 +140,52 @@ describe('auto-cct command', () => {
     expect(setCCT).toHaveBeenCalledWith('400J5-F2C009', 5600, 500);
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
+  test('targets specific device when argument is provided', async () => {
+    const setCCT = vi.fn();
+    const disconnect = vi.fn(async () => Promise.resolve());
+
+    const targetDevice = { node_id: '400J5-F2C008', device_name: 'Target Light' };
+    const otherDevice = { node_id: '400J5-F2C009', device_name: 'Other Light' };
+
+    const controllerStub = {
+      getDevices: vi.fn(() => [targetDevice, otherDevice]),
+      getLightSleepStatus: vi.fn(
+        (_nodeId: string, cb: (success: boolean, msg: string, data?: { sleep: boolean }) => void) => {
+          setImmediate(() => cb(true, 'ok', { sleep: false }));
+        }
+      ),
+      setCCT,
+      disconnect,
+    };
+
+    const findDeviceMock = vi.fn((_controller: LightController, query: string) => {
+      if (query === 'Target') return targetDevice;
+      return null;
+    });
+
+    const deps = {
+      createController: async () => controllerStub as unknown as LightController,
+      findDevice: findDeviceMock as unknown as (
+        controller: LightController,
+        deviceQuery: string
+      ) => Record<string, unknown> | null,
+      asyncCommand:
+        <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
+        (...args: T) =>
+          fn(...args),
+      loadConfig: () => ({}) as Record<string, unknown>,
+      saveWsUrl: undefined,
+    };
+
+    const program = new Command();
+    program.exitOverride();
+    registerCommands(program, deps);
+
+    await program.parseAsync(['node', 'test', 'auto-cct', 'Target']);
+
+    expect(findDeviceMock).toHaveBeenCalledWith(controllerStub, 'Target');
+    expect(setCCT).toHaveBeenCalledTimes(1);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500);
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
 });
