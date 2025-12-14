@@ -1,20 +1,27 @@
+## [1.3.0] - 2025-12-14
+
+- **Breaking**: Migrated project to ESM (`type: module`).
+- **Breaking**: Migrated testing framework from Jest to Vitest.
+- **Feature**: Added `intensityMultiplier` support to `auto-cct`.
+- **Feature**: `auto-cct` command now accepts a device argument (defaults to 'all').
+- **Refactor**: Renamed `schedule` command to `print-schedule`.
+- **Fix**: Resolved `suncalc` import issues.
+- **Fix**: Improved CLI output styling for light mode terminals.
+- **Chore**: Comprehensive linting and formatting fixes.
+
 ## [1.1.4] - 2025-11-02
 
-test token config
+- test token config
 
 ## [1.1.3] - 2025-11-02
 
-curve config and refactors
+- curve config and refactors
 
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-## [1.1.2] - 2024-11-01
+## [1.1.2] - 2025-11-01
 
 - Enhanced CLI help output and documentation
 
-## [1.1.0] - 2024-10-31
+## [1.1.0] - 2025-10-31
 
 - Added more curves for auto-cct
 - Improved schedule table display with all curves
@@ -24,7 +31,7 @@ All notable changes to this project will be documented in this file.
 - Added more special times in schedule (e.g., Nautical Dawn)
 - Various tests and refactoring
 
-## [1.0.3] - 2024-10-30
+## [1.0.3] - 2025-10-30
 
 - Initial stable release with full CLI functionality
 - WebSocket control for Aputure Amaran lights
