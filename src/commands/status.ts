@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, CommandOptions } from '../types';
+import type { CommandDeps, CommandOptions } from '../types.js';
 
 export function registerStatus(program: Command, deps: CommandDeps) {
   const { createController, findDevice, asyncCommand } = deps;

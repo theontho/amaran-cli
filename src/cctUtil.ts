@@ -1,5 +1,5 @@
 import { getPosition, getTimes } from 'suncalc';
-import { CCT_DEFAULTS } from './constants';
+import { CCT_DEFAULTS } from './constants.js';
 
 export interface CCTResult {
   cct: number;

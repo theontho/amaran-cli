@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import registerCommands from '../commands';
-import type LightController from '../lightControl';
+import registerCommands from '../commands.js';
+import type LightController from '../lightControl.js';
 
 // Mock dependencies
 vi.mock('../geoipUtil', () => ({

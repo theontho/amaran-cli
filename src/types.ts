@@ -1,5 +1,5 @@
 // Common types for the Amaran CLI
-import type LightController from './lightControl';
+import type LightController from './lightControl.js';
 
 export type { LightController };
 

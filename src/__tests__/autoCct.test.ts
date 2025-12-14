@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { vi } from 'vitest';
-import registerCommands from '../commands';
-import type LightController from '../lightControl';
+import registerCommands from '../commands.js';
+import type LightController from '../lightControl.js';
 
 vi.mock('../geoipUtil', () => ({
   getLocationFromIP: vi.fn(() => ({ ll: [37.7749, -122.4194] })),

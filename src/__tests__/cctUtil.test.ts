@@ -1,6 +1,6 @@
 import { getTimes } from 'suncalc';
-import { calculateCCT } from '../cctUtil';
-import { CCT_DEFAULTS } from '../constants';
+import { calculateCCT } from '../cctUtil.js';
+import { CCT_DEFAULTS } from '../constants.js';
 
 describe('calculateCCT', () => {
   const NYC_LAT = 40.7128;

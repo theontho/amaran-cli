@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import LightController from '../lightControl';
+import LightController from '../lightControl.js';
 
 const TEST_PORT = 8089;
 const WS_URL = `ws://localhost:${TEST_PORT}`;

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { SPECIAL_TIME_CONFIG } from '../constants';
-import type { CommandDeps, CommandOptions } from '../types';
+import { SPECIAL_TIME_CONFIG } from '../constants.js';
+import type { CommandDeps, CommandOptions } from '../types.js';
 
 type ScheduleCommandOptions = {
   lat?: string;
@@ -96,8 +96,8 @@ function registerSchedule(program: Command, deps: CommandDeps) {
     .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
     .action(
       asyncCommand(async (options: CommandOptions & ScheduleCommandOptions) => {
-        const { getLocationFromIP } = await import('../geoipUtil');
-        const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil');
+        const { getLocationFromIP } = await import('../geoipUtil.js');
+        const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
         const { getTimes } = await import('suncalc');
 
         let lat: number | undefined;

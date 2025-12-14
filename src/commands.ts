@@ -1,19 +1,21 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import registerAutoCct from './commands/autoCct';
-import registerCct from './commands/cct';
-import registerColor from './commands/color';
-import registerConfig from './commands/config';
-import registerDiscover from './commands/discover';
-import registerHsi from './commands/hsi';
-import registerIntensity from './commands/intensity';
-import registerList from './commands/list';
-import registerPower from './commands/power';
-import registerSchedule from './commands/schedule';
-import registerService from './commands/service';
-import registerSimulateSchedule from './commands/simulateSchedule';
-import registerStatus from './commands/status';
-import type { CommandDeps, Config } from './types';
+import registerAutoCct from './commands/autoCct.js';
+import registerCct from './commands/cct.js';
+import registerColor from './commands/color.js';
+import registerConfig from './commands/config.js';
+import registerDiscover from './commands/discover.js';
+import registerHsi from './commands/hsi.js';
+import registerIntensity from './commands/intensity.js';
+import registerList from './commands/list.js';
+import registerPower from './commands/power.js';
+import registerSchedule from './commands/schedule.js';
+import registerService from './commands/service.js';
+import registerSimulateSchedule from './commands/simulateSchedule.js';
+import registerStatus from './commands/status.js';
+import type { CommandDeps, Config } from './types.js';
 
 // Expose a function to register commands on a commander program instance
 export function registerCommands(program: Command, deps: CommandDeps) {
@@ -28,9 +30,9 @@ export function registerCommands(program: Command, deps: CommandDeps) {
           deps.saveWsUrl(config.wsUrl);
         }
         // Save the rest of the config
-        const fs = require('node:fs');
-        const path = require('node:path');
         const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
         if (changes && changes.length > 0) {

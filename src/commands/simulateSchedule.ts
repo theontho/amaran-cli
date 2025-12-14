@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, CommandOptions } from '../types';
+import type { CommandDeps, CommandOptions } from '../types.js';
 
 export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
   const { createController, findDevice, asyncCommand, loadConfig } = deps;
@@ -22,9 +22,9 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
     .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
     .action(
       asyncCommand(async (deviceQuery: string, options: CommandOptions) => {
-        const { getLocationFromIP } = await import('../geoipUtil');
-        const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil');
-        const { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES, ERROR_MESSAGES } = await import('../constants');
+        const { getLocationFromIP } = await import('../geoipUtil.js');
+        const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
+        const { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES, ERROR_MESSAGES } = await import('../constants.js');
         const { getTimes } = await import('suncalc');
 
         let lat: number | undefined;

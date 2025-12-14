@@ -4,16 +4,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
-import { handleAutostart } from './autostart';
-import registerCommands from './commands';
-import { discoverLocalWebSocket } from './discovery';
-import LightController from './lightControl';
-import type { Device } from './types';
+import { handleAutostart } from './autostart.js';
+import registerCommands from './commands.js';
+import { discoverLocalWebSocket } from './discovery.js';
+import LightController from './lightControl.js';
+import type { Device } from './types.js';
 
 const program = new Command();
 
 // Configure help output
-import { version } from '../package.json';
+import packageJson from '../package.json' with { type: 'json' };
+
+const { version } = packageJson;
 
 program
   .name('amaran-cli')
@@ -130,7 +132,7 @@ program
 // Configuration file path
 const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
 
-import type { Config } from './types';
+import type { Config } from './types.js';
 
 type CliConfig = Config & {
   clientId?: string;
@@ -346,8 +348,10 @@ registerCommands(program, { createController, findDevice, asyncCommand, saveWsUr
 program.addHelpCommand('help [command]', 'Display help for a specific command');
 
 // If this file is run directly, parse the arguments
-if (require.main === module) {
-  program.parse();
+import { fileURLToPath } from 'node:url';
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  program.parse(process.argv);
 }
 
 export { program, createController, findDevice, asyncCommand };

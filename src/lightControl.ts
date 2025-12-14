@@ -26,7 +26,7 @@ Downloaded from: https://gist.github.com/zsprackett/29334b9be1e2bd90c1737bd0ba0e
 
 import chalk from 'chalk';
 import WebSocket from 'ws';
-import { DEVICE_DEFAULTS } from './constants';
+import { DEVICE_DEFAULTS } from './constants.js';
 
 // The commands are probably 1:1 with the OpenAPI commands listed here:
 // https://tools.sidus.link/openapi/docs/usage

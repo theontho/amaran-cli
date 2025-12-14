@@ -1,6 +1,8 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, Config } from '../types';
+import type { CommandDeps, Config } from '../types.js';
 
 interface ConfigOptions {
   url?: string;
@@ -176,7 +178,8 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
 
       // Handle default curve option
       if (options.defaultCurve !== undefined) {
-        const { parseCurveType } = await import('../cctUtil');
+        // dynamic import for ESM
+        const { parseCurveType } = await import('../cctUtil.js');
         try {
           parseCurveType(options.defaultCurve);
           config.defaultCurve = options.defaultCurve;
@@ -232,8 +235,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       if (typeof saveConfig === 'function') {
         saveConfig(config, changes);
       } else {
-        const fs = require('node:fs');
-        const path = require('node:path');
+        // Filesystem and Path imports are handled at top level
         const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 

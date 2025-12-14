@@ -1,9 +1,15 @@
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, CommandOptions } from '../types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+import type { CommandDeps, CommandOptions } from '../types.js';
 
 export function registerService(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -24,7 +30,8 @@ export function registerService(program: Command, deps: CommandDeps) {
     )
     .action(
       asyncCommand(async (options: CommandOptions) => {
-        const { parseCurveType } = await import('../cctUtil');
+        // dynamic import for ESM
+        const { parseCurveType } = await import('../cctUtil.js');
 
         const interval = parseInt(options.interval ?? '60', 10);
         if (Number.isNaN(interval) || interval < 10) {

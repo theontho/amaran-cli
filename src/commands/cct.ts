@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { VALIDATION_RANGES } from '../constants';
-import type { CommandDeps, CommandOptions } from '../types';
+import { VALIDATION_RANGES } from '../constants.js';
+import type { CommandDeps, CommandOptions } from '../types.js';
 
 export function registerCct(program: Command, deps: CommandDeps) {
   const { createController, findDevice, asyncCommand } = deps;

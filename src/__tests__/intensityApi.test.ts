@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import registerCommands from '../commands';
-import type { Device, LightController } from '../types';
+import registerCommands from '../commands.js';
+import type { Device, LightController } from '../types.js';
 
 interface CaptureData {
   intensityForAll?: number;
