@@ -1,3 +1,7 @@
+## [1.3.1] - 2025-12-14
+
+- **Fix**: Resolved timezone issue in integration tests causing CI failures.
+
 ## [1.3.0] - 2025-12-14
 
 - **Breaking**: Migrated project to ESM (`type: module`).

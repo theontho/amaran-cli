@@ -303,7 +303,7 @@ describe('CLI Integration Tests', () => {
       '--lon',
       '-74.0060',
       '--time',
-      '2025-06-21T12:00:00',
+      '2025-06-21T12:00:00-04:00',
     ]);
     await new Promise((resolve) => setTimeout(resolve, 100));
 
