@@ -1,3 +1,7 @@
+## [1.3.6] - 2025-12-14
+
+- **Fix**: Updated workflow to use latest `npm` version for better OIDC support.
+
 ## [1.3.5] - 2025-12-14
 
 - **Fix**: Re-applied `registry-url` configuration fix (previous attempt in v1.3.4 failed to update workflow).
