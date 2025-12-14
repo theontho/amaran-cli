@@ -1,3 +1,7 @@
+## [1.3.4] - 2025-12-14
+
+- **Fix**: Restored `registry-url` configuration (required for OIDC `ENEEDAUTH` fix).
+
 ## [1.3.3] - 2025-12-14
 
 - **Fix**: Removed conflicting `registry-url` configuration to enable OIDC authentication.
