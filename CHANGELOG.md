@@ -1,3 +1,7 @@
+## [1.3.3] - 2025-12-14
+
+- **Fix**: Removed conflicting `registry-url` configuration to enable OIDC authentication.
+
 ## [1.3.2] - 2025-12-14
 
 - **Fix**: Updated release workflow to use NPM Trusted Publishing (OIDC) instead of auth tokens.
