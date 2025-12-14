@@ -1,3 +1,7 @@
+## [1.3.2] - 2025-12-14
+
+- **Fix**: Updated release workflow to use NPM Trusted Publishing (OIDC) instead of auth tokens.
+
 ## [1.3.1] - 2025-12-14
 
 - **Fix**: Resolved timezone issue in integration tests causing CI failures.
