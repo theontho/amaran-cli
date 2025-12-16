@@ -6,6 +6,8 @@ Also has a circadian lighting command called `auto-cct` that will set the CCT & 
 
 Written with AI mostly, including this documentation.  Thanks to [Zac for his core websocket gist that enabled this](https://gist.github.com/zsprackett/29334b9be1e2bd90c1737bd0ba0eaf5c).
 
+See [DEVELOPMENT](docs/DEVELOPMENT.md) on how to help with development.  See [KNOWN BUGS](docs/KNOWN_BUGS.md) for known issues.
+
 ## Installation
 
 1. Clone this repository or download the files
@@ -460,19 +462,3 @@ amaran-cli status "Key Light"
 amaran-cli off
 ```
 
-## Development
-
-The localhost amaran desktop websocket API looks like to be near identical or identical to the Open API Sidus has published at <https://tools.sidus.link/openapi/docs/usage> .   So if `lightControl.ts` is missing any functionality you can probably use the OpenAPI spec to implement the new functionality fairly quickly.  This cli would probably work with the Sidus desktop apps as well, as well as Windows verisons of the Amaran desktop app but I haven't tested it.  If you want to submit PRs for it, feel free!
-
-Extending command line tool to work with their networked Open API would probably be fairly simple to do since the local Websocket API is very similar to the Open API.  
-
-```bash
-# Run in development mode
-npm run dev
-
-# Build the project
-npm run build
-
-# Clean build artifacts
-npm run clean
-```
