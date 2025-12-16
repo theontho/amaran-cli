@@ -1,3 +1,7 @@
+## [1.4.0] - 2025-12-15
+
+- **Feature**: Added `graph-schedule` command to generate visual graphs of the lighting schedule.
+
 ## [1.3.6] - 2025-12-14
 
 - **Fix**: Updated workflow to use latest `npm` version for better OIDC support.

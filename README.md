@@ -376,6 +376,33 @@ This helps you visualize and plan your automated lighting schedule before implem
 
 Note: The schedule respects any configured bounds set via `amaran-cli config --cct-min/--cct-max` and `--intensity-min/--intensity-max`. If no bounds are set, it uses the default curve from `calculateCCT`.
 
+### Generate Schedule Graph
+
+Generate a visual graph of your auto-cct schedule over the day:
+
+```bash
+# Generate graph for today (saved as schedule-YYYY-MM-DD.png)
+amaran-cli graph-schedule
+
+# Specify output filename
+amaran-cli graph-schedule -o my-schedule.png
+
+# Customize graph dimensions
+amaran-cli graph-schedule -W 1920 -H 1080
+
+# Graph specific curves
+amaran-cli graph-schedule --curve cie-daylight
+amaran-cli graph-schedule --curve "perez-daylight, sun-altitude"
+
+# View all available curves on one graph
+amaran-cli graph-schedule --curve all
+
+# Preview for a specific date and location
+amaran-cli graph-schedule --date 2025-06-21 --lat 64.1466 --lon -21.9426
+```
+
+This creates a PNG image showing the CCT and/or intensity curves, which is great for visualizing how different algorithms behave.
+
 ### Get light status
 
 ```bash
