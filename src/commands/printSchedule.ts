@@ -91,7 +91,7 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
     .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
     .option(
       '-C, --curve <curve>',
-      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, or all)',
+      'Curve type (comma-separated list, or "all"). Available: hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight',
       'all'
     )
     .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
@@ -115,43 +115,57 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
           }
         }
 
-        // Validate curve option - if no curve specified, check config or show all curves
-        let showAllCurves = false;
-        let curveType: keyof typeof CurveType = 'HANN';
+        // Validate curve option
+        let curveTypes: (keyof typeof CurveType)[] = ['HANN'];
+        const curveOption = options.curve?.toLowerCase() || '';
 
-        if (options.curve) {
-          if (options.curve.toLowerCase() === 'all') {
-            showAllCurves = true;
-          } else {
-            try {
-              curveType = parseCurveType(options.curve);
-              showAllCurves = false;
-            } catch (error) {
-              console.error(chalk.red((error as Error).message));
-              process.exit(1);
+        const allCurveTypesOrdered: (keyof typeof CurveType)[] = [
+          'HANN',
+          'WIDER_MIDDLE_SMALL',
+          'WIDER_MIDDLE_MEDIUM',
+          'WIDER_MIDDLE_LARGE',
+          'CIE_DAYLIGHT',
+          'SUN_ALTITUDE',
+          'PEREZ_DAYLIGHT',
+        ];
+
+        if (curveOption === 'all') {
+          curveTypes = [...allCurveTypesOrdered];
+        } else if (curveOption) {
+          try {
+            const parts = curveOption.split(',').map((s) => s.trim());
+            const parsedList: (keyof typeof CurveType)[] = [];
+            for (const part of parts) {
+              if (part === 'all') {
+                parsedList.push(...allCurveTypesOrdered);
+              } else {
+                parsedList.push(parseCurveType(part));
+              }
             }
+            // Dedup and sort according to standard order
+            const unique = new Set(parsedList);
+            curveTypes = allCurveTypesOrdered.filter((c) => unique.has(c));
+          } catch (error) {
+            console.error(chalk.red((error as Error).message));
+            process.exit(1);
           }
         } else if (loadConfig) {
-          // Try to get default curve from config
           const config = loadConfig();
           if (config?.defaultCurve) {
             try {
-              curveType = parseCurveType(config.defaultCurve);
-              showAllCurves = false; // Use the specified curve from config
+              const parsed = parseCurveType(config.defaultCurve);
+              curveTypes = [parsed];
             } catch (_) {
               console.warn(
                 chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Showing all curves.`)
               );
-              showAllCurves = true;
-              curveType = 'HANN'; // fallback for single curve calculations
+              curveTypes = [...allCurveTypesOrdered];
             }
           } else {
-            showAllCurves = true;
-            curveType = 'HANN'; // fallback for single curve calculations
+            curveTypes = [...allCurveTypesOrdered];
           }
         } else {
-          showAllCurves = true;
-          curveType = 'HANN'; // fallback for single curve calculations
+          curveTypes = [...allCurveTypesOrdered];
         }
 
         if (options.lat !== undefined && options.lon !== undefined) {
@@ -255,10 +269,10 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
           )
         );
         console.log(chalk.cyan(`Interval: Every ${interval} minute${interval !== 1 ? 's' : ''}`));
-        if (showAllCurves) {
-          console.log(chalk.cyan(`Curve: All available curves\n`));
+        if (curveTypes.length > 1) {
+          console.log(chalk.cyan(`Curve: Multiple curves selected\n`));
         } else {
-          console.log(chalk.cyan(`Curve: ${curveType.toLowerCase()}\n`));
+          console.log(chalk.cyan(`Curve: ${curveTypes[0].toLowerCase()}\n`));
         }
 
         // Display all special times
@@ -368,14 +382,31 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
 
         // Calculate table widths
         const multiCurveColWidths = [13, 12, 12, 12, 12, 12, 12, 12];
-        const totalWidth = multiCurveColWidths.reduce((a, b) => a + b, 0);
+        const _totalWidth = multiCurveColWidths.reduce((a, b) => a + b, 0);
         const singleCurveWidth = 13 + 18; // Time width + CCT/Intensity width
 
-        if (showAllCurves) {
-          // Show all curves in one table with compact formatting
-          const _allCurveTypes = Object.values(CurveType);
-          const headers = ['Time', 'HANN', 'WM_SMALL', 'WM_MEDIUM', 'WM_LARGE', 'CIE', 'SUN_ALT', 'PEREZ'];
-          const colWidths = multiCurveColWidths;
+        if (curveTypes.length > 1) {
+          // Show multiple curves in one table
+          const headers = [
+            'Time',
+            ...curveTypes.map((c) => {
+              // Abbreviate headers if needed or just use names
+              const name = c.replace(/_/g, ' ');
+              if (name.length > 12) {
+                if (c === 'WIDER_MIDDLE_SMALL') return 'WM_SMALL';
+                if (c === 'WIDER_MIDDLE_MEDIUM') return 'WM_MEDIUM';
+                if (c === 'WIDER_MIDDLE_LARGE') return 'WM_LARGE';
+                if (c === 'CIE_DAYLIGHT') return 'CIE';
+                if (c === 'SUN_ALTITUDE') return 'SUN_ALT';
+                if (c === 'PEREZ_DAYLIGHT') return 'PEREZ';
+              }
+              return name;
+            }),
+          ];
+
+          const colWidths = [13, ...curveTypes.map(() => 12)];
+          const totalWidth = colWidths.reduce((a, b) => a + b, 0);
+
           // Print header
           let headerLine = '';
           headers.forEach((header, i) => {
@@ -412,18 +443,7 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
             const { color, emoji } = getSpecialTimeStyling(currentTime, times);
             let rowLine = color(`${timeStr} ${emoji || '  '}  `);
 
-            // Calculate for each curve in fixed order
-            const curvesInOrder = [
-              CurveType.HANN,
-              CurveType.WIDER_MIDDLE_SMALL,
-              CurveType.WIDER_MIDDLE_MEDIUM,
-              CurveType.WIDER_MIDDLE_LARGE,
-              CurveType.CIE_DAYLIGHT,
-              CurveType.SUN_ALTITUDE,
-              CurveType.PEREZ_DAYLIGHT,
-            ];
-
-            curvesInOrder.forEach((curve, index) => {
+            curveTypes.forEach((curve, index) => {
               const result =
                 hasCctBounds || hasIntensityBounds
                   ? calculateCCT(
@@ -436,9 +456,9 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
                         intensityMinPct: typeof iMinRaw === 'number' ? iMinRaw : undefined,
                         intensityMaxPct: typeof iMaxRaw === 'number' ? iMaxRaw : undefined,
                       },
-                      curve
+                      CurveType[curve]
                     )
-                  : calculateCCT(lat, lon, currentTime, undefined, curve);
+                  : calculateCCT(lat, lon, currentTime, undefined, CurveType[curve]);
 
               const valueStr = `${result.cct}K/${(result.intensity / 10).toFixed(0)}%`;
               rowLine += color(valueStr.padEnd(colWidths[index + 1]));
@@ -465,9 +485,9 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
                       intensityMinPct: typeof iMinRaw === 'number' ? iMinRaw : undefined,
                       intensityMaxPct: typeof iMaxRaw === 'number' ? iMaxRaw : undefined,
                     },
-                    CurveType[curveType]
+                    CurveType[curveTypes[0]]
                   )
-                : calculateCCT(lat, lon, currentTime, undefined, CurveType[curveType]);
+                : calculateCCT(lat, lon, currentTime, undefined, CurveType[curveTypes[0]]);
             const timeStr = currentTime.toLocaleTimeString(undefined, {
               hour: '2-digit',
               minute: '2-digit',
@@ -496,7 +516,10 @@ function registerPrintSchedule(program: Command, deps: CommandDeps) {
           }
         }
 
-        if (showAllCurves) {
+        if (curveTypes.length > 1) {
+          // Recalculate totalWidth since it is block scoped above
+          const colWidths = [13, ...curveTypes.map(() => 12)];
+          const totalWidth = colWidths.reduce((a, b) => a + b, 0);
           console.log(chalk.blue(`${'─'.repeat(totalWidth)}\n`));
         } else {
           console.log(chalk.blue(`${'─'.repeat(singleCurveWidth)}\n`));

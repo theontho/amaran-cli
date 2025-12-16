@@ -122,27 +122,29 @@ function calculateRealisticSunAltitude(
     cctFactor = 1.0;
   }
 
-  // Intensity: Based on actual illuminance levels, scaled to 5-100% range
-  // Peak at 100% around noon, much steeper curve than CCT
-  let intensityFactor: number;
-  if (altitudeDeg < -6) {
-    intensityFactor = 0; // Dark - will become 5% minimum
-  } else if (altitudeDeg < 0) {
-    // Civil twilight: very low but increasing rapidly
-    intensityFactor = ((altitudeDeg + 6) / 6) ** 2 * 0.05; // 0 to 0.05
-  } else if (altitudeDeg < 10) {
-    // Just after sunrise: rapid increase
-    intensityFactor = 0.05 + (altitudeDeg / 10) * 0.15; // 0.05 to 0.20
-  } else if (altitudeDeg < 30) {
-    // Morning: steady increase
-    intensityFactor = 0.2 + ((altitudeDeg - 10) / 20) * 0.4; // 0.20 to 0.60
-  } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
-    // Approach maximum - reach 100% by 80% of max altitude
-    intensityFactor = 0.6 + ((altitudeDeg - 30) / (maxAltitudeDeg * 0.8 - 30)) * 0.4; // 0.60 to 1.0
-  } else {
-    // Maintain peak at maximum intensity
-    intensityFactor = 1.0;
-  }
+  // Calculate raw intensity factor based on absolute altitude
+  const calculateIntensity = (altDeg: number) => {
+    if (altDeg < -6) return 0;
+    if (altDeg < 0) return ((altDeg + 6) / 6) ** 2 * 0.05;
+    if (altDeg < 10) return 0.05 + (altDeg / 10) * 0.15;
+    if (altDeg < 30) return 0.2 + ((altDeg - 10) / 20) * 0.4;
+    // For higher altitudes, use a standard curve that would reach 1.0 at 90 degrees
+    // This serves as our "raw" value before normalization
+    return 0.6 + ((altDeg - 30) / 60) * 0.4;
+  };
+
+  const rawIntensity = calculateIntensity(altitudeDeg);
+
+  // Calculate the maximum possible intensity for this day (at solar noon)
+  // This ensures that even on winter days with low max altitude, we can reach 100%
+  const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
+
+  // Normalize: Scale the current intensity so that at maxAltitude it reaches 1.0
+  // Avoid division by zero if maxDailyIntensity is very small (e.g. polar night)
+  let intensityFactor = maxDailyIntensity > 0.01 ? rawIntensity / maxDailyIntensity : 0;
+
+  // Cap at 1.0 just in case
+  intensityFactor = Math.min(1.0, intensityFactor);
 
   return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
 }
@@ -173,30 +175,46 @@ function calculateRealisticCIEDaylight(
     cctFactor = 0.9 + Math.min(0.1, ((altitudeDeg - 45) / 45) * 0.1); // 0.9 to 1.0
   }
 
-  // Intensity: CIE illuminance with atmospheric absorption, scaled to 5-100%
-  let intensityFactor: number;
-  if (altitudeDeg < -6) {
-    intensityFactor = 0; // Will become 5% minimum
-  } else if (altitudeDeg < 0) {
-    intensityFactor = ((altitudeDeg + 6) / 6) ** 3 * 0.03; // Very low start
-  } else if (altitudeDeg < 15) {
-    // Atmospheric path length effect - gradual start
-    const airMass = 1 / Math.sin(Math.max(0.01, (altitude * Math.PI) / 180));
-    intensityFactor = Math.min(0.25, 1 / airMass ** 0.7);
-  } else if (altitudeDeg < Math.min(40, maxAltitudeDeg * 0.6)) {
-    // Mid-morning increase - use lower of 40° or 60% of max altitude
-    intensityFactor = 0.25 + ((altitudeDeg - 15) / (Math.min(40, maxAltitudeDeg * 0.6) - 15)) * 0.55; // 0.25 to 0.80
-  } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
-    // Approach peak - reach 100% by 80% of max altitude
-    intensityFactor =
-      0.8 +
-      ((altitudeDeg - Math.min(40, maxAltitudeDeg * 0.6)) /
-        (maxAltitudeDeg * 0.8 - Math.min(40, maxAltitudeDeg * 0.6))) *
-        0.2; // 0.80 to 1.0
-  } else {
-    // Peak at solar noon
-    intensityFactor = 1.0;
-  }
+  // Calculate raw intensity based on absolute altitude (0-90 degrees)
+  const calculateRawIntensity = (altDeg: number) => {
+    if (altDeg < -6) return 0;
+    if (altDeg < 0) return ((altDeg + 6) / 6) ** 3 * 0.03; // Very low start
+
+    if (altDeg < 15) {
+      // Atmospheric path length effect - gradual start
+      // Fix: Use radians directly for sin() since altitude was originally radians,
+      // but here we are working with degrees, so convert back or just use the degree value logic?
+      // Actually airMass formula: 1 / sin(elevation). elevation in radians.
+      // We have altDeg. Convert to radians: altDeg * PI / 180.
+      const altRad = Math.max(0.01, (altDeg * Math.PI) / 180);
+      const airMass = 1 / Math.sin(altRad);
+      return Math.min(0.25, 1 / airMass ** 0.7);
+    }
+
+    if (altDeg < 40) {
+      // Mid-morning increase
+      // Map 15..40 to 0.25..0.80
+      return 0.25 + ((altDeg - 15) / 25) * 0.55;
+    }
+
+    if (altDeg < 70) {
+      // Approach peak
+      // Map 40..70 to 0.80..0.95
+      return 0.8 + ((altDeg - 40) / 30) * 0.15;
+    }
+
+    // High sun > 70
+    // Map 70..90 to 0.95..1.0
+    return 0.95 + ((altDeg - 70) / 20) * 0.05;
+  };
+
+  const rawIntensity = calculateRawIntensity(altitudeDeg);
+
+  // Calculate max possible intensity for this day (normalization factor)
+  const maxDailyIntensity = calculateRawIntensity(maxAltitudeDeg);
+
+  // Normalize
+  const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
   return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
 }
@@ -228,32 +246,45 @@ function calculateRealisticPerezDaylight(
     cctFactor = Math.min(1.0, 0.95 + ((altitudeDeg - 50) / 40) * 0.05); // 0.95 to 1.0
   }
 
-  // Intensity: Perez all-weather model with cloud cover assumption, scaled to 5-100%
-  let intensityFactor: number;
-  if (altitudeDeg < -6) {
-    intensityFactor = 0; // Will become 5% minimum
-  } else if (altitudeDeg < 5) {
-    // Very low light near horizon
-    intensityFactor = (Math.max(0, altitudeDeg + 6) / 11) ** 4 * 0.15;
-  } else if (altitudeDeg < 20) {
-    // Morning increase with atmospheric effects
-    const zenithAngle = Math.max(0.01, ((90 - altitudeDeg) * Math.PI) / 180);
-    const relativeLuminance = Math.exp(-0.2 / Math.max(0.01, Math.cos(zenithAngle)));
-    intensityFactor = Math.min(0.4, relativeLuminance * 0.35 + 0.05);
-  } else if (altitudeDeg < Math.min(45, maxAltitudeDeg * 0.7)) {
-    // Strong increase to midday - use lower of 45° or 70% of max altitude
-    intensityFactor = 0.4 + ((altitudeDeg - 20) / (Math.min(45, maxAltitudeDeg * 0.7) - 20)) * 0.5; // 0.40 to 0.90
-  } else if (altitudeDeg < maxAltitudeDeg * 0.8) {
-    // Peak at solar noon - reach 100% by 80% of max altitude
-    intensityFactor =
-      0.9 +
-      ((altitudeDeg - Math.min(45, maxAltitudeDeg * 0.7)) /
-        (maxAltitudeDeg * 0.8 - Math.min(45, maxAltitudeDeg * 0.7))) *
-        0.1; // 0.90 to 1.0
-  } else {
-    // Maintain peak at noon
-    intensityFactor = 1.0;
-  }
+  // Calculate raw intensity based on absolute altitude (0-90 degrees)
+  const calculateRawIntensity = (altDeg: number) => {
+    if (altDeg < -6) return 0;
+
+    if (altDeg < 5) {
+      // Very low light near horizon
+      return (Math.max(0, altDeg + 6) / 11) ** 4 * 0.15;
+    }
+
+    if (altDeg < 20) {
+      // Morning increase with atmospheric effects
+      const zenithAngle = Math.max(0.01, ((90 - altDeg) * Math.PI) / 180);
+      const relativeLuminance = Math.exp(-0.2 / Math.max(0.01, Math.cos(zenithAngle)));
+      return Math.min(0.4, relativeLuminance * 0.35 + 0.05);
+    }
+
+    if (altDeg < 45) {
+      // Strong increase to midday
+      // Map 20..45 to 0.25..0.9
+      return 0.25 + ((altDeg - 20) / 25) * 0.65;
+    }
+
+    if (altDeg < 80) {
+      // Peak approach
+      // Map 45..80 to 0.9..1.0
+      return 0.9 + ((altDeg - 45) / 35) * 0.1;
+    }
+
+    // High sun > 80
+    return 1.0;
+  };
+
+  const rawIntensity = calculateRawIntensity(altitudeDeg);
+
+  // Calculate max possible intensity for this day (normalization factor)
+  const maxDailyIntensity = calculateRawIntensity(maxAltitudeDeg);
+
+  // Normalize
+  const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
   return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
 }

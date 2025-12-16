@@ -7,6 +7,7 @@ import registerCct from './commands/cct.js';
 import registerColor from './commands/color.js';
 import registerConfig from './commands/config.js';
 import registerDiscover from './commands/discover.js';
+import registerGraphSchedule from './commands/graphSchedule.js';
 import registerHsi from './commands/hsi.js';
 import registerIntensity from './commands/intensity.js';
 import registerList from './commands/list.js';
@@ -50,6 +51,7 @@ export function registerCommands(program: Command, deps: CommandDeps) {
   registerConfig(program, configDeps);
   registerAutoCct(program, deps);
   registerPrintSchedule(program, deps);
+  registerGraphSchedule(program, deps);
   registerSimulateSchedule(program, deps);
   registerDiscover(program, deps);
   registerList(program, deps);
