@@ -3,7 +3,7 @@ import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions } from '../types.js';
 
 export function registerList(program: Command, deps: CommandDeps) {
-  const { createController, asyncCommand } = deps;
+  const { asyncCommand } = deps;
 
   program
     .command('list')
@@ -14,29 +14,32 @@ export function registerList(program: Command, deps: CommandDeps) {
     .option('-u, --url <url>', 'WebSocket URL')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
-    .action(
-      asyncCommand(async (options: CommandOptions) => {
-        const controller = await createController(options.url, options.clientId, options.debug);
+    .action(asyncCommand(handleList(deps)));
+}
 
-        const devices = controller.getDevices();
+function handleList(deps: CommandDeps) {
+  const { createController } = deps;
+  return async (options: CommandOptions) => {
+    const controller = await createController(options.url, options.clientId, options.debug);
 
-        if (devices.length === 0) {
-          console.log(chalk.yellow('No devices found'));
-          return;
-        }
+    const devices = controller.getDevices();
 
-        console.log(chalk.blue('Available lights:'));
-        devices.forEach((device, index: number) => {
-          const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
-          console.log(`${index + 1}. ${chalk.green(displayName)} (${chalk.gray(device.node_id || device.id || '?')})`);
-          if (device.device_type) {
-            console.log(`   Type: ${device.device_type}`);
-          }
-        });
+    if (devices.length === 0) {
+      console.log(chalk.yellow('No devices found'));
+      return;
+    }
 
-        await controller.disconnect();
-      })
-    );
+    console.log(chalk.blue('Available lights:'));
+    devices.forEach((device, index: number) => {
+      const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
+      console.log(`${index + 1}. ${chalk.green(displayName)} (${chalk.gray(device.node_id || device.id || '?')})`);
+      if (device.device_type) {
+        console.log(`   Type: ${device.device_type}`);
+      }
+    });
+
+    await controller.disconnect();
+  };
 }
 
 export default registerList;
