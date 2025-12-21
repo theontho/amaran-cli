@@ -7,9 +7,11 @@ Written by AI
 ## Missing Commands
 
 ### Device Management
-- [ ] `get_preset_list` - Get list of available presets
-- [ ] `get_system_effect_list` - Get list of available system effects
-- [ ] `get_node_config` - Already implemented but could be enhanced with proper typing
+- [ ] `get_preset_list` - Get list of available presets (Command type exists, but no public method)
+- [ ] `get_system_effect_list` - Get list of available system effects (Command type exists, but no public method)
+- [x] `get_node_config` - Implemented and used for initialization
+- [x] `get_device_list` - Implemented and used for initialization
+- [x] `get_scene_list` - Implemented and used for initialization
 
 ### Scene Management
 - [ ] `save_scene` - Save current light states as a scene
@@ -17,7 +19,12 @@ Written by AI
 - [ ] `recall_scene` - Recall a saved scene
 - [ ] `update_scene` - Update an existing scene
 
-### Light Control (Enhancements)
+### Light Control (Implemented & Enhancements)
+- [x] `set_intensity` / `increment_intensity`
+- [x] `set_cct` / `increment_cct`
+- [x] `set_hsi`
+- [x] `set_color`
+- [x] `set_system_effect` - Set system effect (predefined)
 - [ ] `set_effect` - Set custom effect (different from system effects)
 - [ ] `set_effect_speed` - Control effect speed
 - [ ] `set_effect_intensity` - Control effect intensity separately from light intensity
@@ -40,24 +47,24 @@ Written by AI
 ## Implementation Notes
 
 1. **Type Safety**:
-   - [ ] Add proper TypeScript interfaces for all response types
-   - [ ] Add input validation for all commands
-   - [ ] Add proper error handling for unsupported operations
+   - [x] Add proper TypeScript interfaces for all response types
+   - [x] Add input validation for all commands
+   - [x] Add proper error handling for unsupported operations
 
 2. **Documentation**:
-   - [ ] Add JSDoc comments for all public methods
-   - [ ] Document return types and possible errors
-   - [ ] Add usage examples for each command
+   - [x] Add JSDoc comments for all public methods
+   - [x] Document return types and possible errors
+   - [x] Add usage examples for each command (In README and CLI help)
 
 3. **Testing**:
-   - [ ] Add unit tests for all commands
-   - [ ] Add integration tests with mock WebSocket server
-   - [ ] Add error case testing
+   - [x] Add unit tests for all commands
+   - [x] Add integration tests with mock WebSocket server
+   - [x] Add error case testing
 
 4. **Error Handling**:
-   - [ ] Implement proper error codes and messages
+   - [/] Implement proper error codes and messages (Partially complete)
    - [ ] Add retry logic for failed commands
-   - [ ] Add timeout handling for commands
+   - [x] Add timeout handling for commands (Implemented in `disconnect` and utility functions)
 
 ## Known Limitations
 

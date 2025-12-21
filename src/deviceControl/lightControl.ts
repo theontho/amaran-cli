@@ -27,253 +27,32 @@ Downloaded from: https://gist.github.com/zsprackett/29334b9be1e2bd90c1737bd0ba0e
 import chalk from 'chalk';
 import WebSocket from 'ws';
 import { DEVICE_DEFAULTS } from './constants.js';
+import type { Command, CommandArgs, CommandCallback, CommandType, Device, NodeConfig } from './types.js';
 
-// The commands are probably 1:1 with the OpenAPI commands listed here:
-// https://tools.sidus.link/openapi/docs/usage
-type CommandType =
-  | 'get_device_list'
-  | 'get_scene_list'
-  | 'get_node_config'
-  | 'get_sleep'
-  | 'get_preset_list'
-  | 'get_system_effect_list'
-  | 'set_sleep'
-  | 'toggle_sleep'
-  | 'set_intensity'
-  | 'increment_intensity'
-  | 'set_cct'
-  | 'increment_cct'
-  | 'set_hsi'
-  | 'set_color'
-  | 'set_system_effect';
-
-interface Device {
-  node_id?: string;
-  device_name?: string;
-  name?: string;
-  id?: string;
-  [key: string]: unknown;
-}
-
-interface NodeConfig {
-  [key: string]: unknown;
-}
-
-interface CommandArgs {
-  [key: string]: unknown;
-}
-
-interface Command {
-  version: number;
-  client_id: string;
+interface PendingCommand {
+  nodeId: string | undefined;
   type: CommandType;
-  node_id?: string;
   args?: CommandArgs;
+  callback?: CommandCallback;
 }
 
-type CommandCallback = (success: boolean, message: string, data?: unknown) => void;
-
+/**
+ * Control Aputure Amaran Lights via websocket to the amaran Desktop application.
+ *
+ * @class LightController
+ */
 class LightController {
-  /**
-   * Apply a command to all light devices with throttling.
-   * Only targets devices with node_ids matching the light pattern (e.g., '400J5-F2C008').
-   * Throttles commands with ${DEVICE_DEFAULTS.commandThrottleDelay}ms delay between each to avoid overwhelming the server.
-   *
-   * @param commandFn - Function that takes (nodeId, callback) and executes the command
-   * @param commandName - Display name for the command (for logging)
-   * @param getDisplayArgs - Optional function to get display arguments for logging
-   */
-  private async applyToAllLights(
-    commandFn: (nodeId: string, callback?: CommandCallback) => void,
-    commandName: string,
-    getDisplayArgs?: (device: Device) => string
-  ): Promise<void> {
-    try {
-      if (!this.deviceList || this.deviceList.length === 0) {
-        this.log('No devices found');
-        return;
-      }
-
-      // Filter for light devices (node_ids that look like light IDs)
-      const lightDevices = this.deviceList.filter((device) =>
-        device.node_id ? this.isLightNodeId(device.node_id) : false
-      );
-
-      if (lightDevices.length === 0) {
-        this.log('No light devices found');
-        return;
-      }
-
-      this.log(`${commandName} for ${lightDevices.length} light(s)`);
-
-      const waitTimeMs = DEVICE_DEFAULTS.commandThrottleDelay;
-      // Send commands with waitTimeMs throttling between each
-      for (let i = 0; i < lightDevices.length; i++) {
-        const device = lightDevices[i];
-        const displayName = device.device_name || device.name || device.node_id || 'Unknown';
-        const displayArgs = getDisplayArgs ? getDisplayArgs(device) : '';
-
-        // Only log if we're not in test environment
-        if (process.env.NODE_ENV !== 'test') {
-          console.log(`  ${commandName} ${displayName} (${device.node_id})${displayArgs}`);
-        }
-
-        if (device.node_id) {
-          commandFn(device.node_id);
-        }
-
-        // Wait waitTimeMs before sending next command (skip delay after last one)
-        if (i < lightDevices.length - 1) {
-          await this.sleep(waitTimeMs);
-        }
-      }
-    } catch (error) {
-      console.error('Error in applyToAllLights:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Set CCT & Intensity for all lights in deviceList.
-   * Only targets devices with node_ids matching the light pattern (e.g., '400J5-F2C008').
-   * Throttles commands with ${DEVICE_DEFAULTS.commandThrottleDelay}ms delay between each to avoid overwhelming the server.
-   */
-  public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
-    await this.applyToAllLights(
-      (nodeId) => this.setCCT(nodeId, cct, intensity, callback),
-      'Setting CCT',
-      () => ` to ${cct}K${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
-    );
-  }
-
-  /**
-   * Turn on all lights.
-   */
-  public async turnOnAllLights(callback?: CommandCallback) {
-    await this.applyToAllLights((nodeId) => this.turnLightOn(nodeId, callback), 'Turning on');
-  }
-
-  /**
-   * Turn off all lights.
-   */
-  public async turnOffAllLights(callback?: CommandCallback) {
-    await this.applyToAllLights((nodeId) => this.turnLightOff(nodeId, callback), 'Turning off');
-  }
-
-  /**
-   * Toggle all lights.
-   */
-  public async toggleAllLights(callback?: CommandCallback) {
-    await this.applyToAllLights((nodeId) => this.toggleLight(nodeId, callback), 'Toggling');
-  }
-
-  /**
-   * Set intensity for all lights.
-   */
-  public async setIntensityForAllLights(intensity: number, callback?: CommandCallback) {
-    await this.applyToAllLights(
-      (nodeId) => this.setIntensity(nodeId, intensity, callback),
-      'Setting intensity',
-      () => ` to ${intensity / 10}%`
-    );
-  }
-
-  /**
-   * Increment intensity for all lights.
-   */
-  public async incrementIntensityForAllLights(delta: number, callback?: CommandCallback) {
-    await this.applyToAllLights(
-      (nodeId) => this.incrementIntensity(nodeId, delta, callback),
-      'Incrementing intensity',
-      () => ` by ${delta > 0 ? '+' : ''}${delta / 10}%`
-    );
-  }
-
-  /**
-   * Increment CCT for all lights.
-   */
-  public async incrementCCTForAllLights(delta: number, intensity?: number, callback?: CommandCallback) {
-    await this.applyToAllLights(
-      (nodeId) => this.incrementCCT(nodeId, delta, intensity, callback),
-      'Incrementing CCT',
-      () => ` by ${delta > 0 ? '+' : ''}${delta}K${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
-    );
-  }
-
-  /**
-   * Set HSI color for all lights.
-   */
-  public async setHSIForAllLights(
-    hue: number,
-    sat: number,
-    intensity: number,
-    cct?: number,
-    gm?: number,
-    callback?: CommandCallback
-  ) {
-    await this.applyToAllLights(
-      (nodeId) => this.setHSI(nodeId, hue, sat, intensity, cct, gm, callback),
-      'Setting HSI',
-      () => ` to H:${hue} S:${sat} I:${intensity / 10}%`
-    );
-  }
-
-  /**
-   * Set color for all lights.
-   */
-  public async setColorForAllLights(color: string, intensity?: number, callback?: CommandCallback) {
-    await this.applyToAllLights(
-      (nodeId) => this.setColor(nodeId, color, intensity, callback),
-      'Setting color',
-      () => ` to ${color}${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
-    );
-  }
-
-  /**
-   * Set system effect for all lights.
-   */
-  public async setSystemEffectForAllLights(effectType: string, intensity?: number, callback?: CommandCallback) {
-    await this.applyToAllLights(
-      (nodeId) => this.setSystemEffect(nodeId, effectType, intensity, callback),
-      'Setting effect',
-      () => ` to ${effectType}${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
-    );
-  }
-
-  /**
-   * Check if a node_id looks like a light device (not a group or other entity).
-   * Light node_ids typically follow pattern like '400J5-F2C008' (alphanumeric with dash).
-   */
-  private isLightNodeId(nodeId: string): boolean {
-    // Pattern: contains at least one dash and alphanumeric characters
-    // Excludes things like 'all', 'group1', etc.
-    const lightPattern = /^[A-Z0-9]+-[A-Z0-9]+$/i;
-    return lightPattern.test(nodeId);
-  }
-
-  /**
-   * Sleep utility for throttling commands
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   private ws: WebSocket;
   private clientId: string = 'unknown_client';
   private deviceList: Device[] = [];
   private sceneList: unknown[] = [];
   private nodeConfigs: Map<string, NodeConfig> = new Map();
-  private debug: boolean;
-  private onInitializedCallback?: () => void;
   private commandCallbacks: Map<string, CommandCallback> = new Map();
-  private pendingQueue: Array<{
-    nodeId?: string;
-    type: CommandType;
-    args?: CommandArgs;
-    callback?: CommandCallback;
-  }> = [];
+  private pendingQueue: PendingCommand[] = [];
+  private onInitializedCallback?: () => void;
+  private debug: boolean = false;
 
-  constructor(wsUrl: string, clientId?: string, onInitialized?: () => void, debug: boolean = false) {
+  constructor(wsUrl: string, clientId?: string, onInitialized?: () => void, debug = false) {
     this.ws = new WebSocket(wsUrl);
     if (clientId) {
       this.clientId = clientId;
@@ -286,56 +65,16 @@ class LightController {
 
     this.ws.on('open', () => {
       this.log('Connected to WebSocket server');
-      // Flush any queued commands that were issued before the socket was open
       this.flushPending();
       this.onConnectionOpen();
     });
 
-    this.ws.on('message', (data) => {
-      try {
-        const parsedData = JSON.parse(data.toString());
-        this.log('Received message from server:', parsedData);
-
-        const requestId = parsedData.request?.type;
-        if (parsedData.code !== 0) {
-          console.error('Error from server:', parsedData.message);
-          if (requestId && this.commandCallbacks.has(requestId)) {
-            this.commandCallbacks.get(requestId)?.(false, parsedData.message);
-            this.commandCallbacks.delete(requestId);
-          }
-          return;
-        }
-
-        if (requestId && this.commandCallbacks.has(requestId)) {
-          this.commandCallbacks.get(requestId)?.(true, parsedData.message, parsedData.data);
-          this.commandCallbacks.delete(requestId);
-        }
-
-        if (parsedData.request?.type) {
-          switch (parsedData.request.type) {
-            case 'get_device_list':
-              this.handleDeviceList(parsedData.data);
-              break;
-            case 'get_scene_list':
-              this.handleSceneList(parsedData.data);
-              break;
-            case 'get_node_config':
-              this.handleNodeConfig(parsedData.data);
-              break;
-            default:
-              this.log('Unknown response type');
-          }
-        }
-      } catch (error) {
-        console.error('Error parsing message:', error);
-      }
-    });
+    this.ws.on('message', (data) => this.handleMessage(data));
 
     this.ws.on('error', (error) => {
       if (this.debug) {
         console.error('WebSocket error:', error);
       } else {
-        // Extract address and port from the error message for cleaner output
         const addressMatch = error.message.match(/(\S+:\d+)/);
         const addressPort = addressMatch ? addressMatch[1] : this.ws.url;
         console.error(chalk.red(`WebSocket connection failed to ${addressPort}`));
@@ -347,39 +86,54 @@ class LightController {
     });
   }
 
-  // Public getter for WebSocket to allow external error handling
-  public getWebSocket(): WebSocket {
-    return this.ws;
-  }
-
-  setClientId(clientId: string) {
-    this.clientId = clientId;
-  }
+  // --- Initialization & Message Handling ---
 
   private onConnectionOpen() {
     this.getDeviceList();
   }
 
-  private sendCommand(nodeId: string | undefined, type: CommandType, args?: CommandArgs, callback?: CommandCallback) {
-    if (this.ws.readyState === WebSocket.OPEN) {
-      const command: Command = {
-        version: 1,
-        client_id: this.clientId,
-        type,
-        node_id: nodeId,
-        args,
-      };
+  private handleMessage(data: WebSocket.Data) {
+    try {
+      const parsedData = JSON.parse(data.toString());
+      this.log('Received message from server:', parsedData);
 
-      if (callback) {
-        this.commandCallbacks.set(type, callback);
+      const requestId = parsedData.request?.type;
+      if (parsedData.code !== 0) {
+        console.error('Error from server:', parsedData.message);
+        if (requestId && this.commandCallbacks.has(requestId)) {
+          this.commandCallbacks.get(requestId)?.(false, parsedData.message);
+          this.commandCallbacks.delete(requestId);
+        }
+        return;
       }
 
-      this.ws.send(JSON.stringify(command));
-      this.log(`Sent command: ${type}`);
-    } else {
-      // Queue the command to be sent when the socket opens
-      this.pendingQueue.push({ nodeId, type, args, callback });
-      this.log(`Queued command (socket not open yet): ${type}`);
+      if (requestId && this.commandCallbacks.has(requestId)) {
+        this.commandCallbacks.get(requestId)?.(true, parsedData.message, parsedData.data);
+        this.commandCallbacks.delete(requestId);
+      }
+
+      if (parsedData.request?.type) {
+        this.processResponseType(parsedData.request.type, parsedData.data);
+      }
+    } catch (error) {
+      console.error('Error parsing message:', error);
+    }
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: Dynamic data from server needs flexible typing before validation
+  private processResponseType(type: string, data: any) {
+    switch (type) {
+      case 'get_device_list':
+        this.handleDeviceList(data);
+        break;
+      case 'get_scene_list':
+        this.handleSceneList(data);
+        break;
+      case 'get_node_config':
+        this.handleNodeConfig(data);
+        break;
+      default:
+        this.log('Unknown response type:', type);
     }
   }
 
@@ -418,43 +172,171 @@ class LightController {
     });
   }
 
-  getDeviceList(callback?: CommandCallback) {
+  // --- Convenience Methods (Applied to All Lights) ---
+
+  /**
+   * Apply a command to all light devices with throttling.
+   */
+  private async applyToAllLights(
+    commandFn: (nodeId: string, callback?: CommandCallback) => void,
+    commandName: string,
+    getDisplayArgs?: (device: Device) => string
+  ): Promise<void> {
+    try {
+      if (!this.deviceList || this.deviceList.length === 0) {
+        this.log('No devices found');
+        return;
+      }
+
+      const lightDevices = this.deviceList.filter((device) =>
+        device.node_id ? this.isLightNodeId(device.node_id) : false
+      );
+
+      if (lightDevices.length === 0) {
+        this.log('No light devices found');
+        return;
+      }
+
+      this.log(`${commandName} for ${lightDevices.length} light(s)`);
+
+      const waitTimeMs = DEVICE_DEFAULTS.commandThrottleDelay;
+      for (let i = 0; i < lightDevices.length; i++) {
+        const device = lightDevices[i];
+        const displayName = device.device_name || device.name || device.node_id || 'Unknown';
+        const displayArgs = getDisplayArgs ? getDisplayArgs(device) : '';
+
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(`  ${commandName} ${displayName} (${device.node_id})${displayArgs}`);
+        }
+
+        if (device.node_id) {
+          commandFn(device.node_id);
+        }
+
+        if (i < lightDevices.length - 1) {
+          await this.sleep(waitTimeMs);
+        }
+      }
+    } catch (error) {
+      console.error('Error in applyToAllLights:', error);
+      throw error;
+    }
+  }
+
+  public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
+    await this.applyToAllLights(
+      (nodeId) => this.setCCT(nodeId, cct, intensity, callback),
+      'Setting CCT',
+      () => ` to ${cct}K${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
+    );
+  }
+
+  public async turnOnAllLights(callback?: CommandCallback) {
+    await this.applyToAllLights((nodeId) => this.turnLightOn(nodeId, callback), 'Turning on');
+  }
+
+  public async turnOffAllLights(callback?: CommandCallback) {
+    await this.applyToAllLights((nodeId) => this.turnLightOff(nodeId, callback), 'Turning off');
+  }
+
+  public async toggleAllLights(callback?: CommandCallback) {
+    await this.applyToAllLights((nodeId) => this.toggleLight(nodeId, callback), 'Toggling');
+  }
+
+  public async setIntensityForAllLights(intensity: number, callback?: CommandCallback) {
+    await this.applyToAllLights(
+      (nodeId) => this.setIntensity(nodeId, intensity, callback),
+      'Setting intensity',
+      () => ` to ${intensity / 10}%`
+    );
+  }
+
+  public async incrementIntensityForAllLights(delta: number, callback?: CommandCallback) {
+    await this.applyToAllLights(
+      (nodeId) => this.incrementIntensity(nodeId, delta, callback),
+      'Incrementing intensity',
+      () => ` by ${delta > 0 ? '+' : ''}${delta / 10}%`
+    );
+  }
+
+  public async incrementCCTForAllLights(delta: number, intensity?: number, callback?: CommandCallback) {
+    await this.applyToAllLights(
+      (nodeId) => this.incrementCCT(nodeId, delta, intensity, callback),
+      'Incrementing CCT',
+      () => ` by ${delta > 0 ? '+' : ''}${delta}K${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
+    );
+  }
+
+  public async setHSIForAllLights(
+    hue: number,
+    sat: number,
+    intensity: number,
+    cct?: number,
+    gm?: number,
+    callback?: CommandCallback
+  ) {
+    await this.applyToAllLights(
+      (nodeId) => this.setHSI(nodeId, hue, sat, intensity, cct, gm, callback),
+      'Setting HSI',
+      () => ` to H:${hue} S:${sat} I:${intensity / 10}%`
+    );
+  }
+
+  public async setColorForAllLights(color: string, intensity?: number, callback?: CommandCallback) {
+    await this.applyToAllLights(
+      (nodeId) => this.setColor(nodeId, color, intensity, callback),
+      'Setting color',
+      () => ` to ${color}${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
+    );
+  }
+
+  public async setSystemEffectForAllLights(effectType: string, intensity?: number, callback?: CommandCallback) {
+    await this.applyToAllLights(
+      (nodeId) => this.setSystemEffect(nodeId, effectType, intensity, callback),
+      'Setting effect',
+      () => ` to ${effectType}${intensity !== undefined ? ` at ${intensity / 10}%` : ''}`
+    );
+  }
+
+  // --- Individual Light Control Methods ---
+
+  public getDeviceList(callback?: CommandCallback) {
     this.sendCommand(undefined, 'get_device_list', {}, callback);
   }
 
-  getSceneList(callback?: CommandCallback) {
+  public getSceneList(callback?: CommandCallback) {
     this.sendCommand(undefined, 'get_scene_list', {}, callback);
   }
 
-  getNodeConfig(nodeId: string, callback?: CommandCallback) {
+  public getNodeConfig(nodeId: string, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'get_node_config', {}, callback);
   }
 
-  turnLightOn(nodeId: string, callback?: CommandCallback) {
+  public turnLightOn(nodeId: string, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'set_sleep', { sleep: false }, callback);
   }
 
-  turnLightOff(nodeId: string, callback?: CommandCallback) {
+  public turnLightOff(nodeId: string, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'set_sleep', { sleep: true }, callback);
   }
 
-  getLightSleepStatus(nodeId: string, callback?: CommandCallback) {
+  public getLightSleepStatus(nodeId: string, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'get_sleep', {}, callback);
   }
 
-  toggleLight(nodeId: string, callback?: CommandCallback) {
+  public toggleLight(nodeId: string, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'toggle_sleep', undefined, callback);
   }
 
-  setIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
+  public setIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'set_intensity', { intensity }, callback);
   }
 
-  incrementIntensity(nodeId: string, delta: number, callback?: CommandCallback) {
+  public incrementIntensity(nodeId: string, delta: number, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'increment_intensity', { delta }, callback);
   }
 
-  setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
+  public setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { cct };
     if (intensity !== undefined) {
       args.intensity = intensity;
@@ -462,7 +344,7 @@ class LightController {
     this.sendCommand(nodeId, 'set_cct', args, callback);
   }
 
-  incrementCCT(nodeId: string, delta: number, intensity?: number, callback?: CommandCallback) {
+  public incrementCCT(nodeId: string, delta: number, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { delta };
     if (intensity !== undefined) {
       args.intensity = intensity;
@@ -470,7 +352,7 @@ class LightController {
     this.sendCommand(nodeId, 'increment_cct', args, callback);
   }
 
-  setHSI(
+  public setHSI(
     nodeId: string,
     hue: number,
     sat: number,
@@ -489,7 +371,7 @@ class LightController {
     this.sendCommand(nodeId, 'set_hsi', args, callback);
   }
 
-  setColor(nodeId: string, color: string, intensity?: number, callback?: CommandCallback) {
+  public setColor(nodeId: string, color: string, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { color };
     if (intensity !== undefined) {
       args.intensity = intensity;
@@ -497,7 +379,7 @@ class LightController {
     this.sendCommand(nodeId, 'set_color', args, callback);
   }
 
-  setSystemEffect(nodeId: string, effectType: string, intensity?: number, callback?: CommandCallback) {
+  public setSystemEffect(nodeId: string, effectType: string, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { effect_type: effectType };
     if (intensity !== undefined) {
       args.intensity = intensity;
@@ -505,7 +387,9 @@ class LightController {
     this.sendCommand(nodeId, 'set_system_effect', args, callback);
   }
 
-  async disconnect() {
+  // --- Utility & Infrastructure ---
+
+  public async disconnect() {
     if (this.ws.readyState === WebSocket.OPEN) {
       await this.waitForPendingCommands(5000);
       this.ws.close();
@@ -529,22 +413,25 @@ class LightController {
     });
   }
 
-  // Getters
-  public getDevices(): Device[] {
-    return this.deviceList;
-  }
+  private sendCommand(nodeId: string | undefined, type: CommandType, args?: CommandArgs, callback?: CommandCallback) {
+    if (this.ws.readyState === WebSocket.OPEN) {
+      const command: Command = {
+        version: 1,
+        client_id: this.clientId,
+        type,
+        node_id: nodeId,
+        args,
+      };
 
-  public getScenes(): unknown[] {
-    return this.sceneList;
-  }
+      if (callback) {
+        this.commandCallbacks.set(type, callback);
+      }
 
-  public getNode(nodeId: string) {
-    return this.nodeConfigs.get(nodeId);
-  }
-
-  private log(...args: unknown[]) {
-    if (this.debug) {
-      console.log(...args);
+      this.ws.send(JSON.stringify(command));
+      this.log(`Sent command: ${type}`);
+    } else {
+      this.pendingQueue.push({ nodeId, type, args, callback });
+      this.log(`Queued command (socket not open yet): ${type}`);
     }
   }
 
@@ -555,6 +442,42 @@ class LightController {
     for (const p of pending) {
       this.sendCommand(p.nodeId, p.type, p.args, p.callback);
     }
+  }
+
+  private isLightNodeId(nodeId: string): boolean {
+    const lightPattern = /^[A-Z0-9]+-[A-Z0-9]+$/i;
+    return lightPattern.test(nodeId);
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private log(...args: unknown[]) {
+    if (this.debug) {
+      console.log(...args);
+    }
+  }
+
+  // Getters & Public Utilities
+  public getWebSocket(): WebSocket {
+    return this.ws;
+  }
+
+  public setClientId(clientId: string) {
+    this.clientId = clientId;
+  }
+
+  public getDevices(): Device[] {
+    return this.deviceList;
+  }
+
+  public getScenes(): unknown[] {
+    return this.sceneList;
+  }
+
+  public getNode(nodeId: string) {
+    return this.nodeConfigs.get(nodeId);
   }
 }
 
