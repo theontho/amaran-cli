@@ -23,6 +23,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
       'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
       'hann'
     )
+    .option('-L, --max-lux <value>', 'Max lux output for scaling intensity')
     .action(asyncCommand(handleAutoCct(deps)));
 }
 
@@ -41,6 +42,7 @@ function handleAutoCct(deps: CommandDeps) {
       lon?: string;
       time?: string;
       curve?: string;
+      maxLux?: string;
     };
     const controller = await createController(options.url, options.clientId, options.debug);
 
@@ -140,6 +142,7 @@ function handleAutoCct(deps: CommandDeps) {
 
     const minKRaw = cfg.cctMin;
     const maxKRaw = cfg.cctMax;
+    const _maxLuxRaw = cfg.maxLux ?? options.maxLux; // Typo in original options probably meant options.maxLux should override config
     const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
     const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
     const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
@@ -181,11 +184,36 @@ function handleAutoCct(deps: CommandDeps) {
       CurveType[curveType]
     );
 
-    const percent = Math.round((result.intensity / 10) * 10) / 10;
+    let percent: number;
+    let modeDescription = 'intensity curve';
+
+    // Determine maxLux value, prioritizing CLI option over config
+    let maxLux: number | undefined;
+    if (options.maxLux) {
+      const parsed = parseFloat(options.maxLux);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        maxLux = parsed;
+      }
+    } else if (typeof cfg.maxLux === 'number' && cfg.maxLux > 0) {
+      maxLux = cfg.maxLux;
+    }
+
+    if (maxLux !== undefined && result.lightOutput !== undefined) {
+      percent = Math.min(100, Math.max(0, (result.lightOutput / maxLux) * 100));
+      percent = Math.round(percent * 10) / 10;
+      modeDescription = `max lux target (${maxLux} lux)`;
+    } else {
+      percent = Math.round((result.intensity / 10) * 10) / 10;
+    }
+
     console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
     console.log(chalk.gray(`  Location: ${lat.toFixed(4)}, ${lon.toFixed(4)} (${source})`));
     console.log(chalk.gray(`  Time: ${time.toISOString()}`));
     console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
+    console.log(chalk.gray(`  Mode: ${modeDescription}`));
+    if (maxLux !== undefined && result.lightOutput !== undefined) {
+      console.log(chalk.gray(`  Target Output: ${result.lightOutput} lux`));
+    }
 
     let candidateDevices: unknown[] = [];
     if (deviceQuery && deviceQuery.toLowerCase() !== 'all') {
@@ -366,7 +394,7 @@ function handleAutoCct(deps: CommandDeps) {
         console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${targetIntensity}%`);
       }
 
-      controller.setCCT(device.node_id, result.cct, result.intensity * (targetIntensity / percent));
+      controller.setCCT(device.node_id, result.cct, targetIntensity * 10);
       if (i < activeDevices.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       }

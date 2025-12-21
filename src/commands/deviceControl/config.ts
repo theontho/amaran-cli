@@ -17,6 +17,7 @@ interface ConfigOptions {
   intensityMultiplier?: string; // key=value pair, e.g. AAA-333=0.8
   defaultCurve?: string;
   autoStartApp?: string;
+  maxLux?: string;
   show?: boolean;
 }
 
@@ -47,6 +48,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       '--auto-start-app <boolean>',
       'Automatically start Amaran desktop app on connection failure (default: true)'
     )
+    .option('--max-lux <number>', 'Maximum lux output of the setup (for auto-cct scaling)')
     .option('--show', 'Show current configuration')
     .action(asyncCommand(handleConfig(deps)));
 }
@@ -212,6 +214,17 @@ function handleConfig(deps: CommandDeps) {
         }
       }
       changes.push(`Auto-start app: ${config.autoStartApp ? 'enabled' : 'disabled'}`);
+    }
+
+    // Handle max-lux option
+    if (options.maxLux !== undefined) {
+      const lux = parseFloat(options.maxLux);
+      if (Number.isNaN(lux) || lux <= 0) {
+        console.error(chalk.red('max-lux must be a positive number'));
+        process.exit(1);
+      }
+      config.maxLux = lux;
+      changes.push(`Max Lux: ${lux}`);
     }
 
     // Ensure logical ordering if both sides provided

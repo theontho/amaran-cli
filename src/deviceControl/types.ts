@@ -92,6 +92,7 @@ export interface Config {
   defaultCurve?: string;
   // Per-light intensity multiplier for auto-cct scaling, e.g. { "AAA-333": 0.8 }
   intensityMultiplier?: Record<string, number>;
+  maxLux?: number;
   [key: string]: unknown;
 }
 
