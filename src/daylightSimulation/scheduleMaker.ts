@@ -142,11 +142,14 @@ export class ScheduleMaker {
     let genEnd = options.endTime;
 
     if (!genStart || !genEnd) {
-      const allSpecialTimesArr = Array.from(specialTimesMap.keys());
-      if (allSpecialTimesArr.length === 0) throw new Error('Could not calculate special times');
+      const rangeTimes = Array.from(specialTimesMap.entries())
+        .filter(([_, key]) => key !== 'nadir')
+        .map(([t, _]) => t);
 
-      const minTime = Math.min(...allSpecialTimesArr);
-      const maxTime = Math.max(...allSpecialTimesArr);
+      if (rangeTimes.length === 0) throw new Error('Could not calculate special times for range');
+
+      const minTime = Math.min(...rangeTimes);
+      const maxTime = Math.max(...rangeTimes);
       const bufferMs = (options.bufferMinutes ?? 30) * 60 * 1000;
 
       if (!genStart) genStart = new Date(minTime - bufferMs);

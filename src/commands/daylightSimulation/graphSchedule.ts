@@ -51,7 +51,7 @@ function handleGraphSchedule(deps: CommandDeps) {
         intervalMinutes: 1,
         curves: options.curve,
         includeSpecialTimes: false, // Cleaner graph with regular intervals
-        bufferMinutes: 60,
+        bufferMinutes: 30,
       });
     } catch (error) {
       console.error(chalk.red((error as Error).message));
