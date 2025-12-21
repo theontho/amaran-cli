@@ -142,16 +142,28 @@ export function textSchedule(schedule: Schedule, options: TextScheduleOptions = 
       const headers = [
         'Time',
         ...schedule.curves.map((c) => {
-          const name = c.replace(/_/g, ' ');
-          if (name.length > 12) {
-            if (c === 'WIDER_MIDDLE_SMALL') return 'WM_SMALL';
-            if (c === 'WIDER_MIDDLE_MEDIUM') return 'WM_MEDIUM';
-            if (c === 'WIDER_MIDDLE_LARGE') return 'WM_LARGE';
-            if (c === 'CIE_DAYLIGHT') return 'CIE';
-            if (c === 'SUN_ALTITUDE') return 'SUN_ALT';
-            if (c === 'PEREZ_DAYLIGHT') return 'PEREZ';
+          switch (c) {
+            case 'WIDER_MIDDLE_SMALL':
+              return 'WM_SML';
+            case 'WIDER_MIDDLE_MEDIUM':
+              return 'WM_MED';
+            case 'WIDER_MIDDLE_LARGE':
+              return 'WM_LRG';
+            case 'CIE_DAYLIGHT':
+              return 'CIE';
+            case 'SUN_ALTITUDE':
+              return 'SUN_ALT';
+            case 'PEREZ_DAYLIGHT':
+              return 'PEREZ';
+            case 'PHYSICS':
+              return 'PHYS';
+            case 'BLACKBODY':
+              return 'BLACK';
+            case 'HAZY':
+              return 'HAZY';
+            default:
+              return c.replace(/_/g, ' ');
           }
-          return name;
         }),
       ];
       const colWidths = [13, ...schedule.curves.map(() => 12)];

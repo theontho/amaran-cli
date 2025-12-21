@@ -91,6 +91,9 @@ export class ScheduleMaker {
       'CIE_DAYLIGHT',
       'SUN_ALTITUDE',
       'PEREZ_DAYLIGHT',
+      'PHYSICS',
+      'BLACKBODY',
+      'HAZY',
     ] as (keyof typeof CurveType)[];
 
     let curveTypes: (keyof typeof CurveType)[] = ['HANN'];

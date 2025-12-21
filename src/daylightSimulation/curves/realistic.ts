@@ -146,3 +146,143 @@ export function calculateRealisticPerezDaylight(
 
   return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
 }
+
+/**
+ * Kasten-Young air mass formula.
+ * Accurate even at low altitudes/horizon.
+ * @param altitudeDeg Altitude in degrees
+ */
+function calculateAirMass(altitudeDeg: number): number {
+  // The Kasten-Young formula is valid for altitude > -0.5 deg.
+  // Below that, the atmosphere is essentially opaque for direct sunlight.
+  const gamma = Math.max(-0.5, altitudeDeg);
+  return 1 / (Math.sin((gamma * Math.PI) / 180) + 0.50572 * (gamma + 6.07995) ** -1.6364);
+}
+
+/**
+ * Physics-based Atmospheric model.
+ * Uses Beer-Lambert law for intensity and exponential decay for CCT.
+ * @param altitude Sun altitude in radians
+ * @param maxAltitude Maximum sun altitude for the day in radians
+ */
+export function calculateRealisticPhysicsDaylight(
+  altitude: number,
+  maxAltitude: number
+): [cctFactor: number, intensityFactor: number] {
+  const altitudeDeg = (altitude * 180) / Math.PI;
+  const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  // CCT: Exponential approach to zenith CCT
+  // Factors: 0 at horizon/twilight, 1 at zenith
+  let cctFactor: number;
+  if (altitudeDeg < -6) {
+    cctFactor = 0;
+  } else {
+    // k=0.05 gives a nice natural curve
+    cctFactor = 1 - Math.exp(-0.05 * (altitudeDeg + 6));
+  }
+
+  // Intensity: Beer-Lambert Law
+  // I = I0 * tau ^ m
+  const calculateIntensity = (altDeg: number) => {
+    if (altDeg < -6) return 0;
+    // Direct Component (Beer-Lambert)
+    const m = calculateAirMass(altDeg);
+    const tau = 0.75; // Standard clear sky transmittance
+    const direct = tau ** m;
+
+    // Ambient Component (Diffuse twilight glow)
+    // Reaches ~5% of possible direct intensity at horizon
+    const ambient = altDeg < 0 ? ((altDeg + 6) / 6) ** 2 * 0.05 : 0.05 + (altDeg / 90) * 0.05;
+
+    return direct + ambient;
+  };
+
+  const rawIntensity = calculateIntensity(altitudeDeg);
+  const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
+  const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
+
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+}
+
+/**
+ * Blackbody Sun model.
+ * Simulates the sun as a blackbody shifting through the atmosphere.
+ * @param altitude Sun altitude in radians
+ * @param maxAltitude Maximum sun altitude for the day in radians
+ */
+export function calculateRealisticBlackbodyDaylight(
+  altitude: number,
+  maxAltitude: number
+): [cctFactor: number, intensityFactor: number] {
+  const altitudeDeg = (altitude * 180) / Math.PI;
+  const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  let cctFactor: number;
+  if (altitudeDeg < -6) {
+    cctFactor = 0;
+  } else {
+    // Shifts faster at the beginning, then stabilizes.
+    // Simulates the Rayleigh scattering effect where blue light is lost at low angles.
+    cctFactor = 1 - Math.exp(-0.08 * (altitudeDeg + 6));
+  }
+
+  const calculateIntensity = (altDeg: number) => {
+    if (altDeg < -6) return 0;
+    const m = calculateAirMass(altDeg);
+    const tau = 0.7;
+    const direct = tau ** m;
+
+    // Blackbody ambient is slightly warmer/weaker initially
+    const ambient = altDeg < 0 ? ((altDeg + 6) / 6) ** 2 * 0.04 : 0.04 + (altDeg / 90) * 0.04;
+
+    return direct + ambient;
+  };
+
+  const rawIntensity = calculateIntensity(altitudeDeg);
+  const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
+  const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
+
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+}
+
+/**
+ * Hazy/Turbid model.
+ * Simulates a sky with high particulate matter (smog/mist).
+ * @param altitude Sun altitude in radians
+ * @param maxAltitude Maximum sun altitude for the day in radians
+ */
+export function calculateRealisticHazyDaylight(
+  altitude: number,
+  maxAltitude: number
+): [cctFactor: number, intensityFactor: number] {
+  const altitudeDeg = (altitude * 180) / Math.PI;
+  const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  let cctFactor: number;
+  if (altitudeDeg < -6) {
+    cctFactor = 0;
+  } else {
+    // Hazy skies have more scattering even at high angles,
+    // so CCT doesn't reach "pure blue" as easily (approximated by slower exponent)
+    cctFactor = 1 - Math.exp(-0.03 * (altitudeDeg + 6));
+  }
+
+  const calculateIntensity = (altDeg: number) => {
+    if (altDeg < -6) return 0;
+    const m = calculateAirMass(altDeg);
+    const tau = 0.5; // Significant turbidity
+    const direct = tau ** m;
+
+    // Hazy ambient is stronger due to more scattering (Mie scattering)
+    const ambient = altDeg < 0 ? ((altDeg + 6) / 6) ** 1.5 * 0.08 : 0.08 + (altDeg / 90) * 0.04;
+
+    return direct + ambient;
+  };
+
+  const rawIntensity = calculateIntensity(altitudeDeg);
+  const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
+  const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
+
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+}

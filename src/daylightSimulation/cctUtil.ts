@@ -5,8 +5,11 @@ const { getPosition, getTimes } = SunCalc;
 import { CCT_DEFAULTS } from './constants.js';
 import {
   CURVE_FUNCTIONS,
+  calculateRealisticBlackbodyDaylight,
   calculateRealisticCIEDaylight,
+  calculateRealisticHazyDaylight,
   calculateRealisticPerezDaylight,
+  calculateRealisticPhysicsDaylight,
   calculateRealisticSunAltitude,
   getAvailableCurves,
   parseCurveType,
@@ -96,6 +99,15 @@ function calculateScientificCCT(
       break;
     case CurveType.PEREZ_DAYLIGHT:
       factors = calculateRealisticPerezDaylight(altitude, maxAltitude);
+      break;
+    case CurveType.PHYSICS:
+      factors = calculateRealisticPhysicsDaylight(altitude, maxAltitude);
+      break;
+    case CurveType.BLACKBODY:
+      factors = calculateRealisticBlackbodyDaylight(altitude, maxAltitude);
+      break;
+    case CurveType.HAZY:
+      factors = calculateRealisticHazyDaylight(altitude, maxAltitude);
       break;
     default:
       factors = [0, 0];
@@ -189,7 +201,10 @@ function calculateCCTCore(
   const isScientific =
     curveType === CurveType.CIE_DAYLIGHT ||
     curveType === CurveType.SUN_ALTITUDE ||
-    curveType === CurveType.PEREZ_DAYLIGHT;
+    curveType === CurveType.PEREZ_DAYLIGHT ||
+    curveType === CurveType.PHYSICS ||
+    curveType === CurveType.BLACKBODY ||
+    curveType === CurveType.HAZY;
 
   if (isScientific) {
     return calculateScientificCCT(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType, times);

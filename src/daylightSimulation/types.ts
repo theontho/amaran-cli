@@ -21,4 +21,7 @@ export enum CurveType {
   CIE_DAYLIGHT = 'cie-daylight',
   SUN_ALTITUDE = 'sun-altitude',
   PEREZ_DAYLIGHT = 'perez-daylight',
+  PHYSICS = 'physics',
+  BLACKBODY = 'blackbody',
+  HAZY = 'hazy',
 }

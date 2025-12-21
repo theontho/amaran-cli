@@ -16,6 +16,9 @@ export const CURVE_FUNCTIONS: Record<CurveType, CurveFunction> = {
   [CurveType.CIE_DAYLIGHT]: approximations.cieDaylightCurve,
   [CurveType.SUN_ALTITUDE]: approximations.sunAltitudeCurve,
   [CurveType.PEREZ_DAYLIGHT]: approximations.perezDaylightCurve,
+  [CurveType.PHYSICS]: (x: number) => Math.sin(Math.PI * x) ** 1.2,
+  [CurveType.BLACKBODY]: (x: number) => Math.sin(Math.PI * x) ** 1.5,
+  [CurveType.HAZY]: (x: number) => Math.sin(Math.PI * x) ** 0.8,
 };
 
 /**
@@ -39,9 +42,15 @@ export function parseCurveType(curve: string): keyof typeof CurveType {
       return 'SUN_ALTITUDE';
     case 'perez-daylight':
       return 'PEREZ_DAYLIGHT';
+    case 'physics':
+      return 'PHYSICS';
+    case 'blackbody':
+      return 'BLACKBODY';
+    case 'hazy':
+      return 'HAZY';
     default:
       throw new Error(
-        'Invalid curve type. Use "hann", "wider-middle-small", "wider-middle-medium", "wider-middle-large", "cie-daylight", "sun-altitude", or "perez-daylight"'
+        'Invalid curve type. Use "hann", "wider-middle-small", "wider-middle-medium", "wider-middle-large", "cie-daylight", "sun-altitude", "perez-daylight", "physics", "blackbody", or "hazy"'
       );
   }
 }
