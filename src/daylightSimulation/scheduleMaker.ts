@@ -28,6 +28,8 @@ export interface MakeScheduleOptions {
   bufferMinutes?: number;
   startTime?: Date;
   endTime?: Date;
+  cloudCover?: string | number; // 0-1 or '50%'
+  precipitation?: string; // 'none', 'rain', 'snow'
 }
 
 export class ScheduleMaker {
@@ -195,6 +197,15 @@ export class ScheduleMaker {
       cctMaxK: typeof cfg.cctMax === 'number' ? cfg.cctMax : undefined,
       intensityMinPct: typeof cfg.intensityMin === 'number' ? cfg.intensityMin : undefined,
       intensityMaxPct: typeof cfg.intensityMax === 'number' ? cfg.intensityMax : undefined,
+      weather: {
+        cloudCover:
+          options.cloudCover !== undefined
+            ? typeof options.cloudCover === 'string'
+              ? parseFloat(options.cloudCover)
+              : options.cloudCover
+            : undefined,
+        precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
+      },
     };
 
     if (lat === undefined || lon === undefined) {

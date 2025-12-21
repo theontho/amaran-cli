@@ -15,6 +15,8 @@ type GraphCommandOptions = {
   height?: string;
   output?: string;
   metrics?: string;
+  cloudCover?: string;
+  precipitation?: string;
 };
 
 export function registerGraphSchedule(program: Command, deps: CommandDeps) {
@@ -34,6 +36,8 @@ export function registerGraphSchedule(program: Command, deps: CommandDeps) {
     .option('-W, --width <width>', 'Image width in pixels (default: 1200)', '1200')
     .option('-H, --height <height>', 'Image height in pixels (default: 600)', '600')
     .option('-m, --metrics <type>', 'Metrics to graph: cct, intensity, lux, both, or all (default: both)', 'both')
+    .option('--cloud-cover <value>', 'Cloud cover (0-1)')
+    .option('--precipitation <type>', 'Precipitation type')
     .action(asyncCommand(handleGraphSchedule(deps)));
 }
 
@@ -52,6 +56,8 @@ function handleGraphSchedule(deps: CommandDeps) {
         curves: options.curve,
         includeSpecialTimes: false, // Cleaner graph with regular intervals
         bufferMinutes: 30,
+        cloudCover: options.cloudCover,
+        precipitation: options.precipitation,
       });
     } catch (error) {
       console.error(chalk.red((error as Error).message));

@@ -263,4 +263,70 @@ describe('calculateCCT', () => {
       expect(result.lightOutput).toBe(0);
     });
   });
+  describe('Weather Modifiers', () => {
+    const noon = new Date('2024-06-21T16:00:00Z'); // Approx solar noon NYC
+
+    it('should reduce intensity and lightOutput with cloudCover', () => {
+      const clearResult = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        weather: { cloudCover: 0 },
+      });
+      const cloudyResult = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        weather: { cloudCover: 0.5 },
+      });
+      const overcastResult = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        weather: { cloudCover: 1.0 },
+      });
+
+      expect(cloudyResult.intensity).toBeLessThan(clearResult.intensity);
+      expect(overcastResult.intensity).toBeLessThan(cloudyResult.intensity);
+      expect(cloudyResult.lightOutput).toBeLessThan(clearResult.lightOutput || 0);
+      expect(overcastResult.lightOutput).toBeLessThan(cloudyResult.lightOutput || 0);
+    });
+
+    it('should shift CCT towards 6500K with cloudCover', () => {
+      // Assuming clear sky noon is usually cooler (>5500K) or warmer depending on curve,
+      // but let's check relative shift.
+      const clearResult = calculateCCT(
+        NYC_LAT,
+        NYC_LON,
+        noon,
+        {
+          weather: { cloudCover: 0 },
+        },
+        CurveType.PHYSICS
+      );
+
+      const overcastResult = calculateCCT(
+        NYC_LAT,
+        NYC_LON,
+        noon,
+        {
+          weather: { cloudCover: 1.0 },
+        },
+        CurveType.PHYSICS
+      );
+
+      // Physics curve at noon is usually blueish (>6500K) or whitish.
+      // If we force a very warm time (morning), clouds should cool it.
+      // If we force a very cool time (noon blue sky), clouds should warm it (neutralize it).
+      // Let's just check it moves towards 6500.
+
+      const target = 6500;
+      const clearDiff = Math.abs(clearResult.cct - target);
+      const overcastDiff = Math.abs(overcastResult.cct - target);
+
+      expect(overcastDiff).toBeLessThan(clearDiff);
+    });
+
+    it('should reduce intensity further with precipitation', () => {
+      const cloudyResult = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        weather: { cloudCover: 0.5, precipitation: 'none' },
+      });
+      const rainyResult = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        weather: { cloudCover: 0.5, precipitation: 'rain' },
+      });
+
+      expect(rainyResult.intensity).toBeLessThan(cloudyResult.intensity);
+    });
+  });
 });

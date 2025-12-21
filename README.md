@@ -233,6 +233,29 @@ amaran-cli config --max-lux "2700:8000, 5600:10000"
 2. It calculates intensity as: `(Target Lux / Effective Max Lux) * 100`.
 3. If the target lux exceeds the capability, lights are clamped to 100%.
 
+#### Weather Modifiers (Advanced)
+
+You can simulate weather conditions to adjust the calculated CCT and intensity. This is useful if you want your lights to reflect the current outdoor weather (or simulate a specific mood).
+
+- **Cloud Cover**: Reduces intensity and shifts CCT towards neutral daylight (6500K).
+- **Precipitation**: Further reduces intensity and slightly cools the CCT (rain/snow).
+
+```bash
+# Simulate 50% cloud cover
+amaran-cli auto-cct --cloud-cover 0.5
+
+# Simulate overcast (100% clouds)
+amaran-cli auto-cct --cloud-cover 1
+
+# Simulate rain (reduces intensity further)
+amaran-cli auto-cct --precipitation rain
+
+# Simulate snow
+amaran-cli auto-cct --precipitation snow
+```
+
+These options also work with `simulate-schedule`, `print-schedule`, and `graph-schedule`.
+
 ### Running Auto-CCT as a Circadian Lighting Service
 
 You can set up auto-cct to run automatically every minute as a circadian lighting background service. The service works with both global and local installations:

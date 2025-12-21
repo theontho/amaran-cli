@@ -7,11 +7,17 @@ export interface CCTResult {
   lightOutput?: number; // Estimated lux or luminosity
 }
 
+export interface WeatherOptions {
+  cloudCover?: number; // 0-1, 0 = clear, 1 = overcast
+  precipitation?: 'none' | 'rain' | 'snow' | 'drizzle';
+}
+
 export interface CCTOptions {
   cctMinK?: number;
   cctMaxK?: number;
   intensityMinPct?: number;
   intensityMaxPct?: number;
+  weather?: WeatherOptions;
 }
 
 export enum CurveType {

@@ -24,6 +24,8 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
       'hann'
     )
     .option('-L, --max-lux <value>', 'Max lux output for scaling intensity')
+    .option('--cloud-cover <value>', 'Cloud cover (0-1), e.g. 0.5 for 50% clouds')
+    .option('--precipitation <type>', 'Precipitation type: none, rain, snow, drizzle')
     .action(asyncCommand(handleAutoCct(deps)));
 }
 
@@ -44,6 +46,8 @@ function handleAutoCct(deps: CommandDeps) {
       time?: string;
       curve?: string;
       maxLux?: string;
+      cloudCover?: string;
+      precipitation?: string;
     };
     const controller = await createController(options.url, options.clientId, options.debug);
 
@@ -181,6 +185,10 @@ function handleAutoCct(deps: CommandDeps) {
         cctMaxK: Math.max(loK, hiK),
         intensityMinPct: loPct,
         intensityMaxPct: hiPct,
+        weather: {
+          cloudCover: options.cloudCover ? parseFloat(options.cloudCover) : undefined,
+          precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
+        },
       },
       CurveType[curveType]
     );
@@ -235,6 +243,12 @@ function handleAutoCct(deps: CommandDeps) {
     console.log(chalk.gray(`  Mode: ${modeDescription}`));
     if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
       console.log(chalk.gray(`  Target Output: ${result.lightOutput} lux`));
+    }
+    if (options.cloudCover || options.precipitation) {
+      const weatherInfo = [];
+      if (options.cloudCover) weatherInfo.push(`Clouds: ${options.cloudCover}`);
+      if (options.precipitation) weatherInfo.push(`Precip: ${options.precipitation}`);
+      console.log(chalk.gray(`  Weather: ${weatherInfo.join(', ')}`));
     }
 
     let candidateDevices: unknown[] = [];

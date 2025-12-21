@@ -263,5 +263,55 @@ export function calculateCCT(
   const minIntensity = Math.round(minPct * 10);
   const maxIntensity = Math.round(maxPct * 10);
 
-  return calculateCCTCore(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType);
+  // Apply weather modifiers if provided
+  let result = calculateCCTCore(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType);
+
+  if (opts?.weather) {
+    result = applyWeatherModifiers(result, opts.weather);
+  }
+
+  return result;
+}
+
+function applyWeatherModifiers(result: CCTResult, weather: import('./types.js').WeatherOptions): CCTResult {
+  const { cloudCover = 0, precipitation = 'none' } = weather;
+  let { cct, intensity, lightOutput = 0 } = result;
+
+  // Cloud cover logic:
+  // 1. Reduce intensity linearly: 0% clouds = 100%, 100% clouds = 20% intensity
+  const cloudIntensityFactor = 1 - Math.min(1, Math.max(0, cloudCover)) * 0.8;
+  intensity = Math.round(intensity * cloudIntensityFactor);
+  lightOutput = Math.round(lightOutput * cloudIntensityFactor);
+
+  // 2. Shift CCT towards 6500K (neutral/overcast) based on cloud cover
+  // Heavy clouds act as a diffuser, mixing direct sun and blue sky to a uniform ~6500K
+  const targetK = 6500;
+  const cloudMix = Math.min(1, Math.max(0, cloudCover));
+  cct = Math.round(cct * (1 - cloudMix) + targetK * cloudMix);
+
+  // Precipitation logic:
+  // Additional intensity reduction beyond cloud cover
+  let precipFactor = 1.0;
+  switch (precipitation) {
+    case 'rain':
+      precipFactor = 0.8;
+      // Rain also tends to cool the light slightly (scattering)
+      cct = Math.round(cct * 0.9 + 7000 * 0.1);
+      break;
+    case 'snow':
+      precipFactor = 0.9; // Snow reflects light, maybe less dark than rain? But falling snow blocks.
+      // Snow reflection can make things very cool/blue
+      cct = Math.round(cct * 0.8 + 8000 * 0.2);
+      break;
+    case 'drizzle':
+      precipFactor = 0.9;
+      break;
+    default:
+      precipFactor = 1.0;
+  }
+
+  intensity = Math.round(intensity * precipFactor);
+  lightOutput = Math.round(lightOutput * precipFactor);
+
+  return { cct, intensity, lightOutput };
 }

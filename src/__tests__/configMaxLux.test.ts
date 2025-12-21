@@ -31,10 +31,12 @@ describe('config command max-lux', () => {
     const program = new Command();
     program.exitOverride();
     const saveConfig = vi.fn();
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+      /* no-op */
+    });
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
       throw new Error(`Process exit: ${code}`);
-    }) as any);
+    }) as unknown as (code?: number | string | null) => never);
 
     const deps = {
       asyncCommand:

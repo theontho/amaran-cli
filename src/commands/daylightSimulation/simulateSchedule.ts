@@ -21,6 +21,8 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
       'hann'
     )
     .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
+    .option('--cloud-cover <value>', 'Cloud cover (0-1)')
+    .option('--precipitation <type>', 'Precipitation type')
     .action(asyncCommand(handleSimulateSchedule(deps)));
 }
 
@@ -50,6 +52,8 @@ function handleSimulateSchedule(deps: CommandDeps) {
         lat: options.lat,
         lon: options.lon,
         curves: options.curve,
+        cloudCover: options.cloudCover as string | undefined, // ScheduleMaker handles parsing
+        precipitation: options.precipitation as string | undefined,
       });
 
       const nightEnd = baseInfo.times.nightEnd;

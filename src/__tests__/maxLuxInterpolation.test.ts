@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import registerAutoCct from '../commands/daylightSimulation/autoCct.js';
 import registerConfig from '../commands/deviceControl/config.js';
 import { interpolateMaxLux, parseMaxLuxMap } from '../daylightSimulation/mathUtil.js';
+import type { CommandDeps, LightController } from '../deviceControl/types.js';
 
 describe('Max Lux Map Feature', () => {
   describe('Math Utils', () => {
@@ -85,20 +86,25 @@ describe('Max Lux Map Feature', () => {
       const disconnect = vi.fn(async () => Promise.resolve());
       const controllerStub = {
         getDevices: () => [{ node_id: 'AAA-111' }],
-        getLightSleepStatus: (_id: any, cb: any) => cb(true, 'ok', { sleep: false }),
+        getLightSleepStatus: (_id: unknown, cb: (success: boolean, msg: string, data: { sleep: boolean }) => void) =>
+          cb(true, 'ok', { sleep: false }),
         setCCT,
         disconnect,
-      };
+        on: vi.fn(),
+        off: vi.fn(),
+      } as unknown as LightController;
 
-      const deps = {
+      const _actionSpy = vi.fn();
+
+      // Mock dependencies
+      const deps: CommandDeps = {
         createController: async () => controllerStub,
-        findDevice: () => null,
-        asyncCommand:
-          <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
+        findDevice: () => ({ node_id: 'AAA-111' }),
+        asyncCommand: (<T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
           (...args: T) =>
-            fn(...args),
+            fn(...args)) as CommandDeps['asyncCommand'],
         loadConfig: () => ({}),
-      } as any;
+      };
 
       const program = new Command();
       program.exitOverride();

@@ -11,6 +11,8 @@ type ScheduleCommandOptions = {
   date?: string;
   interval?: string;
   curve?: string;
+  cloudCover?: string;
+  precipitation?: string;
   private: boolean;
 };
 
@@ -31,6 +33,8 @@ export function registerPrintSchedule(program: Command, deps: CommandDeps) {
     )
     .option('-c, --csv', 'Output as CSV format')
     .option('-o, --output <file>', 'Output result to a file')
+    .option('--cloud-cover <value>', 'Cloud cover (0-1)')
+    .option('--precipitation <type>', 'Precipitation type')
     .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
     .action(asyncCommand(handlePrintSchedule(deps)));
 }
@@ -48,6 +52,8 @@ function handlePrintSchedule(deps: CommandDeps) {
         intervalMinutes: parseInt(options.interval ?? '30', 10),
         curves: options.curve,
         includeSpecialTimes: true,
+        cloudCover: options.cloudCover,
+        precipitation: options.precipitation,
       });
     } catch (error) {
       console.error(chalk.red((error as Error).message));
