@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { graphSchedule } from '../../daylightSimulation/graphSchedule.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
@@ -28,10 +29,7 @@ export function registerGraphSchedule(program: Command, deps: CommandDeps) {
     .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
-    .option(
-      '-C, --curve <curve>',
-      'Curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
-    )
+    .option('-C, --curve <curve>', CURVE_HELP_TEXT)
     .option('-o, --output <filename>', 'Output filename (default: schedule-<date>.png)')
     .option('-W, --width <width>', 'Image width in pixels (default: 1200)', '1200')
     .option('-H, --height <height>', 'Image height in pixels (default: 600)', '600')

@@ -37,7 +37,10 @@ export const ERROR_MESSAGES = {
   invalidLatitude: `Latitude must be between ${VALIDATION_RANGES.latitude.min} and ${VALIDATION_RANGES.latitude.max}`,
   invalidLongitude: `Longitude must be between ${VALIDATION_RANGES.longitude.min} and ${VALIDATION_RANGES.longitude.max}`,
   invalidCurve:
-    'Invalid curve type. Use "hann", "wider-middle-small", "wider-middle-medium", "wider-middle-large", "cie-daylight", "sun-altitude", or "perez-daylight"',
+    'Invalid curve type. Use "hann", "wider-middle-small", "wider-middle-medium", "wider-middle-large", "cie-daylight", "sun-altitude", "perez-daylight", "physics", "blackbody", or "hazy"',
   locationUnavailable: 'Could not determine location. Use --lat and --lon to specify manually.',
   nightTimesUnavailable: 'Could not calculate night times for this location',
 } as const;
+
+export const CURVE_HELP_TEXT =
+  'Curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, physics, blackbody, hazy)';

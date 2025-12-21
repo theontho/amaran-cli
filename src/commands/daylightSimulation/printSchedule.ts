@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import { textSchedule } from '../../daylightSimulation/textSchedule.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
@@ -26,11 +27,7 @@ export function registerPrintSchedule(program: Command, deps: CommandDeps) {
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
     .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
-    .option(
-      '-C, --curve <curve>',
-      'Curve type (comma-separated list, or "all"). Available: hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight',
-      'all'
-    )
+    .option('-C, --curve <curve>', CURVE_HELP_TEXT, 'all')
     .option('-c, --csv', 'Output as CSV format')
     .option('-o, --output <file>', 'Output result to a file')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')

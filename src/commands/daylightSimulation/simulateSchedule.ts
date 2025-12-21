@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
@@ -15,11 +16,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
     .option('-d, --debug', 'Enable debug mode')
     .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
-    .option(
-      '--curve <curve>',
-      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
-      'hann'
-    )
+    .option('-C, --curve <curve>', CURVE_HELP_TEXT, 'hann')
     .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')
     .option('--precipitation <type>', 'Precipitation type')
