@@ -14,10 +14,10 @@ import {
   getAvailableCurves,
   parseCurveType,
 } from './curves/index.js';
-import { type CCTOptions, type CCTResult, CurveType, WeatherOptions } from './types.js';
+import { type CCTOptions, type CCTResult, CurveType, type WeatherOptions } from './types.js';
 
 // Re-export for backward compatibility
-export { type CCTOptions, type CCTResult, CurveType, WeatherOptions, getAvailableCurves, parseCurveType };
+export { type CCTOptions, type CCTResult, CurveType, type WeatherOptions, getAvailableCurves, parseCurveType };
 
 function isValidSunTimes(sunrise: Date | undefined, sunset: Date | undefined, solarNoon: Date | undefined): boolean {
   return (
