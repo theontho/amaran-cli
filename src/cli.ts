@@ -343,7 +343,7 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
 registerCommands(program, { createController, findDevice, asyncCommand, saveWsUrl, loadConfig, saveConfig });
 
 // Add custom help command that preserves the formatting
-program.addHelpCommand('help [command]', 'Display help for a specific command');
+program.helpCommand('help [command]', 'Display help for a specific command');
 
 // If this file is run directly, parse the arguments
 import { fileURLToPath } from 'node:url';

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import registerCommands from '../commands.js';
-import type { Device, LightController } from '../deviceControl/types.js';
+import type { Config, Device, LightController } from '../deviceControl/types.js';
 
 interface CaptureData {
   intensityForAll?: number;
@@ -115,7 +115,10 @@ describe('CLI intensity API usage (0-100 -> 0-1000)', () => {
         (...args: T) =>
           fn(...args),
       saveWsUrl: undefined,
-      loadConfig: undefined,
+      loadConfig: () => ({}) as Config,
+      saveConfig: () => {
+        // Mock saveConfig for tests
+      },
     };
 
     registerCommands(program, deps);

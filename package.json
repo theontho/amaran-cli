@@ -19,6 +19,7 @@
     "prepublishOnly": "npm run clean && npm run build",
     "lint": "biome lint src/",
     "lint:fix": "biome lint --write src/",
+    "lint:deprecations": "eslint .",
     "format": "biome format --write src/",
     "format:check": "biome format src/",
     "check": "biome check src/",
@@ -73,9 +74,11 @@
     "@types/ws": "^8.5.8",
     "@vitest/coverage-v8": "^4.0.15",
     "cross-env": "^10.1.0",
+    "eslint": "^9.39.2",
     "node-localstorage": "^3.0.5",
     "tsx": "^4.7.1",
     "typescript": "^5.2.2",
+    "typescript-eslint": "^8.50.0",
     "vitest": "^4.0.15"
   }
 }
