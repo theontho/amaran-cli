@@ -2,7 +2,7 @@ import SunCalc from 'suncalc';
 
 const { getTimes } = SunCalc;
 
-import { calculateCCT } from '../daylightSimulation/cctUtil.js';
+import { CurveType, calculateCCT } from '../daylightSimulation/cctUtil.js';
 import { CCT_DEFAULTS } from '../daylightSimulation/constants.js';
 
 describe('calculateCCT', () => {
@@ -193,8 +193,10 @@ describe('calculateCCT', () => {
 
       expect(result).toHaveProperty('cct');
       expect(result).toHaveProperty('intensity');
+      expect(result).toHaveProperty('lightOutput');
       expect(typeof result.cct).toBe('number');
       expect(typeof result.intensity).toBe('number');
+      expect(typeof result.lightOutput).toBe('number');
     });
   });
 
@@ -240,6 +242,25 @@ describe('calculateCCT', () => {
           }
         }
       }
+    });
+  });
+
+  describe('LightOutput (Lux) seasonal variation', () => {
+    it('should have higher lightOutput in summer than winter at noon (NYC)', () => {
+      const summerNoon = new Date('2024-06-21T16:00:00Z'); // Approx solar noon NYC (12:00 EDT)
+      const winterNoon = new Date('2024-12-21T17:00:00Z'); // Approx solar noon NYC (12:00 EST)
+
+      const summerResult = calculateCCT(NYC_LAT, NYC_LON, summerNoon, {}, CurveType.CIE_DAYLIGHT);
+      const winterResult = calculateCCT(NYC_LAT, NYC_LON, winterNoon, {}, CurveType.CIE_DAYLIGHT);
+
+      expect(summerResult.lightOutput).toBeGreaterThan(winterResult.lightOutput ?? 0);
+      expect(winterResult.lightOutput).toBeGreaterThan(0);
+    });
+
+    it('should have 0 lightOutput at night', () => {
+      const midnight = new Date('2024-06-21T04:00:00Z');
+      const result = calculateCCT(NYC_LAT, NYC_LON, midnight, {}, CurveType.CIE_DAYLIGHT);
+      expect(result.lightOutput).toBe(0);
     });
   });
 });

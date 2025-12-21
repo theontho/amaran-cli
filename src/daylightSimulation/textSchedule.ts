@@ -70,7 +70,7 @@ export function textSchedule(schedule: Schedule, options: TextScheduleOptions = 
     // CSV Output
     const header = ['DateTime', 'Location', 'Event'];
     schedule.curves.forEach((c) => {
-      header.push(`${c}_CCT`, `${c}_Intensity`);
+      header.push(`${c}_CCT`, `${c}_Intensity`, `${c}_Lux`);
     });
     push(header.join(','));
 
@@ -82,7 +82,11 @@ export function textSchedule(schedule: Schedule, options: TextScheduleOptions = 
 
       schedule.curves.forEach((curve) => {
         const val = point.values.get(curve);
-        row.push(val?.cct.toString() ?? '', val ? (val.intensity / 10).toFixed(1) : '');
+        row.push(
+          val?.cct.toString() ?? '',
+          val ? (val.intensity / 10).toFixed(1) : '',
+          val?.lightOutput?.toString() ?? ''
+        );
       });
       push(row.join(','));
     }

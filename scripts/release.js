@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
-import readline from 'node:readline';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
 const askQuestion = (question) => {
@@ -21,7 +21,7 @@ const runCommand = (command) => {
   console.log(`Running: ${command}`);
   try {
     execSync(command, { stdio: 'inherit' });
-  } catch (error) {
+  } catch (_error) {
     console.error(`Error executing command: ${command}`);
     process.exit(1);
   }
@@ -30,16 +30,16 @@ const runCommand = (command) => {
 const updateChangelog = async (version, releaseNotes) => {
   const changelogPath = path.join(__dirname, '../docs/CHANGELOG.md');
   let changelog = '';
-  
+
   try {
     changelog = fs.readFileSync(changelogPath, 'utf8');
-  } catch (error) {
+  } catch (_error) {
     console.log('No existing CHANGELOG.md found, creating a new one.');
   }
 
   const today = new Date().toISOString().split('T')[0];
   const newEntry = `## [${version}] - ${today}\n\n${releaseNotes}\n\n`;
-  
+
   fs.writeFileSync(changelogPath, newEntry + changelog);
   console.log('CHANGELOG.md has been updated');
 };
@@ -63,7 +63,7 @@ const main = async () => {
     // Ask for release notes
     console.log('\nEnter release notes (press Enter then Ctrl+D when done):');
     let releaseNotes = '';
-    
+
     const lines = [];
     for await (const line of rl) {
       lines.push(line);
@@ -76,7 +76,7 @@ const main = async () => {
 
     // Update package.json version
     packageJson.version = newVersion;
-    fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+    fs.writeFileSync('package.json', `${JSON.stringify(packageJson, null, 2)}\n`);
     console.log('Updated package.json version');
 
     // Update CHANGELOG.md
@@ -94,7 +94,7 @@ const main = async () => {
     try {
       runCommand(`gh release create v${newVersion} --notes "${releaseNotes}"`);
       console.log(`\n🎉 Successfully created release v${newVersion} on GitHub!`);
-    } catch (error) {
+    } catch (_error) {
       console.warn('\nGitHub CLI not found or failed to create release.');
       console.log('Please create the release manually at: https://github.com/theontho/amaran-cli/releases/new');
     }

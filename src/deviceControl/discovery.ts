@@ -113,7 +113,6 @@ export async function discoverLocalWebSocket(
     const { stdout } = await execAsync('lsof -i -P -n');
     const candidates = parseAmaranPorts(stdout);
     if (debug) {
-      // eslint-disable-next-line no-console
       console.log('[discovery] lsof candidates:', candidates);
     }
     // Try LISTEN candidates first (we unshifted those), then others
@@ -127,7 +126,6 @@ export async function discoverLocalWebSocket(
     }
   } catch (err) {
     if (debug) {
-      // eslint-disable-next-line no-console
       console.log('[discovery] lsof failed:', err);
     }
   }

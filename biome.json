@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**/*.ts", "src/**/*.js"],
+    "includes": ["src/**/*.ts", "src/**/*.js", "scripts/**/*.ts", "scripts/**/*.js"],
     "ignoreUnknown": false
   },
   "formatter": {
@@ -113,5 +113,17 @@
       "allowComments": true,
       "allowTrailingCommas": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ]
 }

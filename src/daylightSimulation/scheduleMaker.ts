@@ -1,9 +1,9 @@
 import { SPECIAL_TIME_CONFIG } from './constants.js';
-import type { CommandDeps } from './types.js';
+import type { CCTResult, CommandDeps } from './types.js';
 
 export interface SchedulePoint {
   time: Date;
-  values: Map<string, { cct: number; intensity: number }>;
+  values: Map<string, CCTResult>;
   isSpecial: boolean;
   eventName?: string;
 }
@@ -203,7 +203,7 @@ export class ScheduleMaker {
 
     const points: SchedulePoint[] = uniqueTimes.map((t) => {
       const currentTime = new Date(t);
-      const values = new Map<string, { cct: number; intensity: number }>();
+      const values = new Map<string, CCTResult>();
 
       for (const curve of curveTypes) {
         const result = calculateCCT(lat, lon, currentTime, cctOpts, CurveType[curve]);

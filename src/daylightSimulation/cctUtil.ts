@@ -53,35 +53,46 @@ function calculateScientificCCT(
   const nightEnd = times.nightEnd;
   const night = times.night;
 
-  if (!isValidSunTimes(sunrise, sunset, _solarNoon)) {
+  // For scientific curves, we need solarNoon to establish a daily peak for normalization.
+  // Sunrise/sunset may be missing at the poles (Polar Day/Night).
+  if (!(_solarNoon instanceof Date) || Number.isNaN(_solarNoon.getTime())) {
     return {
       cct: Math.round(minK),
       intensity: Math.round(minIntensity),
+      lightOutput: 0,
     };
   }
 
   const t = date.getTime();
 
-  // For scientific curves, handle cases where nightEnd/night might not be available
-  let nightEndTime: number;
-  let nightStartTime: number;
-
+  // If we have valid sunrise/sunset, enforce night minimums outside of daylight hours.
   if (
-    nightEnd instanceof Date &&
-    !Number.isNaN(nightEnd.getTime()) &&
-    night instanceof Date &&
-    !Number.isNaN(night.getTime())
+    sunrise instanceof Date &&
+    !Number.isNaN(sunrise.getTime()) &&
+    sunset instanceof Date &&
+    !Number.isNaN(sunset.getTime())
   ) {
-    nightEndTime = nightEnd.getTime();
-    nightStartTime = night.getTime();
-  } else {
-    // Edge case: no proper night (e.g., summer in high latitudes)
-    nightEndTime = sunrise.getTime() - 30 * 60 * 1000;
-    nightStartTime = sunset.getTime() + 30 * 60 * 1000;
-  }
+    // For scientific curves, handle cases where nightEnd/night might not be available
+    let nightEndTime: number;
+    let nightStartTime: number;
 
-  if (t <= nightEndTime || t >= nightStartTime) {
-    return { cct: minK, intensity: minIntensity };
+    if (
+      nightEnd instanceof Date &&
+      !Number.isNaN(nightEnd.getTime()) &&
+      night instanceof Date &&
+      !Number.isNaN(night.getTime())
+    ) {
+      nightEndTime = nightEnd.getTime();
+      nightStartTime = night.getTime();
+    } else {
+      // Edge case: no proper night configuration but has sunrise/sunset
+      nightEndTime = sunrise.getTime() - 30 * 60 * 1000;
+      nightStartTime = sunset.getTime() + 30 * 60 * 1000;
+    }
+
+    if (t <= nightEndTime || t >= nightStartTime) {
+      return { cct: minK, intensity: minIntensity, lightOutput: 0 };
+    }
   }
 
   const pos = getPosition(date, lat, lon);
@@ -89,7 +100,7 @@ function calculateScientificCCT(
   const noonPos = getPosition(_solarNoon, lat, lon);
   const maxAltitude = noonPos.altitude;
 
-  let factors: [number, number];
+  let factors: [number, number, number];
   switch (curveType) {
     case CurveType.SUN_ALTITUDE:
       factors = calculateRealisticSunAltitude(altitude, maxAltitude);
@@ -110,13 +121,14 @@ function calculateScientificCCT(
       factors = calculateRealisticHazyDaylight(altitude, maxAltitude);
       break;
     default:
-      factors = [0, 0];
+      factors = [0, 0, 0];
   }
 
-  const [cctFactor, intensityFactor] = factors;
+  const [cctFactor, intensityFactor, rawIntensity] = factors;
   return {
     cct: Math.round(minK + (maxK - minK) * cctFactor),
     intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * intensityFactor),
+    lightOutput: Math.round(rawIntensity * CCT_DEFAULTS.maxLux),
   };
 }
 
@@ -154,7 +166,7 @@ function calculateEmpiricalCCT(
     const nightEndTime = nightEnd.getTime();
 
     if (t <= nightEndTime || t >= nightStartTime) {
-      return { cct: minK, intensity: minIntensity };
+      return { cct: minK, intensity: minIntensity, lightOutput: 0 };
     }
 
     let x: number;
@@ -165,24 +177,41 @@ function calculateEmpiricalCCT(
     }
 
     const f = curve(x);
+    // For empirical curves, we don't have a physical model, but we can estimate
+    // light output based on the curve factor and the max potential lux.
+    // We scale it by sin(altitude) if available to give some seasonal variation.
+    let luxEstimate = f * CCT_DEFAULTS.maxLux;
+    try {
+      const pos = getPosition(date, lat, lon);
+      if (pos.altitude > 0) {
+        luxEstimate *= Math.sin(pos.altitude);
+      } else {
+        luxEstimate = 0;
+      }
+    } catch {
+      // Fallback if SunCalc fails
+    }
+
     return {
       cct: Math.round(minK + (maxK - minK) * f),
       intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * f),
+      lightOutput: Math.round(luxEstimate),
     };
   }
 
   // Fallback for empirical curves when night times are not available
   try {
     const pos = getPosition(date, lat, lon);
-    if (pos.altitude <= 0) return { cct: minK, intensity: minIntensity };
+    if (pos.altitude <= 0) return { cct: minK, intensity: minIntensity, lightOutput: 0 };
 
     const f = Math.max(0, Math.sin(pos.altitude));
     return {
       cct: Math.round(minK + (maxK - minK) * f),
       intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * f),
+      lightOutput: Math.round(f * CCT_DEFAULTS.maxLux),
     };
   } catch {
-    return { cct: minK, intensity: minIntensity };
+    return { cct: minK, intensity: minIntensity, lightOutput: 0 };
   }
 }
 

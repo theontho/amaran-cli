@@ -33,7 +33,7 @@ export function registerGraphSchedule(program: Command, deps: CommandDeps) {
     .option('-o, --output <filename>', 'Output filename (default: schedule-<date>.png)')
     .option('-W, --width <width>', 'Image width in pixels (default: 1200)', '1200')
     .option('-H, --height <height>', 'Image height in pixels (default: 600)', '600')
-    .option('-m, --metrics <type>', 'Metrics to graph: cct, intensity, or both (default: both)', 'both')
+    .option('-m, --metrics <type>', 'Metrics to graph: cct, intensity, lux, both, or all (default: both)', 'both')
     .action(asyncCommand(handleGraphSchedule(deps)));
 }
 
@@ -62,7 +62,7 @@ function handleGraphSchedule(deps: CommandDeps) {
       const buffer = await graphSchedule(schedule, {
         width: options.width ? parseInt(options.width, 10) : undefined,
         height: options.height ? parseInt(options.height, 10) : undefined,
-        metrics: options.metrics as 'cct' | 'intensity' | 'both',
+        metrics: options.metrics as 'cct' | 'intensity' | 'lux' | 'both' | 'all',
       });
 
       let filename = options.output;

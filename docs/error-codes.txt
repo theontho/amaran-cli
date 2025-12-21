@@ -1,0 +1,13 @@
+Copy/pasted from the browser https://tools.sidus.link/openapi/docs/errcode 
+
+Error Codes
+Error Code	Description
+0	Success
+1001	Invalid Request
+2001	Invalid Token
+2002	Token Expired
+3001	Device or Group Not Found
+3002	Preset Not Found
+3003	Quickshot Not Found
+3004	Device or Group Does Not Support the Effect
+9001	Unknown Error

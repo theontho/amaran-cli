@@ -4,6 +4,7 @@ export * from '../deviceControl/types.js';
 export interface CCTResult {
   cct: number;
   intensity: number;
+  lightOutput?: number; // Estimated lux or luminosity
 }
 
 export interface CCTOptions {

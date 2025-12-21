@@ -6,6 +6,7 @@ export const CCT_DEFAULTS = {
   cctMaxK: 5500, // 5500K is the CCT of non-overcast noon sunlight
   intensityMinPct: 5,
   intensityMaxPct: 100,
+  maxLux: 110000, // Approximate clear sky zenith lux
 };
 
 // Special time configuration - single source of truth for colors and emojis

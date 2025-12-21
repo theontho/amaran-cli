@@ -10,7 +10,7 @@
 export function calculateRealisticSunAltitude(
   altitude: number,
   maxAltitude: number
-): [cctFactor: number, intensityFactor: number] {
+): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   // Convert altitude to degrees for easier calculations
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
@@ -49,7 +49,7 @@ export function calculateRealisticSunAltitude(
   let intensityFactor = maxDailyIntensity > 0.01 ? rawIntensity / maxDailyIntensity : 0;
   intensityFactor = Math.min(1.0, intensityFactor);
 
-  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor)), rawIntensity];
 }
 
 /**
@@ -60,7 +60,7 @@ export function calculateRealisticSunAltitude(
 export function calculateRealisticCIEDaylight(
   altitude: number,
   maxAltitude: number
-): [cctFactor: number, intensityFactor: number] {
+): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
 
@@ -96,7 +96,7 @@ export function calculateRealisticCIEDaylight(
   const maxDailyIntensity = calculateRawIntensity(maxAltitudeDeg);
   const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
-  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor)), rawIntensity];
 }
 
 /**
@@ -107,7 +107,7 @@ export function calculateRealisticCIEDaylight(
 export function calculateRealisticPerezDaylight(
   altitude: number,
   maxAltitude: number
-): [cctFactor: number, intensityFactor: number] {
+): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
 
@@ -144,7 +144,7 @@ export function calculateRealisticPerezDaylight(
   const maxDailyIntensity = calculateRawIntensity(maxAltitudeDeg);
   const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
-  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor)), rawIntensity];
 }
 
 /**
@@ -168,7 +168,7 @@ function calculateAirMass(altitudeDeg: number): number {
 export function calculateRealisticPhysicsDaylight(
   altitude: number,
   maxAltitude: number
-): [cctFactor: number, intensityFactor: number] {
+): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
 
@@ -202,7 +202,7 @@ export function calculateRealisticPhysicsDaylight(
   const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
   const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
-  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor)), rawIntensity];
 }
 
 /**
@@ -214,7 +214,7 @@ export function calculateRealisticPhysicsDaylight(
 export function calculateRealisticBlackbodyDaylight(
   altitude: number,
   maxAltitude: number
-): [cctFactor: number, intensityFactor: number] {
+): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
 
@@ -243,7 +243,7 @@ export function calculateRealisticBlackbodyDaylight(
   const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
   const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
-  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor)), rawIntensity];
 }
 
 /**
@@ -255,7 +255,7 @@ export function calculateRealisticBlackbodyDaylight(
 export function calculateRealisticHazyDaylight(
   altitude: number,
   maxAltitude: number
-): [cctFactor: number, intensityFactor: number] {
+): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
 
@@ -284,5 +284,5 @@ export function calculateRealisticHazyDaylight(
   const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
   const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 
-  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor))];
+  return [Math.max(0, Math.min(1, cctFactor)), Math.max(0, Math.min(1, intensityFactor)), rawIntensity];
 }

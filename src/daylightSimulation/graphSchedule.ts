@@ -4,7 +4,7 @@ import type { Schedule } from './scheduleMaker.js';
 export interface GraphScheduleOptions {
   width?: number;
   height?: number;
-  metrics?: 'cct' | 'intensity' | 'both';
+  metrics?: 'cct' | 'intensity' | 'lux' | 'both' | 'all';
 }
 
 interface ChartDataset {
@@ -45,12 +45,14 @@ export async function graphSchedule(schedule: Schedule, options: GraphScheduleOp
     return '';
   });
 
-  const showIntensity = metrics === 'intensity' || metrics === 'both';
-  const showCct = metrics === 'cct' || metrics === 'both';
+  const showIntensity = metrics === 'intensity' || metrics === 'both' || metrics === 'all';
+  const showCct = metrics === 'cct' || metrics === 'both' || metrics === 'all';
+  const showLux = metrics === 'lux' || metrics === 'all';
 
   schedule.curves.forEach((curve, index) => {
     const color = schedule.curves.length > 1 ? COLORS[index % COLORS.length] : 'rgb(54, 162, 235)';
-    const cctColor = schedule.curves.length > 1 ? COLORS[index % COLORS.length] : 'rgb(255, 99, 132)';
+    const cctColor = schedule.curves.length > 1 ? COLORS[(index + 1) % COLORS.length] : 'rgb(255, 99, 132)';
+    const luxColor = schedule.curves.length > 1 ? COLORS[(index + 2) % COLORS.length] : 'rgb(75, 192, 75)';
 
     if (showIntensity) {
       datasets.push({
@@ -73,6 +75,19 @@ export async function graphSchedule(schedule: Schedule, options: GraphScheduleOp
         borderColor: cctColor,
         backgroundColor: 'transparent',
         yAxisID: 'y1',
+        fill: false,
+        pointRadius: 0,
+        borderWidth: 2,
+      });
+    }
+
+    if (showLux) {
+      datasets.push({
+        label: schedule.curves.length > 1 ? `${curve} (Lux)` : 'Light Output (Lux)',
+        data: schedule.points.map((p) => p.values.get(curve)?.lightOutput ?? 0),
+        borderColor: luxColor,
+        backgroundColor: 'transparent',
+        yAxisID: 'y2',
         fill: false,
         pointRadius: 0,
         borderWidth: 2,
@@ -103,7 +118,7 @@ export async function graphSchedule(schedule: Schedule, options: GraphScheduleOp
         },
         y: {
           type: 'linear',
-          display: true,
+          display: showIntensity,
           position: 'left',
           title: { display: true, text: 'Intensity (%)' },
           min: 0,
@@ -111,9 +126,17 @@ export async function graphSchedule(schedule: Schedule, options: GraphScheduleOp
         },
         y1: {
           type: 'linear',
-          display: true,
+          display: showCct,
           position: 'right',
           title: { display: true, text: 'CCT (K)' },
+        },
+        y2: {
+          type: 'linear',
+          display: showLux,
+          position: 'right',
+          title: { display: true, text: 'Light Output (Lux)' },
+          grid: { drawOnChartArea: false }, // Only show grid for left axis
+          min: 0,
         },
       },
     },
