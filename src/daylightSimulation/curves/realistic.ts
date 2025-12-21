@@ -1,3 +1,5 @@
+import type { WeatherOptions } from '../types.js';
+
 /**
  * Realistic daylight calculation functions based on sun position and atmospheric models.
  */
@@ -167,10 +169,14 @@ function calculateAirMass(altitudeDeg: number): number {
  */
 export function calculateRealisticPhysicsDaylight(
   altitude: number,
-  maxAltitude: number
+  maxAltitude: number,
+  weather?: WeatherOptions
 ): [cctFactor: number, intensityFactor: number, rawIntensity: number] {
   const altitudeDeg = (altitude * 180) / Math.PI;
   const maxAltitudeDeg = (maxAltitude * 180) / Math.PI;
+
+  const { cloudCover = 0 } = weather || {};
+  const cloudMix = Math.min(1, Math.max(0, cloudCover));
 
   // CCT: Exponential approach to zenith CCT
   // Factors: 0 at horizon/twilight, 1 at zenith
@@ -178,27 +184,55 @@ export function calculateRealisticPhysicsDaylight(
   if (altitudeDeg < -6) {
     cctFactor = 0;
   } else {
-    // k=0.05 gives a nice natural curve
-    cctFactor = 1 - Math.exp(-0.05 * (altitudeDeg + 6));
+    // k=0.05 gives a nice natural curve for clear sky
+    const clearFactor = 1 - Math.exp(-0.05 * (altitudeDeg + 6));
+    // Overcast sky is visually flatter/uniform color (approx zenith color)
+    const overcastFactor = 1.0;
+
+    // Blend based on cloud cover
+    cctFactor = clearFactor * (1 - cloudMix) + overcastFactor * cloudMix;
   }
 
-  // Intensity: Beer-Lambert Law
-  // I = I0 * tau ^ m
+  // Intensity: Beer-Lambert Law + Ambient
   const calculateIntensity = (altDeg: number) => {
     if (altDeg < -6) return 0;
-    // Direct Component (Beer-Lambert)
+
+    // Clear sky parameters
     const m = calculateAirMass(altDeg);
-    const tau = 0.75; // Standard clear sky transmittance
-    const direct = tau ** m;
+    // Rain/Snow/Clouds reduce atmospheric transmittance
+    // But we rely on applyWeatherModifiers for bulk reduction.
+    // Here we model the SHAPE change.
+    // Heavier clouds = more diffusion, less direct dependency on air mass path length?
+    // Actually, simply shifting weight from Direct to Ambient models this best.
 
-    // Ambient Component (Diffuse twilight glow)
-    // Reaches ~5% of possible direct intensity at horizon
-    const ambient = altDeg < 0 ? ((altDeg + 6) / 6) ** 2 * 0.05 : 0.05 + (altDeg / 90) * 0.05;
+    const tau = 0.75;
+    const directClear = tau ** m;
 
-    return direct + ambient;
+    // Ambient Component (Diffuse twilight glow + scattered light)
+    // Reaches ~5% of possible direct intensity at horizon for clear sky
+    const ambientClear = altDeg < 0 ? ((altDeg + 6) / 6) ** 2 * 0.05 : 0.05 + (altDeg / 90) * 0.05;
+
+    // Overcast model (CIE Standard Overcast Sky)
+    // L = Lz * (1 + 2sin(a))/3
+    // Normalized to zenith=1 roughly for shape comparison
+    const altRad = Math.max(0, (altDeg * Math.PI) / 180);
+    const overcastShape = (1 + 2 * Math.sin(altRad)) / 3;
+
+    // Mix shapes
+    const shape = directClear * (1 - cloudMix) + overcastShape * cloudMix; // Direct dominance fades
+    const ambient = ambientClear * (1 - cloudMix); // Clear sky ambient fades into the general overcast glow
+
+    // For overcast, the "ambient" is essentially the whole signal, handled by overcastShape.
+    // But we need to maintain the twilight roll-off for the overcast shape too
+    const twilightFactor = altDeg < -6 ? 0 : altDeg < 0 ? ((altDeg + 6) / 6) ** 2 : 1;
+
+    return (shape + ambient) * twilightFactor;
   };
 
   const rawIntensity = calculateIntensity(altitudeDeg);
+  // We normalize against the MAX altitude for the day, but using the SAME weather.
+  // This preserves the curve SHAPE but normalized to 0-1 for the daily range.
+  // The bulk attenuation is handled by applyWeatherModifiers.
   const maxDailyIntensity = calculateIntensity(maxAltitudeDeg);
   const intensityFactor = maxDailyIntensity > 0.001 ? rawIntensity / maxDailyIntensity : 0;
 

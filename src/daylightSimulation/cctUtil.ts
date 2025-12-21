@@ -14,10 +14,10 @@ import {
   getAvailableCurves,
   parseCurveType,
 } from './curves/index.js';
-import { type CCTOptions, type CCTResult, CurveType } from './types.js';
+import { type CCTOptions, type CCTResult, CurveType, WeatherOptions } from './types.js';
 
 // Re-export for backward compatibility
-export { type CCTOptions, type CCTResult, CurveType, getAvailableCurves, parseCurveType };
+export { type CCTOptions, type CCTResult, CurveType, WeatherOptions, getAvailableCurves, parseCurveType };
 
 function isValidSunTimes(sunrise: Date | undefined, sunset: Date | undefined, solarNoon: Date | undefined): boolean {
   return (
@@ -45,7 +45,8 @@ function calculateScientificCCT(
   minIntensity: number,
   maxIntensity: number,
   curveType: CurveType,
-  times: SunCalc.GetTimesResult
+  times: SunCalc.GetTimesResult,
+  weather?: WeatherOptions
 ): CCTResult {
   const sunrise = times.sunrise;
   const sunset = times.sunset;
@@ -112,7 +113,7 @@ function calculateScientificCCT(
       factors = calculateRealisticPerezDaylight(altitude, maxAltitude);
       break;
     case CurveType.PHYSICS:
-      factors = calculateRealisticPhysicsDaylight(altitude, maxAltitude);
+      factors = calculateRealisticPhysicsDaylight(altitude, maxAltitude, weather);
       break;
     case CurveType.BLACKBODY:
       factors = calculateRealisticBlackbodyDaylight(altitude, maxAltitude);
@@ -223,7 +224,8 @@ function calculateCCTCore(
   maxK: number,
   minIntensity: number,
   maxIntensity: number,
-  curveType: CurveType
+  curveType: CurveType,
+  weather?: WeatherOptions
 ): CCTResult {
   const times = getTimes(date, lat, lon);
 
@@ -236,7 +238,7 @@ function calculateCCTCore(
     curveType === CurveType.HAZY;
 
   if (isScientific) {
-    return calculateScientificCCT(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType, times);
+    return calculateScientificCCT(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType, times, weather);
   }
 
   return calculateEmpiricalCCT(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType, times);
@@ -264,7 +266,7 @@ export function calculateCCT(
   const maxIntensity = Math.round(maxPct * 10);
 
   // Apply weather modifiers if provided
-  let result = calculateCCTCore(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType);
+  let result = calculateCCTCore(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType, opts?.weather);
 
   if (opts?.weather) {
     result = applyWeatherModifiers(result, opts.weather);
@@ -273,7 +275,7 @@ export function calculateCCT(
   return result;
 }
 
-function applyWeatherModifiers(result: CCTResult, weather: import('./types.js').WeatherOptions): CCTResult {
+function applyWeatherModifiers(result: CCTResult, weather: WeatherOptions): CCTResult {
   const { cloudCover = 0, precipitation = 'none' } = weather;
   let { cct, intensity, lightOutput = 0 } = result;
 
