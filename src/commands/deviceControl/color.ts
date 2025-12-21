@@ -44,18 +44,15 @@ function handleColor(deps: CommandDeps) {
           return msg;
         },
       },
-      (device) => {
+      (device, controller) => {
         return new Promise((resolve) => {
-          deps.createController(options.url, options.clientId, options.debug).then((controller) => {
-            controller.setColor(device.node_id as string, color, intensity, (success, message) => {
-              if (!success) throw new Error(message);
-              resolve();
-            });
+          controller.setColor(device.node_id as string, color, intensity, (success, message) => {
+            if (!success) throw new Error(message);
+            resolve();
           });
         });
       },
-      async () => {
-        const controller = await deps.createController(options.url, options.clientId, options.debug);
+      async (controller) => {
         await controller.setColorForAllLights(color, intensity, (success, message) => {
           if (!success) console.error(`✗ Failed to set color: ${message}`);
         });

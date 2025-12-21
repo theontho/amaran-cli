@@ -33,18 +33,15 @@ function handleIntensity(deps: CommandDeps) {
         onSuccess: (device: Device) =>
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} intensity set to ${intensity}%`,
       },
-      (device) => {
+      (device, controller) => {
         return new Promise((resolve) => {
-          deps.createController(options.url, options.clientId, options.debug).then((controller) => {
-            controller.setIntensity(device.node_id as string, apiIntensity, (success, message) => {
-              if (!success) throw new Error(message);
-              resolve();
-            });
+          controller.setIntensity(device.node_id as string, apiIntensity, (success, message) => {
+            if (!success) throw new Error(message);
+            resolve();
           });
         });
       },
-      async () => {
-        const controller = await deps.createController(options.url, options.clientId, options.debug);
+      async (controller) => {
         await controller.setIntensityForAllLights(apiIntensity, (success, message) => {
           if (!success) console.error(`✗ Failed to set intensity: ${message}`);
         });

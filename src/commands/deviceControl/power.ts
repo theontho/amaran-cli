@@ -32,18 +32,15 @@ function handleOn(deps: CommandDeps) {
         onSuccess: (device: Device) =>
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} turned on`,
       },
-      (device) => {
+      (device, controller) => {
         return new Promise((resolve) => {
-          deps.createController(options.url, options.clientId, options.debug).then((controller) => {
-            controller.turnLightOn(device.node_id as string, (success, message) => {
-              if (!success) throw new Error(message);
-              resolve();
-            });
+          controller.turnLightOn(device.node_id as string, (success, message) => {
+            if (!success) throw new Error(message);
+            resolve();
           });
         });
       },
-      async () => {
-        const controller = await deps.createController(options.url, options.clientId, options.debug);
+      async (controller) => {
         await controller.turnOnAllLights((success, message) => {
           if (!success) console.error(`✗ Failed to turn on light: ${message}`);
         });
@@ -62,18 +59,15 @@ function handleOff(deps: CommandDeps) {
         onSuccess: (device: Device) =>
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} turned off`,
       },
-      (device) => {
+      (device, controller) => {
         return new Promise((resolve) => {
-          deps.createController(options.url, options.clientId, options.debug).then((controller) => {
-            controller.turnLightOff(device.node_id as string, (success, message) => {
-              if (!success) throw new Error(message);
-              resolve();
-            });
+          controller.turnLightOff(device.node_id as string, (success, message) => {
+            if (!success) throw new Error(message);
+            resolve();
           });
         });
       },
-      async () => {
-        const controller = await deps.createController(options.url, options.clientId, options.debug);
+      async (controller) => {
         await controller.turnOffAllLights((success, message) => {
           if (!success) console.error(`✗ Failed to turn off light: ${message}`);
         });
@@ -92,18 +86,15 @@ function handleToggle(deps: CommandDeps) {
         onSuccess: (device: Device) =>
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} toggled`,
       },
-      (device) => {
+      (device, controller) => {
         return new Promise((resolve) => {
-          deps.createController(options.url, options.clientId, options.debug).then((controller) => {
-            controller.toggleLight(device.node_id as string, (success, message) => {
-              if (!success) throw new Error(message);
-              resolve();
-            });
+          controller.toggleLight(device.node_id as string, (success, message) => {
+            if (!success) throw new Error(message);
+            resolve();
           });
         });
       },
-      async () => {
-        const controller = await deps.createController(options.url, options.clientId, options.debug);
+      async (controller) => {
         await controller.toggleAllLights((success, message) => {
           if (!success) console.error(`✗ Failed to toggle light: ${message}`);
         });

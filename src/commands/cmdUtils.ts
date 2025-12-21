@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import type LightController from '../deviceControl/lightControl.js';
 import type { CommandDeps, CommandOptions, Device } from '../deviceControl/types.js';
 
 /**
@@ -28,15 +29,15 @@ interface DeviceActionOptions {
  */
 export async function runDeviceAction(
   { deps, options, deviceQuery, actionName, onSuccess }: DeviceActionOptions,
-  action: (device: Device) => void | Promise<void>,
-  allAction: () => void | Promise<void>
+  action: (device: Device, controller: LightController) => void | Promise<void>,
+  allAction: (controller: LightController) => void | Promise<void>
 ) {
   const { createController, findDevice } = deps;
   const controller = await createController(options.url, options.clientId, options.debug);
 
   try {
     if (!deviceQuery || deviceQuery.toLowerCase() === 'all') {
-      await allAction();
+      await allAction(controller);
       return;
     }
 
@@ -51,7 +52,7 @@ export async function runDeviceAction(
       process.exit(1);
     }
 
-    await action(device);
+    await action(device, controller);
 
     if (onSuccess) {
       console.log(chalk.green(onSuccess(device)));

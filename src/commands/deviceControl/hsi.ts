@@ -51,26 +51,23 @@ function handleHsi(deps: CommandDeps) {
         onSuccess: (device: Device) =>
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} color set to H:${hue} S:${saturation} I:${intensity}`,
       },
-      (device) => {
+      (device, controller) => {
         return new Promise((resolve) => {
-          deps.createController(options.url, options.clientId, options.debug).then((controller) => {
-            controller.setHSI(
-              device.node_id as string,
-              hue,
-              saturation,
-              apiIntensity,
-              undefined,
-              undefined,
-              (success, message) => {
-                if (!success) throw new Error(message);
-                resolve();
-              }
-            );
-          });
+          controller.setHSI(
+            device.node_id as string,
+            hue,
+            saturation,
+            apiIntensity,
+            undefined,
+            undefined,
+            (success, message) => {
+              if (!success) throw new Error(message);
+              resolve();
+            }
+          );
         });
       },
-      async () => {
-        const controller = await deps.createController(options.url, options.clientId, options.debug);
+      async (controller) => {
         await controller.setHSIForAllLights(hue, saturation, apiIntensity, undefined, undefined, (success, message) => {
           if (!success) console.error(`✗ Failed to set HSI color: ${message}`);
         });
