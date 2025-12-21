@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import * as fs from 'node:fs';
 import { vi } from 'vitest';
-import { handleAutostart, isAmaranAppRunning, startAmaranApp } from '../autostart.js';
+import { handleAutostart, isAmaranAppRunning, startAmaranApp } from '../deviceControl/autostart.js';
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 

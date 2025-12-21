@@ -1,4 +1,4 @@
-import LightController from '../lightControl.js';
+import LightController from '../deviceControl/lightControl.js';
 import { MockLightServer } from '../test/MockLightServer.js';
 
 const TEST_PORT = 8089;

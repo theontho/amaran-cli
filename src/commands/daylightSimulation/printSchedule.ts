@@ -1,8 +1,8 @@
 import { writeFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { SPECIAL_TIME_CONFIG } from '../constants.js';
-import type { CommandDeps, CommandOptions } from '../types.js';
+import { SPECIAL_TIME_CONFIG } from '../../daylightSimulation/constants.js';
+import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 type ScheduleCommandOptions = {
   lat?: string;
@@ -57,8 +57,8 @@ function handlePrintSchedule(deps: CommandDeps) {
   const { loadConfig } = deps;
 
   return async (options: CommandOptions & ScheduleCommandOptions & { csv?: boolean; output?: string }) => {
-    const { getLocationFromIP } = await import('../geoipUtil.js');
-    const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
+    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
+    const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
     const SunCalc = (await import('suncalc')).default;
     const { getTimes } = SunCalc;
 
@@ -67,7 +67,7 @@ function handlePrintSchedule(deps: CommandDeps) {
       if (options.output) {
         // Strip ANSI codes
         // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional use for ANSI stripping
-        const cleanMessage = message.replace(/\x1b\[\d+m/g, '');
+        const cleanMessage = message.replace(/\u001b\[\d+m/g, '');
         outputBuffer += `${cleanMessage}\n`;
       } else {
         console.log(message);

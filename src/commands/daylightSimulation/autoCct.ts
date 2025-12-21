@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES } from '../constants.js';
-import type { CommandDeps } from '../types.js';
+import { CCT_DEFAULTS } from '../../daylightSimulation/constants.js';
+import { DEVICE_DEFAULTS, VALIDATION_RANGES } from '../../deviceControl/constants.js';
+import type { CommandDeps } from '../../deviceControl/types.js';
 
 export function registerAutoCct(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -29,8 +30,8 @@ function handleAutoCct(deps: CommandDeps) {
   const { createController, loadConfig, findDevice } = deps;
 
   return async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
-    const { getLocationFromIP } = await import('../geoipUtil.js');
-    const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
+    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
+    const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
     const options = optionsRaw as {
       url?: string;
       clientId?: string;

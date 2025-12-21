@@ -1,15 +1,15 @@
 import { Command } from 'commander';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import registerCommands from '../commands.js';
-import type LightController from '../lightControl.js';
+import type LightController from '../deviceControl/lightControl.js';
 
 // Mock dependencies
-vi.mock('../geoipUtil', () => ({
+vi.mock('../daylightSimulation/geoipUtil', () => ({
   getLocationFromIP: vi.fn(() => ({ ll: [37.7749, -122.4194] })),
 }));
 
 // Mock cctUtil to return predictable values
-vi.mock('../cctUtil', () => ({
+vi.mock('../daylightSimulation/cctUtil', () => ({
   calculateCCT: vi.fn(() => ({ cct: 5600, intensity: 500 })), // 500 = 50%
   parseCurveType: vi.fn(() => 'HANN'),
   CurveType: {

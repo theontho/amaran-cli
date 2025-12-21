@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, CommandOptions } from '../types.js';
+import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -27,9 +27,14 @@ function handleSimulateSchedule(deps: CommandDeps) {
   const { createController, findDevice, loadConfig } = deps;
 
   return async (deviceQuery: string, options: CommandOptions) => {
-    const { getLocationFromIP } = await import('../geoipUtil.js');
-    const { calculateCCT, CurveType, parseCurveType } = await import('../cctUtil.js');
-    const { CCT_DEFAULTS, DEVICE_DEFAULTS, VALIDATION_RANGES, ERROR_MESSAGES } = await import('../constants.js');
+    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
+    const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
+    const {
+      CCT_DEFAULTS,
+      VALIDATION_RANGES: DAYLIGHT_VALIDATION,
+      ERROR_MESSAGES: DAYLIGHT_ERRORS,
+    } = await import('../../daylightSimulation/constants.js');
+    const { DEVICE_DEFAULTS, VALIDATION_RANGES, ERROR_MESSAGES } = await import('../../deviceControl/constants.js');
     const SunCalc = (await import('suncalc')).default;
     const { getTimes } = SunCalc;
 
@@ -64,12 +69,12 @@ function handleSimulateSchedule(deps: CommandDeps) {
     if (options.lat !== undefined && options.lon !== undefined) {
       lat = parseFloat(options.lat);
       lon = parseFloat(options.lon);
-      if (Number.isNaN(lat) || lat < VALIDATION_RANGES.latitude.min || lat > VALIDATION_RANGES.latitude.max) {
-        console.error(chalk.red(ERROR_MESSAGES.invalidLatitude));
+      if (Number.isNaN(lat) || lat < DAYLIGHT_VALIDATION.latitude.min || lat > DAYLIGHT_VALIDATION.latitude.max) {
+        console.error(chalk.red(DAYLIGHT_ERRORS.invalidLatitude));
         process.exit(1);
       }
-      if (Number.isNaN(lon) || lon < VALIDATION_RANGES.longitude.min || lon > VALIDATION_RANGES.longitude.max) {
-        console.error(chalk.red(ERROR_MESSAGES.invalidLongitude));
+      if (Number.isNaN(lon) || lon < DAYLIGHT_VALIDATION.longitude.min || lon > DAYLIGHT_VALIDATION.longitude.max) {
+        console.error(chalk.red(DAYLIGHT_ERRORS.invalidLongitude));
         process.exit(1);
       }
       source = 'manual';
@@ -88,13 +93,13 @@ function handleSimulateSchedule(deps: CommandDeps) {
         const data = await res.json();
         const location = getLocationFromIP(data.ip);
         if (!location || !location.ll) {
-          console.error(chalk.red(ERROR_MESSAGES.locationUnavailable));
+          console.error(chalk.red(DAYLIGHT_ERRORS.locationUnavailable));
           process.exit(1);
         }
         [lat, lon] = location.ll;
         source = `geoip (${data.ip})`;
       } catch (_err) {
-        console.error(chalk.red(ERROR_MESSAGES.locationUnavailable));
+        console.error(chalk.red(DAYLIGHT_ERRORS.locationUnavailable));
         process.exit(1);
       }
     }
@@ -165,7 +170,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
     const night = times.night;
 
     if (!nightEnd || !night || Number.isNaN(nightEnd.getTime()) || Number.isNaN(night.getTime())) {
-      console.error(chalk.red(ERROR_MESSAGES.nightTimesUnavailable));
+      console.error(chalk.red(DAYLIGHT_ERRORS.nightTimesUnavailable));
       await controller.disconnect();
       process.exit(1);
     }

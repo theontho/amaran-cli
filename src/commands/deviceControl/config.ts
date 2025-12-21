@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, Config } from '../types.js';
+import type { CommandDeps, Config } from '../../deviceControl/types.js';
 
 interface ConfigOptions {
   url?: string;
@@ -184,7 +184,7 @@ function handleConfig(deps: CommandDeps) {
     // Handle default curve option
     if (options.defaultCurve !== undefined) {
       // dynamic import for ESM
-      const { parseCurveType } = await import('../cctUtil.js');
+      const { parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
       try {
         parseCurveType(options.defaultCurve);
         config.defaultCurve = options.defaultCurve;

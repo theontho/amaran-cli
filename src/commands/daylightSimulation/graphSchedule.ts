@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import chalk from 'chalk';
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { Command } from 'commander';
-import type { CommandDeps, CommandOptions } from '../types.js';
+import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 type GraphCommandOptions = {
   lat?: string;
@@ -40,8 +40,8 @@ function handleGraphSchedule(deps: CommandDeps) {
   const { loadConfig } = deps;
 
   return async (options: CommandOptions & GraphCommandOptions) => {
-    const { getLocationFromIP } = await import('../geoipUtil.js');
-    const { calculateCCT, parseCurveType, CurveType } = await import('../cctUtil.js');
+    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
+    const { calculateCCT, parseCurveType, CurveType } = await import('../../daylightSimulation/cctUtil.js');
     const SunCalc = (await import('suncalc')).default;
     const { getTimes } = SunCalc;
 
@@ -175,8 +175,19 @@ function handleGraphSchedule(deps: CommandDeps) {
     startTime = new Date(startTime.getTime() - bufferMs);
     endTime = new Date(endTime.getTime() + bufferMs);
 
-    // biome-ignore lint/suspicious/noExplicitAny: ChartJS dataset types are complex to define manually here
-    const datasets: any[] = [];
+    interface ChartDataset {
+      label: string;
+      data: number[];
+      borderColor: string;
+      backgroundColor: string;
+      yAxisID: string;
+      fill: boolean;
+      borderDash?: number[];
+      pointRadius: number;
+      borderWidth: number;
+    }
+
+    const datasets: ChartDataset[] = [];
     const labels: string[] = [];
     const showIntensity = options.metrics === 'intensity' || options.metrics === 'both';
     const showCct = options.metrics === 'cct' || options.metrics === 'both';
@@ -250,8 +261,16 @@ function handleGraphSchedule(deps: CommandDeps) {
     };
     const canvas = new ChartJSNodeCanvas({ width, height, chartCallback });
 
-    // biome-ignore lint/suspicious/noExplicitAny: ChartJS configuration types are complex to define manually here
-    const configuration: any = {
+    interface ChartConfiguration {
+      type: 'line';
+      data: {
+        labels: string[];
+        datasets: ChartDataset[];
+      };
+      options: Record<string, unknown>;
+    }
+
+    const configuration: ChartConfiguration = {
       type: 'line',
       data: {
         labels: labels,
@@ -269,8 +288,7 @@ function handleGraphSchedule(deps: CommandDeps) {
             ticks: {
               autoSkip: false,
               maxRotation: 45,
-              // biome-ignore lint/suspicious/noExplicitAny: ChartJS callback type
-              callback: (_val: any, index: number) => labels[index],
+              callback: (_val: string | number, index: number) => labels[index],
             },
           },
           y: {

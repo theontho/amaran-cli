@@ -9,7 +9,7 @@ import type { Command } from 'commander';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-import type { CommandDeps, CommandOptions } from '../types.js';
+import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 export function registerService(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -60,7 +60,7 @@ export function registerService(program: Command, deps: CommandDeps) {
 function handleInstall(_deps: CommandDeps) {
   return async (options: CommandOptions) => {
     // dynamic import for ESM
-    const { parseCurveType } = await import('../cctUtil.js');
+    const { parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
 
     const interval = parseInt(options.interval ?? '60', 10);
     if (Number.isNaN(interval) || interval < 10) {

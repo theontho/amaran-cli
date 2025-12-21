@@ -4,11 +4,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
-import { handleAutostart } from './autostart.js';
 import registerCommands from './commands.js';
-import { discoverLocalWebSocket } from './discovery.js';
-import LightController from './lightControl.js';
-import type { Device } from './types.js';
+import { handleAutostart } from './deviceControl/autostart.js';
+import { discoverLocalWebSocket } from './deviceControl/discovery.js';
+import LightController from './deviceControl/lightControl.js';
+import type { Config, Device } from './deviceControl/types.js';
 
 const program = new Command();
 
@@ -131,8 +131,6 @@ program
 
 // Configuration file path
 const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
-
-import type { Config } from './types.js';
 
 type CliConfig = Config & {
   clientId?: string;

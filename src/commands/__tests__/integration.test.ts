@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import registerCommands from '../../commands.js';
-import LightController from '../../lightControl.js';
+import LightController from '../../deviceControl/lightControl.js';
+import type { Device, LightController as LightControllerType } from '../../deviceControl/types.js';
 import { MockLightServer } from '../../test/MockLightServer.js';
-import type { Device, LightController as LightControllerType } from '../../types.js';
 
 const TEST_PORT = 8090;
 const WS_URL = `ws://localhost:${TEST_PORT}`;

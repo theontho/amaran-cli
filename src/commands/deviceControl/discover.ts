@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { discoverLocalWebSocket } from '../discovery.js';
-import type { CommandDeps, CommandOptions } from '../types.js';
+import { discoverLocalWebSocket } from '../../deviceControl/discovery.js';
+import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
 
 export function registerDiscover(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
