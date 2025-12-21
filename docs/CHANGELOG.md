@@ -1,19 +1,3 @@
-## [1.5.0] - 2025-12-21
-
-- **Refactor**: Major architectural improvements and code reorganization.
-    - Centralized daylight simulation logic into `ScheduleMaker` and `Schedule` objects.
-    - Modularized CCT utilities into specialized sub-modules for better maintainability.
-    - Separated rendering logic into dedicated `textSchedule` and `graphSchedule` modules.
-    - Standardized device control commands using a shared execution utility.
-- **Feature**: Added `-C, --curves` option to specify subsets of curves in `print-schedule` and `graph-schedule`.
-- **Feature**: Added CSV export support to the `print-schedule` command.
-- **Improvement**: Optimized `graph-schedule` by automatically trimming inactive periods for cleaner visualization.
-- **Improvement**: Enhanced `print-schedule` table with shortened headers and better formatting for small terminals.
-- **Fix**: Resolved issue where the CLI would hang after executing device control commands.
-- **Fix**: Improved WebSocket connection management and closing logic.
-- **Chore**: Migrated to Biome for faster linting and formatting.
-- **Chore**: Integrated ESLint for better deprecation tracking in TypeScript.
-
 ## [1.4.0] - 2025-12-15
 
 - **Feature**: Added `graph-schedule` command to generate visual graphs of the lighting schedule.
