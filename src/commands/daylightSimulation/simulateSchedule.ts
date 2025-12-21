@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
@@ -27,84 +28,55 @@ function handleSimulateSchedule(deps: CommandDeps) {
   const { createController, findDevice, loadConfig } = deps;
 
   return async (deviceQuery: string, options: CommandOptions) => {
-    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
-    const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
-    const {
-      CCT_DEFAULTS,
-      VALIDATION_RANGES: DAYLIGHT_VALIDATION,
-      ERROR_MESSAGES: DAYLIGHT_ERRORS,
-    } = await import('../../daylightSimulation/constants.js');
-    const { DEVICE_DEFAULTS, VALIDATION_RANGES, ERROR_MESSAGES } = await import('../../deviceControl/constants.js');
-    const SunCalc = (await import('suncalc')).default;
-    const { getTimes } = SunCalc;
+    const { DEVICE_DEFAULTS, ERROR_MESSAGES } = await import('../../deviceControl/constants.js');
 
-    let lat: number | undefined;
-    let lon: number | undefined;
-    let source = '';
+    // 1. Make the schedule
+    const _maker = new ScheduleMaker(deps);
 
-    // Use fixed update interval for smooth visual simulation and to not overwhelm the light
+    // We want a high-resolution schedule for smooth simulation
+    // The previous implementation calculated updates based on (duration * 1000) / updateInterval
+    // Let's stick to that but use the schedule maker to provide the points.
+
+    const durationCount = parseInt((options.duration ?? '10') as string, 10);
     const updateInterval = DEVICE_DEFAULTS.updateInterval;
+    const totalUpdates = Math.floor((durationCount * 1000) / updateInterval);
 
-    // Validate duration (how long to compress the full day into)
-    const duration = parseInt((options.duration ?? '60') as string, 10);
-    if (Number.isNaN(duration) || duration < 1) {
-      console.error(chalk.red(ERROR_MESSAGES.invalidDuration));
+    const tempTimesMaker = new ScheduleMaker(deps);
+    let schedule: Awaited<ReturnType<typeof tempTimesMaker.makeSchedule>>;
+    try {
+      // For simulation, we need the "full day" bounds
+      // The old code used nightEnd to night
+      const baseInfo = await tempTimesMaker.makeSchedule({
+        lat: options.lat,
+        lon: options.lon,
+        curves: options.curve,
+      });
+
+      const nightEnd = baseInfo.times.nightEnd;
+      const night = baseInfo.times.night;
+
+      if (!nightEnd || !night || Number.isNaN(nightEnd.getTime()) || Number.isNaN(night.getTime())) {
+        throw new Error('Night times unavailable for this location/date');
+      }
+
+      const dayDurationMs = night.getTime() - nightEnd.getTime();
+      const timeStepMs = dayDurationMs / totalUpdates;
+
+      schedule = await tempTimesMaker.makeSchedule({
+        lat: options.lat,
+        lon: options.lon,
+        curves: options.curve,
+        startTime: nightEnd,
+        endTime: night,
+        intervalMinutes: timeStepMs / (60 * 1000), // convert ms to minutes for the maker's interval
+        includeSpecialTimes: false, // Smooth simulation doesn't need jumps to special times
+      });
+    } catch (error) {
+      console.error(chalk.red((error as Error).message));
       process.exit(1);
     }
 
-    // Validate curve option
-    let curveType: keyof typeof CurveType;
-    if (options.curve) {
-      try {
-        curveType = parseCurveType(options.curve);
-      } catch (error) {
-        console.error(chalk.red((error as Error).message));
-        process.exit(1);
-      }
-    } else {
-      curveType = 'HANN';
-    }
-
-    // Get location
-    if (options.lat !== undefined && options.lon !== undefined) {
-      lat = parseFloat(options.lat);
-      lon = parseFloat(options.lon);
-      if (Number.isNaN(lat) || lat < DAYLIGHT_VALIDATION.latitude.min || lat > DAYLIGHT_VALIDATION.latitude.max) {
-        console.error(chalk.red(DAYLIGHT_ERRORS.invalidLatitude));
-        process.exit(1);
-      }
-      if (Number.isNaN(lon) || lon < DAYLIGHT_VALIDATION.longitude.min || lon > DAYLIGHT_VALIDATION.longitude.max) {
-        console.error(chalk.red(DAYLIGHT_ERRORS.invalidLongitude));
-        process.exit(1);
-      }
-      source = 'manual';
-    } else if (loadConfig) {
-      const config = loadConfig();
-      if (config && typeof config.latitude === 'number' && typeof config.longitude === 'number') {
-        lat = config.latitude;
-        lon = config.longitude;
-        source = 'config';
-      }
-    }
-
-    if (lat === undefined || lon === undefined) {
-      try {
-        const res = await fetch('https://api.ipify.org?format=json');
-        const data = await res.json();
-        const location = getLocationFromIP(data.ip);
-        if (!location || !location.ll) {
-          console.error(chalk.red(DAYLIGHT_ERRORS.locationUnavailable));
-          process.exit(1);
-        }
-        [lat, lon] = location.ll;
-        source = `geoip (${data.ip})`;
-      } catch (_err) {
-        console.error(chalk.red(DAYLIGHT_ERRORS.locationUnavailable));
-        process.exit(1);
-      }
-    }
-
-    // Connect to controller and find device
+    // 2. Connect to controller and find device
     const controller = await createController(options.url, options.clientId, options.debug);
     const device = findDevice(controller, deviceQuery);
 
@@ -115,99 +87,35 @@ function handleSimulateSchedule(deps: CommandDeps) {
     }
 
     const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
-    const nodeId = device.node_id;
+    const nodeId = device.node_id as string;
 
     console.log(chalk.blue('\n═══════════════════════════════════════════════════════════'));
     console.log(chalk.blue('               CCT Schedule Simulation'));
     console.log(chalk.blue('═══════════════════════════════════════════════════════════\n'));
 
     console.log(chalk.cyan(`Device: ${displayName} (${nodeId})`));
-    console.log(chalk.cyan(`Location: ${lat.toFixed(4)}°, ${lon.toFixed(4)}° (${source})`));
-    console.log(chalk.cyan(`Simulation Duration: ${duration} second(s)`));
+    console.log(chalk.cyan(`Location: ${schedule.lat.toFixed(4)}°, ${schedule.lon.toFixed(4)}° (${schedule.source})`));
+    console.log(chalk.cyan(`Simulation Duration: ${durationCount} second(s)`));
     console.log(chalk.cyan(`Update Interval: ${updateInterval}ms`));
-    console.log(chalk.cyan(`Curve: ${curveType}\n`));
+    console.log(chalk.cyan(`Curve: ${schedule.curves[0]}\n`));
 
-    // Load optional bounds from config
-    const cfg: Record<string, unknown> = typeof loadConfig === 'function' ? (loadConfig() ?? {}) : {};
-    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-    const minKRaw = cfg.cctMin;
-    const maxKRaw = cfg.cctMax;
-    const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
-    const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
-    const loK =
-      minKCfg !== undefined
-        ? clamp(minKCfg, VALIDATION_RANGES.cct.min, VALIDATION_RANGES.cct.max)
-        : CCT_DEFAULTS.cctMinK;
-    const hiK =
-      maxKCfg !== undefined
-        ? clamp(maxKCfg, VALIDATION_RANGES.cct.min, VALIDATION_RANGES.cct.max)
-        : CCT_DEFAULTS.cctMaxK;
-
-    const minPctRaw = cfg.intensityMin;
-    const maxPctRaw = cfg.intensityMax;
-    const minPctCfg = typeof minPctRaw === 'number' ? minPctRaw : CCT_DEFAULTS.intensityMinPct;
-    const maxPctCfg = typeof maxPctRaw === 'number' ? maxPctRaw : CCT_DEFAULTS.intensityMaxPct;
-    const loPct = clamp(
-      Math.min(minPctCfg, maxPctCfg),
-      VALIDATION_RANGES.intensity.min,
-      VALIDATION_RANGES.intensity.max
-    );
-    const hiPct = clamp(
-      Math.max(minPctCfg, maxPctCfg),
-      VALIDATION_RANGES.intensity.min,
-      VALIDATION_RANGES.intensity.max
-    );
+    // 3. Render the schedule by making the lights execute it
+    const cfg = (loadConfig?.() ?? {}) as Record<string, unknown>;
     const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
 
-    console.log(chalk.gray(`CCT Range: ${Math.min(loK, hiK)}K - ${Math.max(loK, hiK)}K`));
-    console.log(chalk.gray(`Intensity Range: ${loPct}% - ${hiPct}%\n`));
-
-    // Calculate the full day schedule (nightEnd to night)
-    const today = new Date();
-    const times = getTimes(today, lat, lon);
-    const nightEnd = times.nightEnd;
-    const night = times.night;
-
-    if (!nightEnd || !night || Number.isNaN(nightEnd.getTime()) || Number.isNaN(night.getTime())) {
-      console.error(chalk.red(DAYLIGHT_ERRORS.nightTimesUnavailable));
-      await controller.disconnect();
-      process.exit(1);
-    }
-
-    const dayStart = nightEnd;
-    const dayEnd = night;
-    const dayDurationMs = dayEnd.getTime() - dayStart.getTime();
-
-    const totalUpdates = Math.floor((duration * 1000) / updateInterval);
-    const timeStepMs = dayDurationMs / totalUpdates;
-
-    console.log(chalk.yellow(`Simulating full day cycle in ${duration} second(s) with ${totalUpdates} updates\n`));
-
     const runSimulation = async () => {
-      for (let i = 0; i <= totalUpdates; i++) {
-        const simulatedTime = new Date(dayStart.getTime() + i * timeStepMs);
+      const curve = schedule.curves[0];
+      for (let i = 0; i < schedule.points.length; i++) {
+        const point = schedule.points[i];
+        const val = point.values.get(curve);
+        if (!val) continue;
 
-        const result = calculateCCT(
-          lat,
-          lon,
-          simulatedTime,
-          {
-            cctMinK: Math.min(loK, hiK),
-            cctMaxK: Math.max(loK, hiK),
-            intensityMinPct: loPct,
-            intensityMaxPct: hiPct,
-          },
-          CurveType[curveType]
-        );
-
-        const percent = Math.round((result.intensity / 10) * 10) / 10;
-
+        const percent = Math.round((val.intensity / 10) * 10) / 10;
         let targetIntensity = percent;
         let multiplierApplied = false;
 
         if (intensityMultMap) {
-          const mult = intensityMultMap[nodeId as string] ?? (device.id ? intensityMultMap[device.id] : undefined);
+          const mult = intensityMultMap[nodeId] ?? (device.id ? intensityMultMap[device.id] : undefined);
           if (mult !== undefined && typeof mult === 'number') {
             targetIntensity = Math.round(percent * mult);
             targetIntensity = Math.max(0, Math.min(100, targetIntensity));
@@ -215,30 +123,20 @@ function handleSimulateSchedule(deps: CommandDeps) {
           }
         }
 
-        const progress = Math.round((i / totalUpdates) * 100);
-        const timeStr = simulatedTime.toLocaleTimeString(undefined, {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        const progress = Math.round((i / (schedule.points.length - 1)) * 100);
+        const timeStr = point.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-        if (multiplierApplied) {
-          console.log(
-            chalk.gray(`[${progress}% | ${timeStr}] `) +
-              chalk.green(`Setting ${displayName} to ${result.cct}K at ${targetIntensity}% (multiplied)`)
-          );
-        } else {
-          console.log(
-            chalk.gray(`[${progress}% | ${timeStr}] `) +
-              chalk.green(`Setting ${displayName} to ${result.cct}K at ${targetIntensity}%`)
-          );
-        }
+        process.stdout.write(
+          `\r${chalk.gray(`[${progress}% | ${timeStr}] `)}${chalk.green(`Setting ${displayName} to ${val.cct}K at ${targetIntensity}%${multiplierApplied ? ' (multiplied)' : ''}`)}          `
+        );
 
-        controller.setCCT(nodeId as string, result.cct, result.intensity * (targetIntensity / percent || 1));
+        controller.setCCT(nodeId, val.cct, val.intensity * (targetIntensity / percent || 1));
 
-        if (i < totalUpdates) {
+        if (i < schedule.points.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, updateInterval));
         }
       }
+      console.log();
     };
 
     const sigintHandler = async () => {
@@ -248,9 +146,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
     };
 
     process.on('SIGINT', sigintHandler);
-
     await runSimulation();
-
     process.off('SIGINT', sigintHandler);
 
     console.log(chalk.green('\nSimulation completed'));

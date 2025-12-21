@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import chalk from 'chalk';
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { Command } from 'commander';
+import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 type GraphCommandOptions = {
@@ -37,143 +38,25 @@ export function registerGraphSchedule(program: Command, deps: CommandDeps) {
 }
 
 function handleGraphSchedule(deps: CommandDeps) {
-  const { loadConfig } = deps;
-
   return async (options: CommandOptions & GraphCommandOptions) => {
-    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
-    const { calculateCCT, parseCurveType, CurveType } = await import('../../daylightSimulation/cctUtil.js');
-    const SunCalc = (await import('suncalc')).default;
-    const { getTimes } = SunCalc;
+    const maker = new ScheduleMaker(deps);
 
-    // --- 1. Determine Location & Date ---
-
-    let lat: number | undefined;
-    let lon: number | undefined;
-    let date: Date = new Date();
-
-    if (options.date) {
-      date = new Date(options.date);
-      if (Number.isNaN(date.getTime())) {
-        console.error(chalk.red('Invalid date format. Use ISO format (e.g., 2025-10-26)'));
-        process.exit(1);
-      }
+    let schedule: Awaited<ReturnType<typeof maker.makeSchedule>>;
+    try {
+      // For graphing, we want minute-by-minute granularity for a smooth curve
+      schedule = await maker.makeSchedule({
+        lat: options.lat,
+        lon: options.lon,
+        date: options.date,
+        intervalMinutes: 1,
+        curves: options.curve,
+        includeSpecialTimes: false, // Cleaner graph with regular intervals
+        bufferMinutes: 60,
+      });
+    } catch (error) {
+      console.error(chalk.red((error as Error).message));
+      process.exit(1);
     }
-
-    // Determine curve types to graph
-    let curveTypes: (keyof typeof CurveType)[] = ['HANN'];
-    const curveOption = options.curve?.toLowerCase() || '';
-
-    // If user explicitly asks for "all" or specific list
-    if (curveOption === 'all') {
-      curveTypes = Object.keys(CurveType) as (keyof typeof CurveType)[];
-    } else if (curveOption) {
-      try {
-        const parts = curveOption.split(',').map((s) => s.trim());
-        const parsedList: (keyof typeof CurveType)[] = [];
-
-        for (const part of parts) {
-          if (part === 'all') {
-            parsedList.push(...(Object.keys(CurveType) as (keyof typeof CurveType)[]));
-          } else {
-            parsedList.push(parseCurveType(part));
-          }
-        }
-        // Dedup
-        curveTypes = Array.from(new Set(parsedList));
-      } catch (error) {
-        console.error(chalk.red((error as Error).message));
-        process.exit(1);
-      }
-    } else if (loadConfig) {
-      const config = loadConfig();
-      if (config?.defaultCurve) {
-        try {
-          const parsed = parseCurveType(config.defaultCurve);
-          curveTypes = [parsed];
-        } catch (_) {
-          // Ignore invalid default curve
-        }
-      }
-    }
-
-    let titleCurve = curveTypes.length > 1 ? 'Multiple Curves' : curveTypes[0];
-    if (curveTypes.length === Object.keys(CurveType).length) {
-      titleCurve = 'All Curves';
-    }
-
-    // Determine Lat/Lon
-    if (options.lat !== undefined && options.lon !== undefined) {
-      lat = parseFloat(options.lat);
-      lon = parseFloat(options.lon);
-      if (Number.isNaN(lat) || lat < -90 || lat > 90) {
-        console.error(chalk.red('Invalid Latitude'));
-        process.exit(1);
-      }
-      if (Number.isNaN(lon) || lon < -180 || lon > 180) {
-        console.error(chalk.red('Invalid Longitude'));
-        process.exit(1);
-      }
-    } else if (loadConfig) {
-      const config = loadConfig();
-      if (config && typeof config.latitude === 'number' && typeof config.longitude === 'number') {
-        lat = config.latitude;
-        lon = config.longitude;
-      }
-    }
-
-    if (lat === undefined || lon === undefined) {
-      try {
-        const res = await fetch('https://api.ipify.org?format=json');
-        const data = await res.json();
-        const location = getLocationFromIP(data.ip);
-        if (!location || !location.ll) throw new Error('Loc fail');
-        [lat, lon] = location.ll;
-      } catch (_err) {
-        console.error(chalk.red('Could not determine location. Use --lat and --lon.'));
-        process.exit(1);
-      }
-    }
-
-    // --- 2. Calculate Configuration Bounds ---
-    const cfg: Record<string, unknown> = typeof loadConfig === 'function' ? (loadConfig() ?? {}) : {};
-    const cctMinRaw = cfg.cctMin;
-    const cctMaxRaw = cfg.cctMax;
-    const iMinRaw = cfg.intensityMin;
-    const iMaxRaw = cfg.intensityMax;
-
-    const cctOpts = {
-      cctMinK: typeof cctMinRaw === 'number' ? cctMinRaw : undefined,
-      cctMaxK: typeof cctMaxRaw === 'number' ? cctMaxRaw : undefined,
-      intensityMinPct: typeof iMinRaw === 'number' ? iMinRaw : undefined,
-      intensityMaxPct: typeof iMaxRaw === 'number' ? iMaxRaw : undefined,
-    };
-
-    // --- 3. Generate Data Points ---
-    const times = getTimes(date, lat, lon);
-    const nightEnd = times.nightEnd;
-    const night = times.night;
-    const sunrise = times.sunrise;
-    const sunset = times.sunset;
-
-    let startTime: Date;
-    let endTime: Date;
-
-    if (nightEnd && !Number.isNaN(nightEnd.getTime()) && night && !Number.isNaN(night.getTime())) {
-      startTime = nightEnd;
-      endTime = night;
-    } else if (sunrise && !Number.isNaN(sunrise.getTime()) && sunset && !Number.isNaN(sunset.getTime())) {
-      startTime = new Date(sunrise.getTime() - 60 * 60 * 1000);
-      endTime = new Date(sunset.getTime() + 60 * 60 * 1000);
-    } else {
-      startTime = new Date(date);
-      startTime.setHours(0, 0, 0, 0);
-      endTime = new Date(date);
-      endTime.setHours(23, 59, 59, 999);
-    }
-
-    const bufferMs = 60 * 60 * 1000;
-    startTime = new Date(startTime.getTime() - bufferMs);
-    endTime = new Date(endTime.getTime() + bufferMs);
 
     interface ChartDataset {
       label: string;
@@ -188,20 +71,15 @@ function handleGraphSchedule(deps: CommandDeps) {
     }
 
     const datasets: ChartDataset[] = [];
-    const labels: string[] = [];
+    const labels: string[] = schedule.points.map((p) => {
+      if (p.time.getMinutes() === 0) {
+        return p.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      }
+      return '';
+    });
+
     const showIntensity = options.metrics === 'intensity' || options.metrics === 'both';
     const showCct = options.metrics === 'cct' || options.metrics === 'both';
-
-    const totalMinutes = Math.ceil((endTime.getTime() - startTime.getTime()) / (60 * 1000));
-
-    for (let i = 0; i <= totalMinutes; i++) {
-      const currentTime = new Date(startTime.getTime() + i * 60 * 1000);
-      if (currentTime.getMinutes() === 0) {
-        labels.push(currentTime.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
-      } else {
-        labels.push('');
-      }
-    }
 
     const colors = [
       'rgb(54, 162, 235)', // Blue
@@ -214,21 +92,14 @@ function handleGraphSchedule(deps: CommandDeps) {
       'rgb(255, 0, 255)', // Magenta
     ];
 
-    curveTypes.forEach((curve, index) => {
-      const points: { cct: number; intensity: number }[] = [];
-      for (let i = 0; i <= totalMinutes; i++) {
-        const currentTime = new Date(startTime.getTime() + i * 60 * 1000);
-        const result = calculateCCT(lat, lon, currentTime, cctOpts, CurveType[curve]);
-        points.push(result);
-      }
-
-      const color = curveTypes.length > 1 ? colors[index % colors.length] : 'rgb(54, 162, 235)';
-      const cctColor = curveTypes.length > 1 ? colors[index % colors.length] : 'rgb(255, 99, 132)';
+    schedule.curves.forEach((curve, index) => {
+      const color = schedule.curves.length > 1 ? colors[index % colors.length] : 'rgb(54, 162, 235)';
+      const cctColor = schedule.curves.length > 1 ? colors[index % colors.length] : 'rgb(255, 99, 132)';
 
       if (showIntensity) {
         datasets.push({
-          label: curveTypes.length > 1 ? `${curve} (Int)` : 'Intensity (%)',
-          data: points.map((p) => p.intensity / 10),
+          label: schedule.curves.length > 1 ? `${curve} (Int)` : 'Intensity (%)',
+          data: schedule.points.map((p) => (p.values.get(curve)?.intensity ?? 0) / 10),
           borderColor: color,
           backgroundColor: 'transparent',
           yAxisID: 'y',
@@ -241,8 +112,8 @@ function handleGraphSchedule(deps: CommandDeps) {
 
       if (showCct) {
         datasets.push({
-          label: curveTypes.length > 1 ? `${curve} (CCT)` : 'CCT (K)',
-          data: points.map((p) => p.cct),
+          label: schedule.curves.length > 1 ? `${curve} (CCT)` : 'CCT (K)',
+          data: schedule.points.map((p) => p.values.get(curve)?.cct ?? 0),
           borderColor: cctColor,
           backgroundColor: 'transparent',
           yAxisID: 'y1',
@@ -255,32 +126,23 @@ function handleGraphSchedule(deps: CommandDeps) {
 
     const width = parseInt(options.width || '1200', 10);
     const height = parseInt(options.height || '600', 10);
+    const canvas = new ChartJSNodeCanvas({ width, height });
 
-    const chartCallback = (_ChartJS: unknown) => {
-      // No additional configuration needed
-    };
-    const canvas = new ChartJSNodeCanvas({ width, height, chartCallback });
+    const titleCurve =
+      schedule.curves.length > 1
+        ? schedule.curves.length === 7
+          ? 'All Curves'
+          : 'Multiple Curves'
+        : schedule.curves[0];
 
-    interface ChartConfiguration {
-      type: 'line';
-      data: {
-        labels: string[];
-        datasets: ChartDataset[];
-      };
-      options: Record<string, unknown>;
-    }
-
-    const configuration: ChartConfiguration = {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: datasets,
-      },
+    const configuration = {
+      type: 'line' as const,
+      data: { labels, datasets },
       options: {
         plugins: {
           title: {
             display: true,
-            text: `Schedule: ${date.toDateString()} (Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}) - Curve: ${titleCurve}`,
+            text: `Schedule: ${schedule.date.toDateString()} (Lat: ${schedule.lat.toFixed(2)}, Lon: ${schedule.lon.toFixed(2)}) - Curve: ${titleCurve}`,
           },
         },
         scales: {
@@ -288,7 +150,7 @@ function handleGraphSchedule(deps: CommandDeps) {
             ticks: {
               autoSkip: false,
               maxRotation: 45,
-              callback: (_val: string | number, index: number) => labels[index],
+              callback: (_val: unknown, index: number) => labels[index],
             },
           },
           y: {
@@ -310,18 +172,14 @@ function handleGraphSchedule(deps: CommandDeps) {
     };
 
     try {
-      const buffer = await canvas.renderToBuffer(configuration);
-
+      // biome-ignore lint/suspicious/noExplicitAny: Chart.js configuration type is complex
+      const buffer = await canvas.renderToBuffer(configuration as any);
       let filename = options.output;
       if (!filename) {
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = schedule.date.toISOString().split('T')[0];
         filename = `schedule-${dateStr}.png`;
       }
-
-      if (!filename.toLowerCase().endsWith('.png')) {
-        filename += '.png';
-      }
-
+      if (!filename.toLowerCase().endsWith('.png')) filename += '.png';
       const outputPath = path.resolve(process.cwd(), filename);
       fs.writeFileSync(outputPath, buffer);
       console.log(chalk.green(`Graph saved to ${outputPath}`));
