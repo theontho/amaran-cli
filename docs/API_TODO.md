@@ -7,17 +7,18 @@ Written by AI
 ## Missing Commands
 
 ### Device Management
-- [ ] `get_preset_list` - Get list of available presets (Command type exists, but no public method)
-- [ ] `get_system_effect_list` - Get list of available system effects (Command type exists, but no public method)
+- [x] `get_preset_list` - Get list of available presets
+- [x] `get_system_effect_list` - Get list of available system effects
 - [x] `get_node_config` - Implemented and used for initialization
 - [x] `get_device_list` - Implemented and used for initialization
 - [x] `get_scene_list` - Implemented and used for initialization
+- [x] `get_fixture_list` - Get simple list of fixtures
 
 ### Scene Management
-- [ ] `save_scene` - Save current light states as a scene
-- [ ] `delete_scene` - Remove a saved scene
-- [ ] `recall_scene` - Recall a saved scene
-- [ ] `update_scene` - Update an existing scene
+- [x] `save_scene` - Save current light states as a scene
+- [x] `delete_scene` - Remove a saved scene
+- [x] `recall_scene` - Recall a saved scene
+- [x] `update_scene` - Update an existing scene
 
 ### Light Control (Implemented & Enhancements)
 - [x] `set_intensity` / `increment_intensity`
@@ -25,24 +26,27 @@ Written by AI
 - [x] `set_hsi`
 - [x] `set_color`
 - [x] `set_system_effect` - Set system effect (predefined)
-- [ ] `set_effect` - Set custom effect (different from system effects)
-- [ ] `set_effect_speed` - Control effect speed
-- [ ] `set_effect_intensity` - Control effect intensity separately from light intensity
-- [ ] `set_fan_mode` - Control fan settings if supported by the device
-- [ ] `set_fan_speed` - Adjust fan speed if supported
+- [x] `set_effect` - Set custom effect
+- [x] `set_effect_speed` - Control effect speed
+- [x] `set_effect_intensity` - Control effect intensity
+- [x] `set_fan_mode` - Control fan settings
+- [x] `set_fan_speed` - Adjust fan speed
 
 ### Group Management
-- [ ] `create_group` - Create a new light group
-- [ ] `delete_group` - Remove a light group
-- [ ] `add_to_group` - Add device to a group
-- [ ] `remove_from_group` - Remove device from a group
-- [ ] `get_group_list` - List all groups
+- [x] `create_group` - Create a new light group
+- [x] `delete_group` - Remove a light group
+- [x] `add_to_group` - Add device to a group
+- [x] `remove_from_group` - Remove device from a group
+- [x] `get_group_list` - List all groups
 
 ### Firmware & Device Info
-- [ ] `get_device_info` - Get detailed device information
-- [ ] `get_firmware_version` - Check firmware version
-- [ ] `check_for_updates` - Check for firmware updates
-- [ ] `update_firmware` - Initiate firmware update
+- [x] `get_device_info` - Get detailed device information
+- [x] `get_firmware_version` - Check firmware version
+- [x] `check_for_updates` - Check for firmware updates
+- [x] `update_firmware` - Initiate firmware update
+- [x] `get_protocol_versions` - Get supported protocol versions
+- [x] `get_quickshot_list` - Get list of quickshots
+- [x] `set_quickshot` - Set a quickshot
 
 ## Implementation Notes
 

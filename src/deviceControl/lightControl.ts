@@ -97,23 +97,23 @@ class LightController {
       const parsedData = JSON.parse(data.toString());
       this.log('Received message from server:', parsedData);
 
-      const requestId = parsedData.request?.type;
+      const action = parsedData.action || parsedData.request?.type;
       if (parsedData.code !== 0) {
         console.error('Error from server:', parsedData.message);
-        if (requestId && this.commandCallbacks.has(requestId)) {
-          this.commandCallbacks.get(requestId)?.(false, parsedData.message);
-          this.commandCallbacks.delete(requestId);
+        if (action && this.commandCallbacks.has(action)) {
+          this.commandCallbacks.get(action)?.(false, parsedData.message);
+          this.commandCallbacks.delete(action);
         }
         return;
       }
 
-      if (requestId && this.commandCallbacks.has(requestId)) {
-        this.commandCallbacks.get(requestId)?.(true, parsedData.message, parsedData.data);
-        this.commandCallbacks.delete(requestId);
+      if (action && this.commandCallbacks.has(action)) {
+        this.commandCallbacks.get(action)?.(true, parsedData.message, parsedData.data);
+        this.commandCallbacks.delete(action);
       }
 
-      if (parsedData.request?.type) {
-        this.processResponseType(parsedData.request.type, parsedData.data);
+      if (action) {
+        this.processResponseType(action, parsedData.data, parsedData.node_id);
       }
     } catch (error) {
       console.error('Error parsing message:', error);
@@ -121,19 +121,20 @@ class LightController {
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Dynamic data from server needs flexible typing before validation
-  private processResponseType(type: string, data: any) {
+  private processResponseType(type: string, data: any, nodeId?: string) {
     switch (type) {
       case 'get_device_list':
+      case 'get_fixture_list':
         this.handleDeviceList(data);
         break;
       case 'get_scene_list':
         this.handleSceneList(data);
         break;
       case 'get_node_config':
-        this.handleNodeConfig(data);
+        this.handleNodeConfig({ node_id: nodeId, data });
         break;
       default:
-        this.log('Unknown response type:', type);
+        this.log('Response type processed:', type);
     }
   }
 
@@ -149,11 +150,18 @@ class LightController {
     this.getNodeConfigs();
   }
 
-  private handleNodeConfig(data: { node_id?: string; data: NodeConfig }) {
-    const nodeId = data.node_id;
+  // biome-ignore lint/suspicious/noExplicitAny: Payload can be flat or nested from different server versions
+  private handleNodeConfig(payload: { node_id?: string; data: any }) {
+    const nodeId = payload.node_id || payload.data?.node_id;
     if (nodeId) {
-      this.nodeConfigs.set(nodeId, data.data);
-      this.log('Node Config:', JSON.stringify(data.data, null, 2));
+      let config = payload.data;
+      // If server returned nested data: { node_id, data: { ...config } }
+      if (config && typeof config === 'object' && 'data' in config && ('node_id' in config || 'id' in config)) {
+        config = config.data;
+      }
+
+      this.nodeConfigs.set(nodeId, config);
+      this.log('Node Config:', JSON.stringify(config, null, 2));
 
       if (this.nodeConfigs.size === this.deviceList.length) {
         this.log('All node configurations have been gathered');
@@ -300,12 +308,96 @@ class LightController {
 
   // --- Individual Light Control Methods ---
 
+  public getProtocolVersions(callback?: CommandCallback) {
+    this.sendCommand(undefined, 'get_protocol_versions', {}, callback);
+  }
+
+  public getFixtureList(callback?: CommandCallback) {
+    this.sendCommand(undefined, 'get_fixture_list', {}, callback);
+  }
+
   public getDeviceList(callback?: CommandCallback) {
     this.sendCommand(undefined, 'get_device_list', {}, callback);
   }
 
+  public getDeviceInfo(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_device_info', {}, callback);
+  }
+
+  public getFirmwareVersion(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_firmware_version', {}, callback);
+  }
+
+  public checkForUpdates(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'check_for_updates', {}, callback);
+  }
+
+  public updateFirmware(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'update_firmware', {}, callback);
+  }
+
   public getSceneList(callback?: CommandCallback) {
     this.sendCommand(undefined, 'get_scene_list', {}, callback);
+  }
+
+  public saveScene(name: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'save_scene', { name }, callback);
+  }
+
+  public deleteScene(sceneId: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'delete_scene', { id: sceneId }, callback);
+  }
+
+  public recallScene(sceneId: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'recall_scene', { id: sceneId }, callback);
+  }
+
+  public updateScene(sceneId: string, name?: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'update_scene', { id: sceneId, name }, callback);
+  }
+
+  public getPresetList(callback?: CommandCallback) {
+    this.sendCommand(undefined, 'get_preset_list', {}, callback);
+  }
+
+  public recallPreset(nodeId: string, presetId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'recall_preset', { id: presetId }, callback);
+  }
+
+  public setPreset(nodeId: string, presetId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'set_preset', { preset_id: presetId }, callback);
+  }
+
+  public getSystemEffectList(callback?: CommandCallback) {
+    this.sendCommand(undefined, 'get_system_effect_list', {}, callback);
+  }
+
+  public getQuickshotList(callback?: CommandCallback) {
+    this.sendCommand(undefined, 'get_quickshot_list', {}, callback);
+  }
+
+  public setQuickshot(quickshotId: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'set_quickshot', { quickshot_id: quickshotId }, callback);
+  }
+
+  public getGroupList(callback?: CommandCallback) {
+    this.sendCommand(undefined, 'get_group_list', {}, callback);
+  }
+
+  public createGroup(name: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'create_group', { name }, callback);
+  }
+
+  public deleteGroup(groupId: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'delete_group', { id: groupId }, callback);
+  }
+
+  public addToGroup(groupId: string, nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'add_to_group', { group_id: groupId, node_id: nodeId }, callback);
+  }
+
+  public removeFromGroup(groupId: string, nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(undefined, 'remove_from_group', { group_id: groupId, node_id: nodeId }, callback);
   }
 
   public getNodeConfig(nodeId: string, callback?: CommandCallback) {
@@ -328,12 +420,20 @@ class LightController {
     this.sendCommand(nodeId, 'toggle_sleep', undefined, callback);
   }
 
+  public getIntensity(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_intensity', {}, callback);
+  }
+
   public setIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'set_intensity', { intensity }, callback);
   }
 
   public incrementIntensity(nodeId: string, delta: number, callback?: CommandCallback) {
-    this.sendCommand(nodeId, 'increment_intensity', { delta }, callback);
+    this.sendCommand(nodeId, 'increase_intensity', { delta }, callback);
+  }
+
+  public getCCT(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_cct', {}, callback);
   }
 
   public setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
@@ -349,7 +449,11 @@ class LightController {
     if (intensity !== undefined) {
       args.intensity = intensity;
     }
-    this.sendCommand(nodeId, 'increment_cct', args, callback);
+    this.sendCommand(nodeId, 'increase_cct', args, callback);
+  }
+
+  public getHSI(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_hsi', {}, callback);
   }
 
   public setHSI(
@@ -371,6 +475,30 @@ class LightController {
     this.sendCommand(nodeId, 'set_hsi', args, callback);
   }
 
+  public getRGB(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_rgb', {}, callback);
+  }
+
+  public setRGB(nodeId: string, r: number, g: number, b: number, intensity?: number, callback?: CommandCallback) {
+    const args: CommandArgs = { r, g, b };
+    if (intensity !== undefined) {
+      args.intensity = intensity;
+    }
+    this.sendCommand(nodeId, 'set_rgb', args, callback);
+  }
+
+  public getXY(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_xy', {}, callback);
+  }
+
+  public setXY(nodeId: string, x: number, y: number, intensity?: number, callback?: CommandCallback) {
+    const args: CommandArgs = { x, y };
+    if (intensity !== undefined) {
+      args.intensity = intensity;
+    }
+    this.sendCommand(nodeId, 'set_xy', args, callback);
+  }
+
   public setColor(nodeId: string, color: string, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { color };
     if (intensity !== undefined) {
@@ -379,12 +507,49 @@ class LightController {
     this.sendCommand(nodeId, 'set_color', args, callback);
   }
 
+  public getSystemEffect(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_system_effect', {}, callback);
+  }
+
   public setSystemEffect(nodeId: string, effectType: string, intensity?: number, callback?: CommandCallback) {
     const args: CommandArgs = { effect_type: effectType };
     if (intensity !== undefined) {
       args.intensity = intensity;
     }
     this.sendCommand(nodeId, 'set_system_effect', args, callback);
+  }
+
+  public getEffect(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_effect', {}, callback);
+  }
+
+  public setEffect(nodeId: string, effectName: string, args?: CommandArgs, callback?: CommandCallback) {
+    const combinedArgs: CommandArgs = { name: effectName, ...args };
+    this.sendCommand(nodeId, 'set_effect', combinedArgs, callback);
+  }
+
+  public getFanMode(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_fan_mode', {}, callback);
+  }
+
+  public setFanMode(nodeId: string, mode: number, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'set_fan_mode', { mode }, callback);
+  }
+
+  public getFanSpeed(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_fan_speed', {}, callback);
+  }
+
+  public setFanSpeed(nodeId: string, speed: number, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'set_fan_speed', { speed }, callback);
+  }
+
+  public setEffectSpeed(nodeId: string, speed: number, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'set_effect_speed', { speed }, callback);
+  }
+
+  public setEffectIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'set_effect_intensity', { intensity }, callback);
   }
 
   // --- Utility & Infrastructure ---
@@ -419,9 +584,13 @@ class LightController {
         version: 1,
         client_id: this.clientId,
         type,
+        action: type,
         node_id: nodeId,
         args,
       };
+
+      // biome-ignore lint/suspicious/noExplicitAny: Backward compatibility for mock server
+      (command as any).request = { type };
 
       if (callback) {
         this.commandCallbacks.set(type, callback);
