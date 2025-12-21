@@ -1,3 +1,14 @@
+## [1.6.0] - 2025-12-21
+
+- **Feature**: Implemented Group Management commands (`create-group`, `delete-group`, `list-groups`, `group-control`).
+- **Feature**: Added Quickshot functionality (`quickshot`, `save-quickshot`, `delete-quickshot`, `list-quickshots`).
+- **Feature**: Added `lightOutput` parameter to sunlight curves for seasonal lux variation.
+- **Improvement**: Added `intensity` control to more device commands.
+- **Refactor**: Major refactoring of `lightControl` module for better maintainability.
+- **Refactor**: Moved `graphSchedule` logic to `daylightSimulation` directory.
+- **Fix**: Resolved CLI hang issues after device commands.
+- **Doc**: Updated API documentation and usage guides.
+
 ## [1.5.0] - 2025-12-21
 
 - **Refactor**: Major architectural improvements and code reorganization.

@@ -420,6 +420,41 @@ This creates a PNG image showing the CCT and/or intensity curves, which is great
 amaran-cli status "Light Name"
 ```
 
+### Group Management
+
+```bash
+# List all groups
+amaran-cli list-groups
+
+# Create a new group
+amaran-cli create-group "My Group"
+
+# Delete a group
+amaran-cli delete-group "My Group"
+
+# Control a group (turn on)
+amaran-cli group-control "My Group" on
+
+# Control a group (set CCT)
+amaran-cli group-control "My Group" cct 5600
+```
+
+### Quickshots
+
+```bash
+# List all quickshots
+amaran-cli list-quickshots
+
+# Save current state as a quickshot
+amaran-cli save-quickshot "My Scene"
+
+# Recall a quickshot
+amaran-cli quickshot "My Scene"
+
+# Delete a quickshot
+amaran-cli delete-quickshot "My Scene"
+```
+
 ### Global options
 
 All commands support these options:
