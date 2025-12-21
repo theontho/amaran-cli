@@ -9,10 +9,18 @@ import registerCct from './commands/deviceControl/cct.js';
 import registerColor from './commands/deviceControl/color.js';
 import registerConfig from './commands/deviceControl/config.js';
 import registerDiscover from './commands/deviceControl/discover.js';
+import registerEffect from './commands/deviceControl/effect.js';
+import registerFan from './commands/deviceControl/fan.js';
+import registerFirmware from './commands/deviceControl/firmware.js';
+import registerGroup from './commands/deviceControl/group.js';
 import registerHsi from './commands/deviceControl/hsi.js';
+import registerInfo from './commands/deviceControl/info.js';
 import registerIntensity from './commands/deviceControl/intensity.js';
 import registerList from './commands/deviceControl/list.js';
 import registerPower from './commands/deviceControl/power.js';
+import registerPreset from './commands/deviceControl/preset.js';
+import registerQuickshot from './commands/deviceControl/quickshot.js';
+import registerScene from './commands/deviceControl/scene.js';
 import registerStatus from './commands/deviceControl/status.js';
 import type { CommandDeps } from './deviceControl/types.js';
 
@@ -35,6 +43,16 @@ export function registerCommands(program: Command, deps: CommandDeps) {
   registerColor(program, deps);
   registerStatus(program, deps);
   registerService(program, deps);
+
+  // New commands
+  registerScene(program, deps);
+  registerGroup(program, deps);
+  registerPreset(program, deps);
+  registerQuickshot(program, deps);
+  registerFan(program, deps);
+  registerEffect(program, deps);
+  registerInfo(program, deps);
+  registerFirmware(program, deps);
 }
 
 export default registerCommands;
