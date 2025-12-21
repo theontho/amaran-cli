@@ -206,25 +206,32 @@ If a bound is not set, the default is used. When both min and max are set, min m
 
 #### Max Lux Output (Advanced)
 
+#### Max Lux Output (Advanced)
+
 If you have measured the maximum lux output of your lighting setup, you can provide this value to `auto-cct` to enable more accurate intensity scaling.
 
 By default, `auto-cct` maps the daylight curve's `lightOutput` directly to intensity percentage (e.g. max curve value = 100% intensity). With Max Lux mode, it uses your specific setup's capability as the reference.
 
+You can provide:
+1. **A Single Number**: If your setup has a constant max lux.
+2. **A CCT Map**: If max lux varies by color temperature (common with bi-color lights).
+
 ```bash
-# Set max lux via CLI (e.g. 10000 lux)
+# Option 1: Constant Max Lux (e.g. 10000 lux)
 amaran-cli auto-cct --max-lux 10000
 
-# Or configure it permanently
-amaran-cli config --max-lux 10000
+# Option 2: CCT to Lux Map (2700K=8000lux, 5600K=10000lux)
+# The system linearly interpolates for values in between.
+amaran-cli auto-cct --max-lux "2700:8000, 5600:10000, 6500:9000"
+
+# Configure permanently
+amaran-cli config --max-lux "2700:8000, 5600:10000"
 ```
 
 **How it works:**
-1. The system calculates the target lux from the daylight curve.
-2. It calculates intensity as: `(Target Lux / Your Max Lux) * 100`.
-3. If the curve calls for 5,000 lux and your max is 10,000, lights will be set to 50%.
-4. If the curve calls for 15,000 lux and your max is 10,000, lights will be clamped to 100%.
-
-This allows for more dynamic headroom adjustments without changing the curve itself.
+1. The system determines the effective max lux for the current target CCT (interpolating if necessary).
+2. It calculates intensity as: `(Target Lux / Effective Max Lux) * 100`.
+3. If the target lux exceeds the capability, lights are clamped to 100%.
 
 ### Running Auto-CCT as a Circadian Lighting Service
 

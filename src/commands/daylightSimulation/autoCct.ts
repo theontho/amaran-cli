@@ -33,6 +33,7 @@ function handleAutoCct(deps: CommandDeps) {
   return async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
     const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
     const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
+    const { interpolateMaxLux, parseMaxLuxMap } = await import('../../daylightSimulation/mathUtil.js');
     const options = optionsRaw as {
       url?: string;
       clientId?: string;
@@ -142,7 +143,7 @@ function handleAutoCct(deps: CommandDeps) {
 
     const minKRaw = cfg.cctMin;
     const maxKRaw = cfg.cctMax;
-    const _maxLuxRaw = cfg.maxLux ?? options.maxLux; // Typo in original options probably meant options.maxLux should override config
+    // maxLux logic handled later with interpolation support
     const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
     const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
     const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
@@ -187,21 +188,42 @@ function handleAutoCct(deps: CommandDeps) {
     let percent: number;
     let modeDescription = 'intensity curve';
 
-    // Determine maxLux value, prioritizing CLI option over config
-    let maxLux: number | undefined;
+    // Determine maxLux value (number or map), prioritizing CLI option over config
+    let effectiveMaxLux: number | undefined;
+    let maxLuxMap: Record<number, number> | number | undefined;
+
+    // 1. Try CLI option
     if (options.maxLux) {
-      const parsed = parseFloat(options.maxLux);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        maxLux = parsed;
+      // Check for map format "cct:lux,cct:lux"
+      if (options.maxLux.includes(':')) {
+        const map = parseMaxLuxMap(options.maxLux);
+        if (map) maxLuxMap = map;
+      } else {
+        const parsed = parseFloat(options.maxLux);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          maxLuxMap = parsed;
+        }
       }
-    } else if (typeof cfg.maxLux === 'number' && cfg.maxLux > 0) {
-      maxLux = cfg.maxLux;
+    }
+    // 2. Fallback to Config
+    else if (cfg.maxLux !== undefined) {
+      maxLuxMap = cfg.maxLux as number | Record<string, number>;
     }
 
-    if (maxLux !== undefined && result.lightOutput !== undefined) {
-      percent = Math.min(100, Math.max(0, (result.lightOutput / maxLux) * 100));
+    // Calculate effective max lux based on current CCT
+    if (maxLuxMap !== undefined) {
+      if (typeof maxLuxMap === 'number') {
+        effectiveMaxLux = maxLuxMap;
+      } else {
+        // interpolated map
+        effectiveMaxLux = interpolateMaxLux(result.cct, maxLuxMap);
+      }
+    }
+
+    if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
+      percent = Math.min(100, Math.max(0, (result.lightOutput / effectiveMaxLux) * 100));
       percent = Math.round(percent * 10) / 10;
-      modeDescription = `max lux target (${maxLux} lux)`;
+      modeDescription = `max lux target (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
     } else {
       percent = Math.round((result.intensity / 10) * 10) / 10;
     }
@@ -211,7 +233,7 @@ function handleAutoCct(deps: CommandDeps) {
     console.log(chalk.gray(`  Time: ${time.toISOString()}`));
     console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
     console.log(chalk.gray(`  Mode: ${modeDescription}`));
-    if (maxLux !== undefined && result.lightOutput !== undefined) {
+    if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
       console.log(chalk.gray(`  Target Output: ${result.lightOutput} lux`));
     }
 

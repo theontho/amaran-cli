@@ -218,13 +218,30 @@ function handleConfig(deps: CommandDeps) {
 
     // Handle max-lux option
     if (options.maxLux !== undefined) {
-      const lux = parseFloat(options.maxLux);
-      if (Number.isNaN(lux) || lux <= 0) {
-        console.error(chalk.red('max-lux must be a positive number'));
+      let valid = false;
+      const luxVal = options.maxLux;
+
+      // Try as simple number
+      const luxNum = parseFloat(luxVal);
+      if (!Number.isNaN(luxNum) && luxNum > 0 && !luxVal.includes(':')) {
+        config.maxLux = luxNum;
+        changes.push(`Max Lux: ${luxNum}`);
+        valid = true;
+      } else {
+        // Try as map
+        const { parseMaxLuxMap } = await import('../../daylightSimulation/mathUtil.js');
+        const map = parseMaxLuxMap(luxVal);
+        if (map) {
+          config.maxLux = map;
+          changes.push(`Max Lux Map: ${JSON.stringify(map)}`);
+          valid = true;
+        }
+      }
+
+      if (!valid) {
+        console.error(chalk.red('max-lux must be a positive number OR a map string like "2700:8000,5600:10000"'));
         process.exit(1);
       }
-      config.maxLux = lux;
-      changes.push(`Max Lux: ${lux}`);
     }
 
     // Ensure logical ordering if both sides provided
