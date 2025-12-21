@@ -311,7 +311,7 @@ SN Solar Noon       : 11:54 AM   NA Nadir            : 12:54 AM
 
 
 ─────────────────────────────────────────────────────────────────────────────────────────────────
-Time         HANN        WM_SMALL    WM_MEDIUM   WM_LARGE    CIE         SUN_ALT     PEREZ
+Time         HANN        WM_SML      WM_MED      WM_LRG      CIE         SUN_ALT     PEREZ
 ─────────────────────────────────────────────────────────────────────────────────────────────────
 04:38 AM     1700K/5%    1700K/5%    1700K/5%    1700K/5%    1700K/5%    1700K/5%    1700K/5%
 05:08 AM NE  1700K/5%    1700K/5%    1700K/5%    1700K/5%    1700K/5%    1700K/5%    1700K/5%
@@ -364,6 +364,15 @@ amaran-cli print-schedule --date 2025-12-21
 # Change time interval (default: 30 minutes)
 amaran-cli print-schedule --interval 15
 
+# Specify which curves to show (default: "all")
+amaran-cli print-schedule --curve "hann, cie-daylight"
+
+# Output as CSV
+amaran-cli print-schedule --csv
+
+# Save output to a file (strips ANSI color codes for text files)
+amaran-cli print-schedule --output schedule.txt
+
 # Combine options
 amaran-cli print-schedule --lat 51.5074 --lon -0.1278 --date 2025-06-21 --interval 60
 ```
@@ -396,7 +405,7 @@ amaran-cli graph-schedule -W 1920 -H 1080
 amaran-cli graph-schedule --curve cie-daylight
 amaran-cli graph-schedule --curve "perez-daylight, sun-altitude"
 
-# View all available curves on one graph
+# View all available curves on one graph (default)
 amaran-cli graph-schedule --curve all
 
 # Preview for a specific date and location

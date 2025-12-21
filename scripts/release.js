@@ -28,7 +28,7 @@ const runCommand = (command) => {
 };
 
 const updateChangelog = async (version, releaseNotes) => {
-  const changelogPath = path.join(__dirname, '../CHANGELOG.md');
+  const changelogPath = path.join(__dirname, '../docs/CHANGELOG.md');
   let changelog = '';
   
   try {
@@ -83,7 +83,7 @@ const main = async () => {
     await updateChangelog(newVersion, releaseNotes);
 
     // Commit changes
-    runCommand('git add package.json CHANGELOG.md');
+    runCommand('git add package.json docs/CHANGELOG.md');
     runCommand(`git commit -m "chore(release): v${newVersion}"`);
     runCommand(`git tag -a v${newVersion} -m "v${newVersion}"`);
 
