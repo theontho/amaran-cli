@@ -1,3 +1,9 @@
+## [1.7.0] - 2025-12-21
+
+- **Feature**: Added Weather Modifiers (`--cloud-cover`, `--precipitation`) to `auto-cct` and schedule commands for realistic simulation of weather conditions.
+- **Feature**: Enhanced Max Lux Mapping to support CCT-dependent values and interpolation (e.g., `--max-lux "2700:8000, 5600:10000"`).
+- **Doc**: Comprehensive README updates including new weather and advanced max lux features.
+
 ## [1.6.0] - 2025-12-21
 
 - **Feature**: Implemented Group Management commands (`create-group`, `delete-group`, `list-groups`, `group-control`).
