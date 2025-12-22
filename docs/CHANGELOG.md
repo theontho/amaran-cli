@@ -1,3 +1,10 @@
+## [1.8.0] - 2025-12-22
+
+- **Feature**: Added global timestamp logging for service runs to improve traceability.
+- **Refactor**: Centralized curve data and metadata for better consistency across the CLI.
+- **Breaking Change**: Removed `intensityMultiplier` per-light configuration (superseded by `maxLux` mapping).
+- **Cleanup**: General codebase refactoring and type safety improvements.
+
 ## [1.7.0] - 2025-12-21
 
 - **Feature**: Added Weather Modifiers (`--cloud-cover`, `--precipitation`) to `auto-cct` and schedule commands for realistic simulation of weather conditions.
