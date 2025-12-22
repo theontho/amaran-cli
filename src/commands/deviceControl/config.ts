@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import type { CommandDeps, Config } from '../../deviceControl/types.js';
 
 interface ConfigOptions {
@@ -14,7 +15,6 @@ interface ConfigOptions {
   cctMax?: string;
   intensityMin?: string;
   intensityMax?: string;
-  intensityMultiplier?: string; // key=value pair, e.g. AAA-333=0.8
   defaultCurve?: string;
   autoStartApp?: string;
   maxLux?: string;
@@ -36,14 +36,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
     .option('--cct-max <kelvin>', 'Maximum CCT for auto-cct in Kelvin (default: 6500)')
     .option('--intensity-min <percent>', 'Minimum intensity for auto-cct in percent (default: 5)')
     .option('--intensity-max <percent>', 'Maximum intensity for auto-cct in percent (default: 100)')
-    .option(
-      '--intensity-multiplier <lightId=multiplier>',
-      'Set per-light intensity multiplier for auto-cct (e.g. AAA-333=0.8). Default is 1.0 when unset.'
-    )
-    .option(
-      '--default-curve <curve>',
-      'Default curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight)'
-    )
+    .option('--default-curve <curve>', CURVE_HELP_TEXT)
     .option(
       '--auto-start-app <boolean>',
       'Automatically start Amaran desktop app on connection failure (default: true)'
@@ -60,7 +53,21 @@ function handleConfig(deps: CommandDeps) {
   }
 
   return async (options: ConfigOptions) => {
-    if (options.show) {
+    const hasSetOptions =
+      options.url !== undefined ||
+      options.clientId !== undefined ||
+      options.debug !== undefined ||
+      options.lat !== undefined ||
+      options.lon !== undefined ||
+      options.cctMin !== undefined ||
+      options.cctMax !== undefined ||
+      options.intensityMin !== undefined ||
+      options.intensityMax !== undefined ||
+      options.defaultCurve !== undefined ||
+      options.autoStartApp !== undefined ||
+      options.maxLux !== undefined;
+
+    if (options.show || !hasSetOptions) {
       const config = loadConfig();
       console.log(chalk.blue('Current configuration:'));
       console.log(JSON.stringify(config, null, 2));
@@ -151,36 +158,6 @@ function handleConfig(deps: CommandDeps) {
       }
       config.intensityMax = clamp(p, 0, 100);
       changes.push(`Intensity maximum: ${config.intensityMax}%`);
-    }
-
-    // Per-light intensity multiplier mapping (single pair per invocation)
-    if (options.intensityMultiplier !== undefined) {
-      const pair = options.intensityMultiplier.trim();
-      const eqIdx = pair.indexOf('=');
-      if (eqIdx === -1) {
-        console.error(chalk.red('intensity-multiplier must be in the form <lightId>=<multiplier>, e.g. AAA-333=0.8'));
-        process.exit(1);
-      }
-      const lightId = pair.slice(0, eqIdx).trim();
-      const valueStr = pair.slice(eqIdx + 1).trim();
-      if (!lightId) {
-        console.error(chalk.red('intensity-multiplier: lightId cannot be empty'));
-        process.exit(1);
-      }
-      const mult = parseFloat(valueStr);
-      if (Number.isNaN(mult)) {
-        console.error(chalk.red('intensity-multiplier value must be a number (e.g. 0.8 for 80%)'));
-        process.exit(1);
-      }
-      if (mult < 0 || mult > 1) {
-        console.error(chalk.red('intensity-multiplier must be between 0 and 1 (e.g. 0.8 for 80%)'));
-        process.exit(1);
-      }
-      if (!config.intensityMultiplier || typeof config.intensityMultiplier !== 'object') {
-        (config as Config).intensityMultiplier = {} as Record<string, number>;
-      }
-      (config.intensityMultiplier as Record<string, number>)[lightId] = mult;
-      changes.push(`Intensity multiplier for ${lightId}: ${mult}`);
     }
 
     // Handle default curve option

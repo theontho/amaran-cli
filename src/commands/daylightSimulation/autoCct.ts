@@ -144,7 +144,6 @@ function handleAutoCct(deps: CommandDeps) {
     const minKRaw = cfg.cctMin;
     const maxKRaw = cfg.cctMax;
     // maxLux logic handled later with interpolation support
-    const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
     const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
     const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
     const loK =
@@ -227,7 +226,7 @@ function handleAutoCct(deps: CommandDeps) {
     if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
       percent = Math.min(100, Math.max(0, (result.lightOutput / effectiveMaxLux) * 100));
       percent = Math.round(percent * 10) / 10;
-      modeDescription = `max lux target (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
+      modeDescription = `max lux output of light system (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
     } else {
       percent = Math.round((result.intensity / 10) * 10) / 10;
     }
@@ -402,31 +401,8 @@ function handleAutoCct(deps: CommandDeps) {
               ? device.id
               : device.node_id;
 
-      let targetIntensity = percent;
-      let multiplierApplied = false;
-
-      // Check for intensity multiplier
-      if (intensityMultMap) {
-        // Check by ID and node_id
-        const mult = intensityMultMap[device.node_id] ?? (device.id ? intensityMultMap[device.id] : undefined);
-
-        if (mult !== undefined && typeof mult === 'number') {
-          targetIntensity = Math.round(percent * mult);
-          // Clamp to safe range [0, 100] just in case
-          targetIntensity = Math.max(0, Math.min(100, targetIntensity));
-          multiplierApplied = true;
-        }
-      }
-
-      if (multiplierApplied) {
-        console.log(
-          `  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${targetIntensity}% (multiplied)`
-        );
-      } else {
-        console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${targetIntensity}%`);
-      }
-
-      controller.setCCT(device.node_id, result.cct, targetIntensity * 10);
+      console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`);
+      controller.setCCT(device.node_id, result.cct, percent * 10);
       if (i < activeDevices.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       }

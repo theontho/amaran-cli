@@ -52,7 +52,7 @@ describe('simulate-schedule command', () => {
     global.fetch = originalFetch;
   });
 
-  test('applies intensity multiplier during simulation', async () => {
+  test('runs simulation and calls setCCT', async () => {
     const setCCT = vi.fn();
     const disconnect = vi.fn(async () => Promise.resolve());
 
@@ -73,12 +73,7 @@ describe('simulate-schedule command', () => {
         <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
         (...args: T) =>
           fn(...args),
-      loadConfig: () =>
-        ({
-          intensityMultiplier: {
-            '400J5-F2C008': 0.5, // 50% multiplier
-          },
-        }) as Record<string, unknown>,
+      loadConfig: () => ({}) as Record<string, unknown>,
       saveWsUrl: undefined,
     };
 
@@ -86,24 +81,15 @@ describe('simulate-schedule command', () => {
     program.exitOverride();
     registerCommands(program, deps);
 
-    // Run simulation for 1 second with 200ms interval = 5 updates (plus one initial?)
+    // Run simulation for 1 second with 200ms interval
     await program.parseAsync(['node', 'test', 'simulate-schedule', 'Key Light', '--duration', '1']);
 
     // Check that setCCT was called
     expect(setCCT).toHaveBeenCalled();
-
-    // Verify the intensity was scaled
-    // Base intensity is 500 (50%). Multiplier is 0.5.
-    // Target percent = 25%.
-    // Raw intensity = 500 * (25/50) = 250.
-    const calls = setCCT.mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-
-    // Check key parameters of the first call
-    const [nodeId, cct, intensity] = calls[0];
+    const [nodeId, cct, intensity] = setCCT.mock.calls[0];
     expect(nodeId).toBe('400J5-F2C008');
     expect(cct).toBe(5600);
-    expect(intensity).toBe(250); // 500 * 0.5
+    expect(intensity).toBe(500); // Base intensity without multiplier
 
     expect(disconnect).toHaveBeenCalled();
   });

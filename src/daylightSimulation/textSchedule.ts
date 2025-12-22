@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { SPECIAL_TIME_CONFIG } from './constants.js';
+import { CURVE_METADATA, SPECIAL_TIME_CONFIG } from './constants.js';
 import type { Schedule } from './scheduleMaker.js';
 
 export interface TextScheduleOptions {
@@ -146,28 +146,8 @@ export function textSchedule(schedule: Schedule, options: TextScheduleOptions = 
       const headers = [
         'Time',
         ...schedule.curves.map((c) => {
-          switch (c) {
-            case 'WIDER_MIDDLE_SMALL':
-              return 'WM_SML';
-            case 'WIDER_MIDDLE_MEDIUM':
-              return 'WM_MED';
-            case 'WIDER_MIDDLE_LARGE':
-              return 'WM_LRG';
-            case 'CIE_DAYLIGHT':
-              return 'CIE';
-            case 'SUN_ALTITUDE':
-              return 'SUN_ALT';
-            case 'PEREZ_DAYLIGHT':
-              return 'PEREZ';
-            case 'PHYSICS':
-              return 'PHYS';
-            case 'BLACKBODY':
-              return 'BLACK';
-            case 'HAZY':
-              return 'HAZY';
-            default:
-              return c.replace(/_/g, ' ');
-          }
+          const metadata = CURVE_METADATA[c as keyof typeof CURVE_METADATA];
+          return metadata ? metadata.shortName : c.replace(/_/g, ' ');
         }),
       ];
       const colWidths = [13, ...schedule.curves.map(() => 12)];

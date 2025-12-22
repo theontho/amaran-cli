@@ -1,4 +1,5 @@
-import { SPECIAL_TIME_CONFIG } from './constants.js';
+import { ALL_CURVE_TYPES_ORDERED, SPECIAL_TIME_CONFIG } from './constants.js';
+
 import type { CCTResult, CommandDeps } from './types.js';
 
 export interface SchedulePoint {
@@ -85,49 +86,37 @@ export class ScheduleMaker {
     }
 
     // Resolve Curves
-    const allCurveTypesOrdered = [
-      'HANN',
-      'WIDER_MIDDLE_SMALL',
-      'WIDER_MIDDLE_MEDIUM',
-      'WIDER_MIDDLE_LARGE',
-      'CIE_DAYLIGHT',
-      'SUN_ALTITUDE',
-      'PEREZ_DAYLIGHT',
-      'PHYSICS',
-      'BLACKBODY',
-      'HAZY',
-    ] as (keyof typeof CurveType)[];
 
     let curveTypes: (keyof typeof CurveType)[] = ['HANN'];
     const curveOption = options.curves?.toLowerCase() || '';
 
     if (curveOption === 'all') {
-      curveTypes = [...allCurveTypesOrdered];
+      curveTypes = [...ALL_CURVE_TYPES_ORDERED];
     } else if (curveOption) {
       const parts = curveOption.split(',').map((s) => s.trim());
       const parsedList: (keyof typeof CurveType)[] = [];
       for (const part of parts) {
         if (part === 'all') {
-          parsedList.push(...allCurveTypesOrdered);
+          parsedList.push(...ALL_CURVE_TYPES_ORDERED);
         } else {
           parsedList.push(parseCurveType(part));
         }
       }
       const unique = new Set(parsedList);
-      curveTypes = allCurveTypesOrdered.filter((c) => unique.has(c));
+      curveTypes = ALL_CURVE_TYPES_ORDERED.filter((c) => unique.has(c));
     } else if (loadConfig) {
       const config = loadConfig();
       if (config?.defaultCurve) {
         try {
           curveTypes = [parseCurveType(config.defaultCurve)];
         } catch (_) {
-          curveTypes = [...allCurveTypesOrdered];
+          curveTypes = [...ALL_CURVE_TYPES_ORDERED];
         }
       } else {
-        curveTypes = [...allCurveTypesOrdered];
+        curveTypes = [...ALL_CURVE_TYPES_ORDERED];
       }
     } else {
-      curveTypes = [...allCurveTypesOrdered];
+      curveTypes = [...ALL_CURVE_TYPES_ORDERED];
     }
 
     const times = getTimes(date, lat, lon);

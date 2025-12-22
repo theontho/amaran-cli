@@ -8,7 +8,14 @@ import registerCommands from './commands.js';
 import { handleAutostart } from './deviceControl/autostart.js';
 import { discoverLocalWebSocket } from './deviceControl/discovery.js';
 import LightController from './deviceControl/lightControl.js';
+import { enableGlobalTimestamps } from './deviceControl/logging.js';
 import type { Config, Device } from './deviceControl/types.js';
+
+// Enable global timestamps only if running in service mode
+if (process.argv.includes('--service-mode')) {
+  enableGlobalTimestamps();
+  console.error(chalk.blue('Circadian lighting service started'));
+}
 
 const program = new Command();
 
@@ -21,6 +28,7 @@ program
   .name('amaran-cli')
   .description('Command line tool for controlling Aputure Amaran lights via WebSocket')
   .version(version, '-v, --version', 'output the current version')
+  .option('--service-mode', 'Internal flag for being run from background service')
   .configureHelp({
     sortSubcommands: true,
     sortOptions: true,

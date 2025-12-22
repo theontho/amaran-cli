@@ -1,3 +1,4 @@
+import { ERROR_MESSAGES } from '../constants.js';
 import { CurveType } from '../types.js';
 import * as approximations from './approximations.js';
 import * as mathematical from './mathematical.js';
@@ -49,9 +50,7 @@ export function parseCurveType(curve: string): keyof typeof CurveType {
     case 'hazy':
       return 'HAZY';
     default:
-      throw new Error(
-        'Invalid curve type. Use "hann", "wider-middle-small", "wider-middle-medium", "wider-middle-large", "cie-daylight", "sun-altitude", "perez-daylight", "physics", "blackbody", or "hazy"'
-      );
+      throw new Error(ERROR_MESSAGES.invalidCurve);
   }
 }
 

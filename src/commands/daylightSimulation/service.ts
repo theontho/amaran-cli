@@ -9,6 +9,7 @@ import type { Command } from 'commander';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
 
 export function registerService(program: Command, deps: CommandDeps) {
@@ -23,11 +24,7 @@ export function registerService(program: Command, deps: CommandDeps) {
     .command('install')
     .description('Install auto-cct as a circadian lighting background service (runs every minute)')
     .option('-i, --interval <seconds>', 'Interval in seconds (default: 60)', '60')
-    .option(
-      '-C, --curve <curve>',
-      'Curve type for CCT calculation (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, default: hann)',
-      'hann'
-    )
+    .option('-C, --curve <curve>', `${CURVE_HELP_TEXT} (default: hann)`, 'hann')
     .action(asyncCommand(handleInstall(deps)));
 
   // Uninstall service
@@ -98,7 +95,7 @@ function handleInstall(_deps: CommandDeps) {
       }
     } catch {
       // Fall back to local development path
-      const projectDir = path.resolve(__dirname, '..');
+      const projectDir = path.resolve(__dirname, '..', '..', '..');
       cliPath = path.join(projectDir, 'dist', 'cli.js');
 
       // Check if CLI is built locally
@@ -138,6 +135,7 @@ function handleInstall(_deps: CommandDeps) {
         <string>${nodePath}</string>
         <string>${cliPath}</string>
         <string>auto-cct</string>
+        <string>--service-mode</string>
         <string>--curve</string>
         <string>${curveType}</string>
     </array>

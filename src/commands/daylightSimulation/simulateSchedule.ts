@@ -101,8 +101,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
     console.log(chalk.cyan(`Curve: ${schedule.curves[0]}\n`));
 
     // 3. Render the schedule by making the lights execute it
-    const cfg = (loadConfig?.() ?? {}) as Record<string, unknown>;
-    const intensityMultMap = cfg.intensityMultiplier as Record<string, number> | undefined;
+    const _cfg = (loadConfig?.() ?? {}) as Record<string, unknown>;
 
     const runSimulation = async () => {
       const curve = schedule.curves[0];
@@ -112,26 +111,15 @@ function handleSimulateSchedule(deps: CommandDeps) {
         if (!val) continue;
 
         const percent = Math.round((val.intensity / 10) * 10) / 10;
-        let targetIntensity = percent;
-        let multiplierApplied = false;
-
-        if (intensityMultMap) {
-          const mult = intensityMultMap[nodeId] ?? (device.id ? intensityMultMap[device.id] : undefined);
-          if (mult !== undefined && typeof mult === 'number') {
-            targetIntensity = Math.round(percent * mult);
-            targetIntensity = Math.max(0, Math.min(100, targetIntensity));
-            multiplierApplied = true;
-          }
-        }
 
         const progress = Math.round((i / (schedule.points.length - 1)) * 100);
         const timeStr = point.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
         process.stdout.write(
-          `\r${chalk.gray(`[${progress}% | ${timeStr}] `)}${chalk.green(`Setting ${displayName} to ${val.cct}K at ${targetIntensity}%${multiplierApplied ? ' (multiplied)' : ''}`)}          `
+          `\r${chalk.gray(`[${progress}% | ${timeStr}] `)}${chalk.green(`Setting ${displayName} to ${val.cct}K at ${percent}%`)}          `
         );
 
-        controller.setCCT(nodeId, val.cct, val.intensity * (targetIntensity / percent || 1));
+        controller.setCCT(nodeId, val.cct, val.intensity);
 
         if (i < schedule.points.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, updateInterval));

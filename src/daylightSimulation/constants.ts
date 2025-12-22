@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { CurveType } from './types.js';
 
 // CCT calculation defaults
 export const CCT_DEFAULTS = {
@@ -8,6 +9,26 @@ export const CCT_DEFAULTS = {
   intensityMaxPct: 100,
   maxLux: 110000, // Approximate clear sky zenith lux
 };
+
+// Curve metadata for consistent naming and ordering
+export const CURVE_METADATA: Record<keyof typeof CurveType, { shortName: string; fullName: string }> = {
+  HANN: { shortName: 'HANN', fullName: 'Hann Window' },
+  WIDER_MIDDLE_SMALL: { shortName: 'WM_SML', fullName: 'Wider Middle (Small)' },
+  WIDER_MIDDLE_MEDIUM: { shortName: 'WM_MED', fullName: 'Wider Middle (Medium)' },
+  WIDER_MIDDLE_LARGE: { shortName: 'WM_LRG', fullName: 'Wider Middle (Large)' },
+  CIE_DAYLIGHT: { shortName: 'CIE', fullName: 'CIE Daylight' },
+  SUN_ALTITUDE: { shortName: 'SUN_ALT', fullName: 'Sun Altitude' },
+  PEREZ_DAYLIGHT: { shortName: 'PEREZ', fullName: 'Perez Daylight' },
+  PHYSICS: { shortName: 'PHYS', fullName: 'Physics' },
+  BLACKBODY: { shortName: 'BLACK', fullName: 'Blackbody' },
+  HAZY: { shortName: 'HAZY', fullName: 'Hazy' },
+};
+
+// Canonical ordering of curves
+export const ALL_CURVE_TYPES_ORDERED = Object.keys(CURVE_METADATA) as (keyof typeof CurveType)[];
+
+// Generate list of valid curve values (strings like "hann", "cie-daylight") for help text
+export const VALID_CURVES_LIST = Object.values(CurveType).join(', ');
 
 // Special time configuration - single source of truth for colors and emojis
 export const SPECIAL_TIME_CONFIG = [
@@ -36,11 +57,9 @@ export const VALIDATION_RANGES = {
 export const ERROR_MESSAGES = {
   invalidLatitude: `Latitude must be between ${VALIDATION_RANGES.latitude.min} and ${VALIDATION_RANGES.latitude.max}`,
   invalidLongitude: `Longitude must be between ${VALIDATION_RANGES.longitude.min} and ${VALIDATION_RANGES.longitude.max}`,
-  invalidCurve:
-    'Invalid curve type. Use "hann", "wider-middle-small", "wider-middle-medium", "wider-middle-large", "cie-daylight", "sun-altitude", "perez-daylight", "physics", "blackbody", or "hazy"',
+  invalidCurve: `Invalid curve type. Use one of: ${VALID_CURVES_LIST}`,
   locationUnavailable: 'Could not determine location. Use --lat and --lon to specify manually.',
   nightTimesUnavailable: 'Could not calculate night times for this location',
 } as const;
 
-export const CURVE_HELP_TEXT =
-  'Curve type (hann, wider-middle-small, wider-middle-medium, wider-middle-large, cie-daylight, sun-altitude, perez-daylight, physics, blackbody, hazy)';
+export const CURVE_HELP_TEXT = `Curve type (${VALID_CURVES_LIST})`;
