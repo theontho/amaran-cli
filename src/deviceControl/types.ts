@@ -9,7 +9,6 @@ export type CommandType =
   | 'get_scene_list'
   | 'get_node_config'
   | 'get_sleep'
-  | 'get_protocol_versions'
   | 'get_intensity'
   | 'get_cct'
   | 'get_hsi'
@@ -51,7 +50,9 @@ export type CommandType =
   | 'create_group'
   | 'delete_group'
   | 'add_to_group'
-  | 'remove_from_group';
+  | 'remove_from_group'
+  | 'get_device_info'
+  | 'update_firmware';
 
 export interface Device {
   node_id?: string;

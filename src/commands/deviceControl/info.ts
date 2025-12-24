@@ -5,15 +5,9 @@ import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
 
 export function registerInfo(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
-  const info = program.command('info').description('Get detailed device info');
+  const info = program.command('info [device]').description('Get detailed device info');
 
-  addStandardOptions(info.command('device [device]').description('Get device hardware/firmware info')).action(
-    asyncCommand(handleDeviceInfo(deps))
-  );
-
-  addStandardOptions(info.command('protocol').description('Get supported protocol versions')).action(
-    asyncCommand(handleProtocolInfo(deps))
-  );
+  addStandardOptions(info).action(asyncCommand(handleDeviceInfo(deps)));
 
   const firmware = program.command('firmware').description('Firmware management');
   addStandardOptions(firmware.command('check <device>').description('Get device firmware info')).action(
@@ -125,22 +119,6 @@ function displayConfig(device: Device, data: unknown, _options: CommandOptions) 
   }
 }
 
-function handleProtocolInfo(deps: CommandDeps) {
-  const { createController } = deps;
-  return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
-
-    controller.getProtocolVersions((success, message, data) => {
-      if (success) {
-        console.log(chalk.blue('Supported Protocol Versions:'), data);
-      } else {
-        console.error(chalk.red(`Error getting protocols: ${message}`));
-      }
-      controller.disconnect();
-    });
-  };
-}
-
 function handleFirmwareInfo(deps: CommandDeps) {
   return async (deviceQuery: string, options: CommandOptions) => {
     return runDeviceAction(
@@ -152,7 +130,7 @@ function handleFirmwareInfo(deps: CommandDeps) {
       },
       (device: Device, controller) => {
         return new Promise((resolve) => {
-          controller.sendCommand(device.node_id, 'get_device_info', {}, (success, message, data) => {
+          controller.getDeviceInfo(device.node_id as string, (success, message, data) => {
             if (success) {
               console.log(chalk.blue('Firmware Status:'));
               console.log(chalk.gray('  Firmware is up to date'));
@@ -180,7 +158,7 @@ function handleFirmwareUpdate(deps: CommandDeps) {
       },
       (device: Device, controller) => {
         return new Promise((resolve) => {
-          controller.sendCommand(device.node_id, 'update_firmware', {}, (success, message, data) => {
+          controller.updateFirmware(device.node_id as string, (success, message, data) => {
             if (success) {
               console.log(chalk.green('Firmware update started:'), data);
             } else {

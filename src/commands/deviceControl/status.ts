@@ -22,6 +22,7 @@ function printDeviceStatus(device: Device, config: NodeConfig | undefined) {
 
   // Basic State
   const sleep = config.sleep as boolean | undefined;
+  // Sleep true = Off, Sleep false = On
   console.log(
     `  State: ${sleep === true ? chalk.red('Off') : sleep === false ? chalk.green('On') : chalk.gray('Unknown')}`
   );
@@ -33,6 +34,7 @@ function printDeviceStatus(device: Device, config: NodeConfig | undefined) {
 
   // Intensity
   if (config.intensity !== undefined) {
+    // API usually returns 0-1000 for 0-100.0%
     const intensity = (config.intensity as number) / 10;
     console.log(`  Intensity: ${intensity}%`);
   }
@@ -86,17 +88,73 @@ function handleStatus(deps: CommandDeps) {
       (device: Device, controller) => {
         return new Promise((resolve) => {
           const nodeId = device.node_id as string;
-          controller.getNodeConfig(nodeId, (success: boolean, message: string, data?: unknown) => {
+          controller.getNodeConfig(nodeId, async (success: boolean, _message: string, data?: unknown) => {
+            // biome-ignore lint/suspicious/noExplicitAny: Data from server is dynamic
+            let config: any = {};
+
             if (success) {
-              let config = data;
-              // Handle nesting if present
-              if (config && typeof config === 'object' && 'data' in config) {
-                config = config.data;
-              }
-              printDeviceStatus(device, config as NodeConfig);
+              config = (data as any)?.data || data || {};
             } else {
-              console.error(chalk.red(`✗ Failed to get configuration for ${nodeId}: ${message}`));
+              // If getNodeConfig fails, we start with empty and try to fill it
+              if (options.debug)
+                console.log(chalk.gray(`getNodeConfig failed/incomplete for ${nodeId}, trying individual getters...`));
             }
+
+            // Fallback: Fetch specific states if missing from config
+            const promises: Promise<void>[] = [];
+
+            // 1. Power State (Sleep)
+            if (config.sleep === undefined) {
+              promises.push(
+                new Promise<void>((r) => {
+                  controller.getLightSleepStatus(nodeId, (ok, _msg, d) => {
+                    if (ok) {
+                      const inner = (d as any)?.data ?? d;
+                      const val = typeof inner === 'boolean' ? inner : inner?.sleep;
+                      if (val !== undefined) config.sleep = val;
+                    }
+                    r();
+                  });
+                })
+              );
+            }
+
+            // 2. CCT
+            if (config.cct === undefined) {
+              promises.push(
+                new Promise<void>((r) => {
+                  controller.getCCT(nodeId, (ok, _msg, d) => {
+                    if (ok) {
+                      const inner = (d as any)?.data ?? d;
+                      const val = typeof inner === 'number' ? inner : inner?.cct;
+                      if (val !== undefined) config.cct = val;
+                    }
+                    r();
+                  });
+                })
+              );
+            }
+
+            // 3. Intensity
+            if (config.intensity === undefined && config.int === undefined && config.i === undefined) {
+              promises.push(
+                new Promise<void>((r) => {
+                  controller.getIntensity(nodeId, (ok, _msg, d) => {
+                    if (ok) {
+                      const inner = (d as any)?.data ?? d;
+                      const val = typeof inner === 'number' ? inner : inner?.intensity;
+                      if (val !== undefined) config.intensity = val;
+                    }
+                    r();
+                  });
+                })
+              );
+            }
+
+            // Wait for all fallbacks
+            await Promise.all(promises);
+
+            printDeviceStatus(device, config as NodeConfig);
             resolve();
           });
         });
@@ -109,21 +167,78 @@ function handleStatus(deps: CommandDeps) {
         }
 
         console.log(chalk.bold(`Fetching status for ${devices.length} device(s)...`));
-        for (const device of devices) {
+        // Filter for valid devices
+        const lightDevices = devices.filter(
+          (d) => d.node_id?.includes('-') && d.node_id !== '00000000000000000000000000000000'
+        );
+
+        if (lightDevices.length === 0) {
+          console.log(chalk.yellow('No light devices found.'));
+          return;
+        }
+
+        for (const device of lightDevices) {
           const nodeId = device.node_id;
           if (!nodeId) continue;
           await new Promise<void>((resolve) => {
-            controller.getNodeConfig(nodeId, (success, message, data?: unknown) => {
+            controller.getNodeConfig(nodeId, async (success, _message, data?: unknown) => {
+              // biome-ignore lint/suspicious/noExplicitAny: Data from server is dynamic
+              let config: any = {};
               if (success) {
-                let config = data;
-                // Handle nesting if present
-                if (config && typeof config === 'object' && 'data' in config) {
-                  config = config.data;
-                }
-                printDeviceStatus(device, config as NodeConfig);
-              } else {
-                console.error(chalk.red(`✗ Failed to get status for ${nodeId}: ${message}`));
+                config = (data as any)?.data || data || {};
               }
+
+              const promises: Promise<void>[] = [];
+
+              if (config.sleep === undefined) {
+                promises.push(
+                  new Promise<void>((r) => {
+                    controller.getLightSleepStatus(nodeId, (ok, _msg, d) => {
+                      if (ok) {
+                        const inner = (d as any)?.data ?? d;
+                        const val = typeof inner === 'boolean' ? inner : inner?.sleep;
+                        if (val !== undefined) config.sleep = val;
+                      }
+                      r();
+                    });
+                  })
+                );
+              }
+
+              if (config.cct === undefined) {
+                promises.push(
+                  new Promise<void>((r) => {
+                    controller.getCCT(nodeId, (ok, _msg, d) => {
+                      if (ok) {
+                        const inner = (d as any)?.data ?? d;
+                        const val = typeof inner === 'number' ? inner : inner?.cct;
+                        if (val !== undefined) config.cct = val;
+                      }
+                      r();
+                    });
+                  })
+                );
+              }
+
+              if (config.intensity === undefined) {
+                promises.push(
+                  new Promise<void>((r) => {
+                    controller.getIntensity(nodeId, (ok, _msg, d) => {
+                      if (ok) {
+                        const inner = (d as any)?.data ?? d;
+                        const val = typeof inner === 'number' ? inner : inner?.intensity;
+                        if (val !== undefined) config.intensity = val;
+                      }
+                      r();
+                    });
+                  })
+                );
+              }
+
+              await Promise.all(promises);
+
+              printDeviceStatus(device, config as NodeConfig);
+              console.log(''); // Newline between devices
               resolve();
             });
           });

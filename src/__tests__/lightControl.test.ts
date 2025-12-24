@@ -237,18 +237,6 @@ describe('LightController', () => {
     });
   }, 5000);
 
-  it('should fetch protocol versions', async () => {
-    controller = new LightController(WS_URL, 'test_client', undefined, false);
-    await new Promise((res) => setTimeout(res, 200));
-    await new Promise<void>((resolve) => {
-      controller?.getProtocolVersions((success, _msg, data) => {
-        expect(success).toBe(true);
-        expect(data).toContain(2);
-        resolve();
-      });
-    });
-  }, 5000);
-
   it('should handle scene management', async () => {
     controller = new LightController(WS_URL, 'test_client', undefined, false);
     await new Promise((res) => setTimeout(res, 200));

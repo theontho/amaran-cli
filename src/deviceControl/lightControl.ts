@@ -336,10 +336,6 @@ class LightController {
 
   // --- Individual Light Control Methods ---
 
-  public getProtocolVersions(callback?: CommandCallback) {
-    this.sendCommand(undefined, 'get_protocol_versions', {}, callback);
-  }
-
   public getFixtureList(callback?: CommandCallback) {
     this.sendCommand(undefined, 'get_fixture_list', {}, callback);
   }
@@ -562,6 +558,14 @@ class LightController {
 
   public setEffectIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
     this.sendCommand(nodeId, 'set_effect_intensity', { intensity }, callback);
+  }
+
+  public getDeviceInfo(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'get_device_info', {}, callback);
+  }
+
+  public updateFirmware(nodeId: string, callback?: CommandCallback) {
+    this.sendCommand(nodeId, 'update_firmware', {}, callback);
   }
 
   // --- Utility & Infrastructure ---

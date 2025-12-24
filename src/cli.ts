@@ -69,6 +69,13 @@ program
       const options = helper.visibleOptions(cmd);
       if (options.length > 0) {
         sections.push(chalk.blue('Options:'));
+
+        // Calculate the maximum length of the raw flags (visible text)
+        const maxOptionWidth = Math.max(
+          ...options.map((o) => o.flags.length),
+          20 // Minimum width
+        );
+
         sections.push(
           ...options.map((option) => {
             // Split the flags and replace parameter placeholders with bright white
@@ -87,7 +94,10 @@ program
               })
               .join(' ');
 
-            return `  ${formattedFlags.padEnd(40)} ${option.description}`;
+            // Calculate padding needed based on the original flags length
+            const padding = ' '.repeat(maxOptionWidth - option.flags.length + 2);
+
+            return `  ${formattedFlags}${padding}${option.description}`;
           })
         );
         sections.push('');

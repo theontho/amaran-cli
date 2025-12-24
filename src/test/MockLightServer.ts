@@ -164,9 +164,7 @@ export class MockLightServer {
       case 'get_fixture_list':
         response.data = { data: this.devices };
         break;
-      case 'get_protocol_versions':
-        response.data = [1, 2];
-        break;
+
       case 'get_device_info':
         response.data = { model: 'Mock LED', version: '1.0.0' };
         break;
