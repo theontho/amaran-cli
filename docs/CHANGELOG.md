@@ -1,3 +1,7 @@
+## [1.8.1] - 2025-12-23
+
+- **Fix**: Resolved issue where max/min intensity boundaries were not being respected when `maxLux` setting was active.
+
 ## [1.8.0] - 2025-12-22
 
 - **Feature**: Added global timestamp logging for service runs to improve traceability.
