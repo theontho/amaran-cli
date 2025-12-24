@@ -98,22 +98,40 @@ class LightController {
       this.log('Received message from server:', parsedData);
 
       const action = parsedData.action || parsedData.request?.type;
+      const nodeId = parsedData.node_id || parsedData.request?.node_id || parsedData.data?.node_id;
+
+      let callback: CommandCallback | undefined;
+      let usedKey: string | undefined;
+
+      if (action && nodeId) {
+        const key = `${action}_${nodeId}`;
+        if (this.commandCallbacks.has(key)) {
+          callback = this.commandCallbacks.get(key);
+          usedKey = key;
+        }
+      }
+
+      if (!callback && action && this.commandCallbacks.has(action)) {
+        callback = this.commandCallbacks.get(action);
+        usedKey = action;
+      }
+
       if (parsedData.code !== 0) {
         console.error('Error from server:', parsedData.message);
-        if (action && this.commandCallbacks.has(action)) {
-          this.commandCallbacks.get(action)?.(false, parsedData.message);
-          this.commandCallbacks.delete(action);
+        if (callback && usedKey) {
+          callback(false, parsedData.message);
+          this.commandCallbacks.delete(usedKey);
         }
         return;
       }
 
-      if (action && this.commandCallbacks.has(action)) {
-        this.commandCallbacks.get(action)?.(true, parsedData.message, parsedData.data);
-        this.commandCallbacks.delete(action);
+      if (callback && usedKey) {
+        callback(true, parsedData.message, parsedData.data);
+        this.commandCallbacks.delete(usedKey);
       }
 
       if (action) {
-        this.processResponseType(action, parsedData.data, parsedData.node_id);
+        this.processResponseType(action, parsedData.data, nodeId);
       }
     } catch (error) {
       console.error('Error parsing message:', error);
@@ -158,6 +176,16 @@ class LightController {
       // If server returned nested data: { node_id, data: { ...config } }
       if (config && typeof config === 'object' && 'data' in config && ('node_id' in config || 'id' in config)) {
         config = config.data;
+      }
+
+      // Normalize CCT range keys from Amaran API
+      if (config && typeof config === 'object') {
+        if (config.product_cct_min !== undefined && config.cct_min === undefined) {
+          config.cct_min = config.product_cct_min;
+        }
+        if (config.product_cct_max !== undefined && config.cct_max === undefined) {
+          config.cct_max = config.product_cct_max;
+        }
       }
 
       this.nodeConfigs.set(nodeId, config);
@@ -577,7 +605,8 @@ class LightController {
       (command as any).request = { type };
 
       if (callback) {
-        this.commandCallbacks.set(type, callback);
+        const callbackKey = nodeId ? `${type}_${nodeId}` : type;
+        this.commandCallbacks.set(callbackKey, callback);
       }
 
       this.ws.send(JSON.stringify(command));

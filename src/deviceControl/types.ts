@@ -67,6 +67,8 @@ export interface NodeConfig {
   cct_support?: boolean;
   cct_min?: number;
   cct_max?: number;
+  product_cct_min?: number;
+  product_cct_max?: number;
   cct_extension_support?: boolean;
   cct_extension_min?: number;
   cct_extension_max?: number;

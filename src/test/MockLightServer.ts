@@ -57,7 +57,10 @@ export class MockLightServer {
           sat: 0,
           work_mode: 'CCT',
         });
-        this.nodeConfigs.set(device.node_id, { config: 'mock' });
+        this.nodeConfigs.set(device.node_id, {
+          product_cct_min: 2700,
+          product_cct_max: 6500,
+        });
       }
     });
   }
@@ -70,13 +73,14 @@ export class MockLightServer {
     const response: {
       code: number;
       message: string;
-      request: { type: string };
+      request: { type: string; node_id?: string };
       data?: unknown;
       node_id?: string;
     } = {
       code: 0,
       message: 'OK',
-      request: { type: cmd.type },
+      request: { type: cmd.type, node_id: cmd.node_id },
+      node_id: cmd.node_id,
     };
 
     // Update state based on commands
