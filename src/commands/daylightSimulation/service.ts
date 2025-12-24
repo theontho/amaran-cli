@@ -239,6 +239,16 @@ function handleStatus() {
       console.log(`  Running: ${isLoaded ? chalk.green('✓') : chalk.red('✗')}`);
       console.log(`  Config: ${plistPath}`);
 
+      if (fs.existsSync(plistPath)) {
+        const content = fs.readFileSync(plistPath, 'utf8');
+        const match = content.match(
+          /<key>ProgramArguments<\/key>\s*<array>\s*<string>.*?<\/string>\s*<string>(.*?)<\/string>/s
+        );
+        if (match?.[1]) {
+          console.log(`  Path: ${match[1]}`);
+        }
+      }
+
       if (fs.existsSync(logPath)) {
         const logStats = fs.statSync(logPath);
         console.log(`  Last run: ${logStats.mtime.toLocaleString()}`);

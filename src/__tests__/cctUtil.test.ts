@@ -243,6 +243,32 @@ describe('calculateCCT', () => {
         }
       }
     });
+
+    it('should respect intensityMinPct even when maxLux scaling would go below it', () => {
+      const noon = new Date('2024-06-21T16:00:00Z');
+      // lightOutput at noon in NYC is roughly 15000-20000 lux.
+      // If we set maxLux to 1,000,000, scaling factor is ~0.02 (2%).
+      // If intensityMinPct is 10%, result should be 100 (10%).
+      const result = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        intensityMinPct: 10,
+        maxLux: 1000000,
+      });
+
+      expect(result.intensity).toBe(100);
+    });
+
+    it('should respect intensityMaxPct even when maxLux scaling would go above it', () => {
+      const noon = new Date('2024-06-21T16:00:00Z');
+      // lightOutput at noon NYC is ~15000-20000 lux.
+      // If we set maxLux to 5000, scaling factor is ~3-4 (300-400%).
+      // If intensityMaxPct is 80%, result should be 800 (80%).
+      const result = calculateCCT(NYC_LAT, NYC_LON, noon, {
+        intensityMaxPct: 80,
+        maxLux: 5000,
+      });
+
+      expect(result.intensity).toBe(800);
+    });
   });
 
   describe('LightOutput (Lux) seasonal variation', () => {

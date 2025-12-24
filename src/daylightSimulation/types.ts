@@ -18,6 +18,7 @@ export interface CCTOptions {
   intensityMinPct?: number;
   intensityMaxPct?: number;
   weather?: WeatherOptions;
+  maxLux?: number | Record<number, number>;
 }
 
 export enum CurveType {

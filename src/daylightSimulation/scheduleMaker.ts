@@ -186,6 +186,7 @@ export class ScheduleMaker {
       cctMaxK: typeof cfg.cctMax === 'number' ? cfg.cctMax : undefined,
       intensityMinPct: typeof cfg.intensityMin === 'number' ? cfg.intensityMin : undefined,
       intensityMaxPct: typeof cfg.intensityMax === 'number' ? cfg.intensityMax : undefined,
+      maxLux: cfg.maxLux as number | Record<number, number> | undefined,
       weather: {
         cloudCover:
           options.cloudCover !== undefined

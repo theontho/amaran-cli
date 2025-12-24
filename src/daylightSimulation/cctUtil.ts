@@ -14,6 +14,7 @@ import {
   getAvailableCurves,
   parseCurveType,
 } from './curves/index.js';
+import { interpolateMaxLux } from './mathUtil.js';
 import { type CCTOptions, type CCTResult, CurveType, type WeatherOptions } from './types.js';
 
 // Re-export for backward compatibility
@@ -271,6 +272,23 @@ export function calculateCCT(
   if (opts?.weather) {
     result = applyWeatherModifiers(result, opts.weather);
   }
+
+  // Handle maxLux scaling if provided
+  if (opts?.maxLux !== undefined && result.lightOutput !== undefined) {
+    const effectiveMaxLux =
+      typeof opts.maxLux === 'number'
+        ? opts.maxLux
+        : interpolateMaxLux(result.cct, opts.maxLux as Record<number, number>);
+
+    if (effectiveMaxLux > 0) {
+      // Scale intensity based on lightOutput vs maxLux
+      // lightOutput is estimated lux, effectiveMaxLux is the user's calibration point
+      result.intensity = Math.round((result.lightOutput / effectiveMaxLux) * 1000);
+    }
+  }
+
+  // Final safety: ALWAYS clamp intensity to requested boundaries
+  result.intensity = Math.min(maxIntensity, Math.max(minIntensity, result.intensity));
 
   return result;
 }

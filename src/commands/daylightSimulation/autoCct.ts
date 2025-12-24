@@ -171,28 +171,7 @@ function handleAutoCct(deps: CommandDeps) {
       VALIDATION_RANGES.intensity.max
     );
 
-    const result = calculateCCT(
-      lat,
-      lon,
-      time,
-      {
-        cctMinK: Math.min(loK, hiK),
-        cctMaxK: Math.max(loK, hiK),
-        intensityMinPct: loPct,
-        intensityMaxPct: hiPct,
-        weather: {
-          cloudCover: options.cloudCover ? parseFloat(options.cloudCover) : undefined,
-          precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
-        },
-      },
-      CurveType[curveType]
-    );
-
-    let percent: number;
-    let modeDescription = 'intensity curve';
-
     // Determine maxLux value (number or map), prioritizing CLI option over config
-    let effectiveMaxLux: number | undefined;
     let maxLuxMap: Record<number, number> | number | undefined;
 
     // 1. Try CLI option
@@ -213,23 +192,42 @@ function handleAutoCct(deps: CommandDeps) {
       maxLuxMap = cfg.maxLux as number | Record<string, number>;
     }
 
-    // Calculate effective max lux based on current CCT
-    if (maxLuxMap !== undefined) {
+    const result = calculateCCT(
+      lat,
+      lon,
+      time,
+      {
+        cctMinK: Math.min(loK, hiK),
+        cctMaxK: Math.max(loK, hiK),
+        intensityMinPct: loPct,
+        intensityMaxPct: hiPct,
+        maxLux: maxLuxMap,
+        weather: {
+          cloudCover: options.cloudCover ? parseFloat(options.cloudCover) : undefined,
+          precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
+        },
+      },
+      CurveType[curveType]
+    );
+
+    let percent: number;
+    let modeDescription = 'intensity curve';
+
+    // Calculate effective max lux only for logging purposes now, as calculateCCT handled the value
+    let effectiveMaxLux: number | undefined;
+    if (maxLuxMap !== undefined && result.lightOutput !== undefined) {
       if (typeof maxLuxMap === 'number') {
         effectiveMaxLux = maxLuxMap;
       } else {
-        // interpolated map
         effectiveMaxLux = interpolateMaxLux(result.cct, maxLuxMap);
       }
+      modeDescription = `max lux output of light system (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
     }
 
-    if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
-      percent = Math.min(100, Math.max(0, (result.lightOutput / effectiveMaxLux) * 100));
-      percent = Math.round(percent * 10) / 10;
-      modeDescription = `max lux output of light system (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
-    } else {
-      percent = Math.round((result.intensity / 10) * 10) / 10;
-    }
+    percent = result.intensity / 10;
+    // Final clamp to configured intensity boundaries
+    percent = Math.min(hiPct, Math.max(loPct, percent));
+    percent = Math.round(percent * 10) / 10;
 
     console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
     console.log(chalk.gray(`  Location: ${lat.toFixed(4)}, ${lon.toFixed(4)} (${source})`));

@@ -87,9 +87,9 @@ describe('auto-cct max-lux logic', () => {
   });
 
   test('uses max-lux scaling when CLI option provided', async () => {
+    // We mock calculateCCT to return what we expect it to return when max-lux is 10000.
     // lightOutput 5000 lux. maxLux 10000. Should be 50% -> 500 raw.
-    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 800, lightOutput: 5000 });
-    // Note: intensity 800 (80%) is ignored in favor of lux scaling
+    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 500, lightOutput: 5000 });
 
     const deps = {
       createController,
@@ -106,13 +106,22 @@ describe('auto-cct max-lux logic', () => {
     // --max-lux 10000
     await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '10000']);
 
-    // 5000 / 10000 = 0.5 = 50% = 500 raw
+    // Check that calculateCCT was called with maxLux
+    expect(mockCalculateCCT).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Date),
+      expect.objectContaining({ maxLux: 10000 }),
+      expect.any(String)
+    );
+
+    // Should use the intensity returned by the mock: 500 (50.0%)
     expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500);
   });
 
   test('uses max-lux scaling from config', async () => {
     // lightOutput 2000 lux. maxLux 10000. Should be 20% -> 200 raw.
-    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 800, lightOutput: 2000 });
+    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 200, lightOutput: 2000 });
 
     const deps = {
       createController,
@@ -128,13 +137,21 @@ describe('auto-cct max-lux logic', () => {
 
     await program.parseAsync(['node', 'test', 'auto-cct']);
 
+    expect(mockCalculateCCT).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Date),
+      expect.objectContaining({ maxLux: 10000 }),
+      expect.any(String)
+    );
+
     expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 200);
   });
 
   test('CLI option overrides config for max-lux', async () => {
     // Config: 10000 maxLux. CLI: 5000 maxLux. LightOutput: 2500.
-    // Config would yield 25%. CLI should yield 50%.
-    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 800, lightOutput: 2500 });
+    // CLI should yield 50% -> 500 raw.
+    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 500, lightOutput: 2500 });
 
     const deps = {
       createController,
@@ -150,7 +167,14 @@ describe('auto-cct max-lux logic', () => {
 
     await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '5000']);
 
-    // 2500 / 5000 = 0.5 = 50% = 500 raw
+    expect(mockCalculateCCT).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Date),
+      expect.objectContaining({ maxLux: 5000 }),
+      expect.any(String)
+    );
+
     expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500);
   });
 
@@ -177,8 +201,8 @@ describe('auto-cct max-lux logic', () => {
   });
 
   test('clamps intensity to 100% if lux exceeds max-lux', async () => {
-    // Output 15000, Max 10000 -> 150% -> clamped to 100%
-    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 800, lightOutput: 15000 });
+    // Output 15000, Max 10000 -> 150% -> clamped to 100% (in calculateCCT)
+    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 1000, lightOutput: 15000 });
 
     const deps = {
       createController,
@@ -195,5 +219,37 @@ describe('auto-cct max-lux logic', () => {
     await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '10000']);
 
     expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 1000); // 100%
+  });
+
+  test('respects intensityMin even when max-lux is set', async () => {
+    // lightOutput 100 lux. maxLux 10000. Scaling gives 1%.
+    // But intensityMin is 10%. Result should be 10% (100 raw).
+    // The calculateCCT call should return 100.
+    mockCalculateCCT.mockReturnValue({ cct: 5600, intensity: 100, lightOutput: 100 });
+
+    const deps = {
+      createController,
+      findDevice,
+      asyncCommand,
+      loadConfig: () => ({ intensityMin: 10 }) as Record<string, unknown>,
+      saveWsUrl: undefined,
+    };
+
+    const program = new Command();
+    program.exitOverride();
+    registerCommands(program, deps);
+
+    await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '10000']);
+
+    expect(mockCalculateCCT).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Date),
+      expect.objectContaining({ maxLux: 10000, intensityMinPct: 10 }),
+      expect.any(String)
+    );
+
+    // Should be 100 (10.0%)
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 100);
   });
 });
