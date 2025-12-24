@@ -1,3 +1,18 @@
+## [1.9.0] - 2025-12-24
+
+- **Feature**: Consolidated all schedule-related commands (`print-schedule`, `graph-schedule`, `simulate-schedule`) under a unified `schedule` namespace:
+  - `schedule print`: Display a table of the day's circadian values.
+  - `schedule graph`: Generate a visual graph of the lighting curve.
+  - `schedule simulate`: Run a high-speed simulation of the schedule on your physical lights.
+- **Feature**: Added `-g, --get` support to `on`, `off`, `cct`, `hsi`, and `color` commands to retrieve current device status.
+- **Feature**: Enhanced `info` command to support all devices when no device name is provided.
+- **Feature**: Added privacy redaction for location data in service logs.
+- **Improvement**: Replaced `info device` with a more direct `info` command structure.
+- **Improvement**: Better alignment and formatting for CLI help output and auto-cct time display.
+- **Fix**: Resolved issue where HSI retrieval was failing or hanging.
+- **Fix**: Improved `schedule simulate` to ensure lights are turned on before starting the simulation.
+- **Fix**: Corrected intensity clamping logic for `auto-cct` with `maxLux` settings.
+
 ## [1.8.1] - 2025-12-23
 
 - **Fix**: Resolved issue where max/min intensity boundaries were not being respected when `maxLux` setting was active.

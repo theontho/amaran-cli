@@ -466,6 +466,26 @@ amaran-cli schedule graph --date 2025-06-21 --lat 64.1466 --lon -21.9426
 
 This creates a PNG image showing the CCT and/or intensity curves, which is great for visualizing how different algorithms behave.
 
+### Simulate Schedule
+
+Run the current schedule in high speed (1 second per 30 minutes) to verify your settings on your physical lights:
+
+```bash
+# Simulate full day on all lights
+amaran-cli schedule simulate
+
+# Simulate on a specific device
+amaran-cli schedule simulate "Key Light"
+
+# Simulate for a specific date or location
+amaran-cli schedule simulate --date 2025-06-21 --lat 40.7128 --lon -74.0060
+
+# Adjust simulation speed (seconds per interval)
+amaran-cli schedule simulate --speed 0.5
+```
+
+The simulation will automatically turn on the lights before starting and restore their state afterwards (if possible).
+
 ### Get light status
 
 ```bash
