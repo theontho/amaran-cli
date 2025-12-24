@@ -11,7 +11,6 @@ import registerConfig from './commands/deviceControl/config.js';
 import registerDiscover from './commands/deviceControl/discover.js';
 import registerEffect from './commands/deviceControl/effect.js';
 import registerFan from './commands/deviceControl/fan.js';
-import registerFirmware from './commands/deviceControl/firmware.js';
 import registerGroup from './commands/deviceControl/group.js';
 import registerHsi from './commands/deviceControl/hsi.js';
 import registerInfo from './commands/deviceControl/info.js';
@@ -52,7 +51,6 @@ export function registerCommands(program: Command, deps: CommandDeps) {
   registerFan(program, deps);
   registerEffect(program, deps);
   registerInfo(program, deps);
-  registerFirmware(program, deps);
 }
 
 export default registerCommands;

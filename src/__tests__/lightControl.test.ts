@@ -249,29 +249,6 @@ describe('LightController', () => {
     });
   }, 5000);
 
-  it('should get device and firmware info', async () => {
-    controller = new LightController(WS_URL, 'test_client', undefined, false);
-    await new Promise((res) => setTimeout(res, 200));
-
-    await new Promise<void>((resolve) => {
-      controller?.getDeviceInfo(nodeId, (success, _msg, data) => {
-        expect(success).toBe(true);
-        // biome-ignore lint/suspicious/noExplicitAny: Mock data comparison
-        expect((data as any).model).toBe('Mock LED');
-        resolve();
-      });
-    });
-
-    await new Promise<void>((resolve) => {
-      controller?.getFirmwareVersion(nodeId, (success, _msg, data) => {
-        expect(success).toBe(true);
-        // biome-ignore lint/suspicious/noExplicitAny: Mock data comparison
-        expect((data as any).version).toBe('1.0.0');
-        resolve();
-      });
-    });
-  }, 5000);
-
   it('should handle scene management', async () => {
     controller = new LightController(WS_URL, 'test_client', undefined, false);
     await new Promise((res) => setTimeout(res, 200));

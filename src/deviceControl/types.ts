@@ -10,10 +10,6 @@ export type CommandType =
   | 'get_node_config'
   | 'get_sleep'
   | 'get_protocol_versions'
-  | 'get_device_info'
-  | 'get_firmware_version'
-  | 'check_for_updates'
-  | 'update_firmware'
   | 'get_intensity'
   | 'get_cct'
   | 'get_hsi'
@@ -68,6 +64,36 @@ export interface Device {
 export type CommandCallback = (success: boolean, message: string, data?: unknown) => void;
 
 export interface NodeConfig {
+  cct_support?: boolean;
+  cct_min?: number;
+  cct_max?: number;
+  cct_extension_support?: boolean;
+  cct_extension_min?: number;
+  cct_extension_max?: number;
+  cct_extension_enabled?: boolean;
+  gm_support?: boolean;
+  gm_min?: number;
+  gm_max?: number;
+  gm_v2_support?: boolean;
+  hsi_support?: boolean;
+  rgb_support?: boolean;
+  advanced_hsi_support?: boolean;
+  // State fields
+  sleep?: boolean;
+  intensity?: number;
+  cct?: number;
+  hue?: number;
+  sat?: number;
+  r?: number;
+  g?: number;
+  b?: number;
+  x?: number;
+  y?: number;
+  work_mode?: string;
+  fan_mode?: number;
+  fan_speed?: number;
+  effect_type?: string;
+  effect_name?: string;
   [key: string]: unknown;
 }
 

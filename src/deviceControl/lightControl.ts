@@ -320,22 +320,6 @@ class LightController {
     this.sendCommand(undefined, 'get_device_list', {}, callback);
   }
 
-  public getDeviceInfo(nodeId: string, callback?: CommandCallback) {
-    this.sendCommand(nodeId, 'get_device_info', {}, callback);
-  }
-
-  public getFirmwareVersion(nodeId: string, callback?: CommandCallback) {
-    this.sendCommand(nodeId, 'get_firmware_version', {}, callback);
-  }
-
-  public checkForUpdates(nodeId: string, callback?: CommandCallback) {
-    this.sendCommand(nodeId, 'check_for_updates', {}, callback);
-  }
-
-  public updateFirmware(nodeId: string, callback?: CommandCallback) {
-    this.sendCommand(nodeId, 'update_firmware', {}, callback);
-  }
-
   public getSceneList(callback?: CommandCallback) {
     this.sendCommand(undefined, 'get_scene_list', {}, callback);
   }
