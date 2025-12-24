@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 import { CURVE_METADATA, SPECIAL_TIME_CONFIG } from './constants.js';
+import { formatCoordinate, formatSource } from './privacyUtil.js';
 import type { Schedule } from './scheduleMaker.js';
 
 export interface TextScheduleOptions {
   csv?: boolean;
-  private?: boolean;
+  privacyOff?: boolean;
   interval?: string;
   stripAnsi?: boolean;
 }
@@ -28,23 +29,6 @@ function getSpecialTimeStyling(
   return { color: chalk.white, emoji: '' };
 }
 
-const formatCoordinate = (coord: number, isPrivate: boolean) => {
-  return isPrivate ? `${Math.round(coord)}.XXXX` : coord.toFixed(4);
-};
-
-const formatSource = (src: string, isPrivate: boolean) => {
-  if (!isPrivate || !src.includes('(')) return src;
-  const ipMatch = src.match(/(\d+\.\d+\.\d+\.\d+)/);
-  if (ipMatch) {
-    const ipParts = ipMatch[1].split('.');
-    ipParts[0] = 'XXX';
-    ipParts[1] = 'XXX';
-    ipParts[2] = 'XXX';
-    return src.replace(ipMatch[1], ipParts.join('.'));
-  }
-  return src;
-};
-
 const formatTitle = (key: string): string => {
   return key
     .replace(/([A-Z])/g, ' $1')
@@ -59,7 +43,7 @@ const stripAnsiCodes = (message: string) => {
 
 export function textSchedule(schedule: Schedule, options: TextScheduleOptions = {}): string {
   const lines: string[] = [];
-  const isPrivate = options.private !== false;
+  const privacyOff = options.privacyOff === true;
   const { csv, interval, stripAnsi } = options;
 
   const push = (message: string) => {
@@ -98,7 +82,7 @@ export function textSchedule(schedule: Schedule, options: TextScheduleOptions = 
 
     push(
       chalk.cyan(
-        `Location: ${formatCoordinate(schedule.lat, isPrivate)}°, ${formatCoordinate(schedule.lon, isPrivate)}° (${formatSource(schedule.source, isPrivate)})`
+        `Location: ${formatCoordinate(schedule.lat, privacyOff)}°, ${formatCoordinate(schedule.lon, privacyOff)}° (${formatSource(schedule.source, privacyOff)})`
       )
     );
     push(

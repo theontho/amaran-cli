@@ -254,7 +254,7 @@ amaran-cli auto-cct --precipitation rain
 amaran-cli auto-cct --precipitation snow
 ```
 
-These options also work with `simulate-schedule`, `print-schedule`, and `graph-schedule`.
+These options also work with `schedule simulate`, `schedule print`, and `schedule graph`.
 
 ### Running Auto-CCT as a Circadian Lighting Service
 
@@ -342,7 +342,7 @@ View how color temperature and intensity will change throughout the day:
 
 ```console
 # Preview schedule for today at your current location
-$ amaran-cli print-schedule
+$ amaran-cli schedule print
 
 ═══════════════════════════════════════════════════════════
                Auto-CCT Schedule Preview
@@ -408,25 +408,25 @@ Time         HANN        WM_SML      WM_MED      WM_LRG      CIE         SUN_ALT
 ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 # Preview with manual location
-amaran-cli print-schedule --lat 40.7128 --lon -74.0060
+amaran-cli schedule print --lat 40.7128 --lon -74.0060
 
 # Preview for a specific date
-amaran-cli print-schedule --date 2025-12-21
+amaran-cli schedule print --date 2025-12-21
 
 # Change time interval (default: 30 minutes)
-amaran-cli print-schedule --interval 15
+amaran-cli schedule print --interval 15
 
 # Specify which curves to show (default: "all")
-amaran-cli print-schedule --curve "hann, cie-daylight"
+amaran-cli schedule print --curve "hann, cie-daylight"
 
 # Output as CSV
-amaran-cli print-schedule --csv
+amaran-cli schedule print --csv
 
 # Save output to a file (strips ANSI color codes for text files)
-amaran-cli print-schedule --output schedule.txt
+amaran-cli schedule print --output schedule.txt
 
 # Combine options
-amaran-cli print-schedule --lat 51.5074 --lon -0.1278 --date 2025-06-21 --interval 60
+amaran-cli schedule print --lat 51.5074 --lon -0.1278 --date 2025-06-21 --interval 60
 ```
 
 The schedule shows CCT and intensity values from 30 minutes before sunrise to 30 minutes after sunset, with special highlighting for:
@@ -445,23 +445,23 @@ Generate a visual graph of your auto-cct schedule over the day:
 
 ```bash
 # Generate graph for today (saved as schedule-YYYY-MM-DD.png)
-amaran-cli graph-schedule
+amaran-cli schedule graph
 
 # Specify output filename
-amaran-cli graph-schedule -o my-schedule.png
+amaran-cli schedule graph -o my-schedule.png
 
 # Customize graph dimensions
-amaran-cli graph-schedule -W 1920 -H 1080
+amaran-cli schedule graph -W 1920 -H 1080
 
 # Graph specific curves
-amaran-cli graph-schedule --curve cie-daylight
-amaran-cli graph-schedule --curve "perez-daylight, sun-altitude"
+amaran-cli schedule graph --curve cie-daylight
+amaran-cli schedule graph --curve "perez-daylight, sun-altitude"
 
 # View all available curves on one graph (default)
-amaran-cli graph-schedule --curve all
+amaran-cli schedule graph --curve all
 
 # Preview for a specific date and location
-amaran-cli graph-schedule --date 2025-06-21 --lat 64.1466 --lon -21.9426
+amaran-cli schedule graph --date 2025-06-21 --lat 64.1466 --lon -21.9426
 ```
 
 This creates a PNG image showing the CCT and/or intensity curves, which is great for visualizing how different algorithms behave.

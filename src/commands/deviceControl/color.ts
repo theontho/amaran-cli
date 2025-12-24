@@ -46,13 +46,21 @@ function handleColor(deps: CommandDeps) {
             controller.getNodeConfig(device.node_id as string, async (_success, _messagee, data) => {
               const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
 
-              // biome-ignore lint/suspicious/noExplicitAny: Data from server is dynamic
-              const config = (data as any)?.data || data || {};
+              const config =
+                ((data as Record<string, unknown>)?.data as Record<string, unknown>) ||
+                (data as Record<string, unknown>) ||
+                {};
 
-              const h = config.hue ?? config.h;
-              const s = config.saturation ?? config.sat ?? config.s;
-              let i = config.intensity ?? config.int ?? config.i;
-              let cct = config.cct;
+              const h = (config.hue as number | undefined) ?? (config.h as number | undefined);
+              const s =
+                (config.saturation as number | undefined) ??
+                (config.sat as number | undefined) ??
+                (config.s as number | undefined);
+              let i =
+                (config.intensity as number | undefined) ??
+                (config.int as number | undefined) ??
+                (config.i as number | undefined);
+              let cct = config.cct as number | undefined;
 
               // If state is missing, try explicit getters for reliable props (CCT, Intensity)
               // We skip getHSI as it is invalid on server
@@ -61,8 +69,11 @@ function handleColor(deps: CommandDeps) {
                 await new Promise<void>((r) => {
                   controller.getCCT(device.node_id as string, (ok, _msg, d) => {
                     if (ok) {
-                      const inner = (d as any)?.data ?? d;
-                      const val = typeof inner === 'number' ? inner : inner?.cct;
+                      const inner = (d as Record<string, unknown>)?.data ?? d;
+                      const val =
+                        typeof inner === 'number'
+                          ? inner
+                          : ((inner as Record<string, unknown>)?.cct as number | undefined);
                       if (val !== undefined) cct = val;
                     }
                     r();
@@ -73,8 +84,11 @@ function handleColor(deps: CommandDeps) {
                 await new Promise<void>((r) => {
                   controller.getIntensity(device.node_id as string, (ok, _msg, d) => {
                     if (ok) {
-                      const inner = (d as any)?.data ?? d;
-                      const val = typeof inner === 'number' ? inner : inner?.intensity;
+                      const inner = (d as Record<string, unknown>)?.data ?? d;
+                      const val =
+                        typeof inner === 'number'
+                          ? inner
+                          : ((inner as Record<string, unknown>)?.intensity as number | undefined);
                       if (val !== undefined) i = val;
                     }
                     r();
@@ -128,20 +142,31 @@ function handleColor(deps: CommandDeps) {
                 controller.getNodeConfig(device.node_id as string, async (_success, _messagee, data) => {
                   const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
 
-                  // biome-ignore lint/suspicious/noExplicitAny: Data from server is dynamic
-                  const config = (data as any)?.data || data || {};
+                  const config =
+                    ((data as Record<string, unknown>)?.data as Record<string, unknown>) ||
+                    (data as Record<string, unknown>) ||
+                    {};
 
-                  const h = config.hue ?? config.h;
-                  const s = config.saturation ?? config.sat ?? config.s;
-                  let i = config.intensity ?? config.int ?? config.i;
-                  let cct = config.cct;
+                  const h = (config.hue as number | undefined) ?? (config.h as number | undefined);
+                  const s =
+                    (config.saturation as number | undefined) ??
+                    (config.sat as number | undefined) ??
+                    (config.s as number | undefined);
+                  let i =
+                    (config.intensity as number | undefined) ??
+                    (config.int as number | undefined) ??
+                    (config.i as number | undefined);
+                  let cct = config.cct as number | undefined;
 
                   if (h === undefined && s === undefined && cct === undefined) {
                     await new Promise<void>((r) => {
                       controller.getCCT(device.node_id as string, (ok, _msg, d) => {
                         if (ok) {
-                          const inner = (d as any)?.data ?? d;
-                          const val = typeof inner === 'number' ? inner : inner?.cct;
+                          const inner = (d as Record<string, unknown>)?.data ?? d;
+                          const val =
+                            typeof inner === 'number'
+                              ? inner
+                              : ((inner as Record<string, unknown>)?.cct as number | undefined);
                           if (val !== undefined) cct = val;
                         }
                         r();
@@ -151,8 +176,11 @@ function handleColor(deps: CommandDeps) {
                     await new Promise<void>((r) => {
                       controller.getIntensity(device.node_id as string, (ok, _msg, d) => {
                         if (ok) {
-                          const inner = (d as any)?.data ?? d;
-                          const val = typeof inner === 'number' ? inner : inner?.intensity;
+                          const inner = (d as Record<string, unknown>)?.data ?? d;
+                          const val =
+                            typeof inner === 'number'
+                              ? inner
+                              : ((inner as Record<string, unknown>)?.intensity as number | undefined);
                           if (val !== undefined) i = val;
                         }
                         r();

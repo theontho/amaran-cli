@@ -24,7 +24,7 @@ export function registerGraphSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
 
   program
-    .command('graph-schedule')
+    .command('graph')
     .description('Generate a graph of the auto-cct schedule')
     .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')

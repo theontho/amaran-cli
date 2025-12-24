@@ -59,6 +59,7 @@ describe('simulate-schedule command', () => {
     const controllerStub = {
       getDevices: vi.fn(() => [{ node_id: '400J5-F2C008', device_name: 'Key Light' }]),
       getLightSleepStatus: vi.fn(),
+      turnLightOn: vi.fn(),
       setCCT,
       disconnect,
     };
@@ -82,9 +83,10 @@ describe('simulate-schedule command', () => {
     registerCommands(program, deps);
 
     // Run simulation for 1 second with 200ms interval
-    await program.parseAsync(['node', 'test', 'simulate-schedule', 'Key Light', '--duration', '1']);
+    await program.parseAsync(['node', 'test', 'schedule', 'simulate', 'Key Light', '--duration', '1']);
 
-    // Check that setCCT was called
+    // Check that turnLightOn and setCCT were called
+    expect(controllerStub.turnLightOn).toHaveBeenCalledWith('400J5-F2C008');
     expect(setCCT).toHaveBeenCalled();
     const [nodeId, cct, intensity] = setCCT.mock.calls[0];
     expect(nodeId).toBe('400J5-F2C008');

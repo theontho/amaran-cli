@@ -144,5 +144,6 @@ export interface CommandOptions {
   lon?: string;
   date?: string;
   curve?: string;
+  privacyOff?: boolean;
   [key: string]: unknown;
 }

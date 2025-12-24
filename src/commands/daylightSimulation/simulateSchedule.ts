@@ -8,7 +8,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
 
   program
-    .command('simulate-schedule')
+    .command('simulate')
     .description('Simulate a CCT schedule curve in real-time on a specific device')
     .argument('<device>', 'Device name, ID, or node_id to control')
     .option('-u, --url <url>', 'WebSocket URL')
@@ -20,6 +20,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
     .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')
     .option('--precipitation <type>', 'Precipitation type')
+    .option('--privacy-off', 'Show full IP address and precise coordinates', false)
     .action(asyncCommand(handleSimulateSchedule(deps)));
 }
 
@@ -28,6 +29,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
 
   return async (deviceQuery: string, options: CommandOptions) => {
     const { DEVICE_DEFAULTS, ERROR_MESSAGES } = await import('../../deviceControl/constants.js');
+    const { formatLocation } = await import('../../daylightSimulation/privacyUtil.js');
 
     // 1. Make the schedule
     const _maker = new ScheduleMaker(deps);
@@ -95,12 +97,17 @@ function handleSimulateSchedule(deps: CommandDeps) {
     console.log(chalk.blue('═══════════════════════════════════════════════════════════\n'));
 
     console.log(chalk.cyan(`Device: ${displayName} (${nodeId})`));
-    console.log(chalk.cyan(`Location: ${schedule.lat.toFixed(4)}°, ${schedule.lon.toFixed(4)}° (${schedule.source})`));
+    console.log(
+      chalk.cyan(`Location: ${formatLocation(schedule.lat, schedule.lon, schedule.source, options.privacyOff)}`)
+    );
     console.log(chalk.cyan(`Simulation Duration: ${durationCount} second(s)`));
     console.log(chalk.cyan(`Update Interval: ${updateInterval}ms`));
     console.log(chalk.cyan(`Curve: ${schedule.curves[0]}\n`));
 
     // 3. Render the schedule by making the lights execute it
+    console.log(chalk.yellow(`Turning on ${displayName}...`));
+    controller.turnLightOn(nodeId);
+
     const _cfg = (loadConfig?.() ?? {}) as Record<string, unknown>;
 
     const runSimulation = async () => {

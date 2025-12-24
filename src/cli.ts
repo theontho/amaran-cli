@@ -26,7 +26,9 @@ const { version } = packageJson;
 
 program
   .name('amaran-cli')
-  .description('Command line tool for controlling Aputure Amaran lights via WebSocket')
+  .description(
+    'Command line tool for controlling Aputure Amaran lights via WebSocket and a circadian lighting service that uses the amaran lights.'
+  )
   .version(version, '-v, --version', 'output the current version')
   .option('--service-mode', 'Internal flag for being run from background service')
   .configureHelp({

@@ -89,11 +89,13 @@ function handleStatus(deps: CommandDeps) {
         return new Promise((resolve) => {
           const nodeId = device.node_id as string;
           controller.getNodeConfig(nodeId, async (success: boolean, _message: string, data?: unknown) => {
-            // biome-ignore lint/suspicious/noExplicitAny: Data from server is dynamic
-            let config: any = {};
+            let config: Record<string, unknown> = {};
 
             if (success) {
-              config = (data as any)?.data || data || {};
+              config =
+                ((data as Record<string, unknown>)?.data as Record<string, unknown>) ||
+                (data as Record<string, unknown>) ||
+                {};
             } else {
               // If getNodeConfig fails, we start with empty and try to fill it
               if (options.debug)
@@ -109,8 +111,8 @@ function handleStatus(deps: CommandDeps) {
                 new Promise<void>((r) => {
                   controller.getLightSleepStatus(nodeId, (ok, _msg, d) => {
                     if (ok) {
-                      const inner = (d as any)?.data ?? d;
-                      const val = typeof inner === 'boolean' ? inner : inner?.sleep;
+                      const inner = (d as Record<string, unknown>)?.data ?? d;
+                      const val = typeof inner === 'boolean' ? inner : (inner as Record<string, unknown>)?.sleep;
                       if (val !== undefined) config.sleep = val;
                     }
                     r();
@@ -125,8 +127,8 @@ function handleStatus(deps: CommandDeps) {
                 new Promise<void>((r) => {
                   controller.getCCT(nodeId, (ok, _msg, d) => {
                     if (ok) {
-                      const inner = (d as any)?.data ?? d;
-                      const val = typeof inner === 'number' ? inner : inner?.cct;
+                      const inner = (d as Record<string, unknown>)?.data ?? d;
+                      const val = typeof inner === 'number' ? inner : (inner as Record<string, unknown>)?.cct;
                       if (val !== undefined) config.cct = val;
                     }
                     r();
@@ -141,8 +143,8 @@ function handleStatus(deps: CommandDeps) {
                 new Promise<void>((r) => {
                   controller.getIntensity(nodeId, (ok, _msg, d) => {
                     if (ok) {
-                      const inner = (d as any)?.data ?? d;
-                      const val = typeof inner === 'number' ? inner : inner?.intensity;
+                      const inner = (d as Record<string, unknown>)?.data ?? d;
+                      const val = typeof inner === 'number' ? inner : (inner as Record<string, unknown>)?.intensity;
                       if (val !== undefined) config.intensity = val;
                     }
                     r();
@@ -182,10 +184,12 @@ function handleStatus(deps: CommandDeps) {
           if (!nodeId) continue;
           await new Promise<void>((resolve) => {
             controller.getNodeConfig(nodeId, async (success, _message, data?: unknown) => {
-              // biome-ignore lint/suspicious/noExplicitAny: Data from server is dynamic
-              let config: any = {};
+              let config: Record<string, unknown> = {};
               if (success) {
-                config = (data as any)?.data || data || {};
+                config =
+                  ((data as Record<string, unknown>)?.data as Record<string, unknown>) ||
+                  (data as Record<string, unknown>) ||
+                  {};
               }
 
               const promises: Promise<void>[] = [];
@@ -195,8 +199,8 @@ function handleStatus(deps: CommandDeps) {
                   new Promise<void>((r) => {
                     controller.getLightSleepStatus(nodeId, (ok, _msg, d) => {
                       if (ok) {
-                        const inner = (d as any)?.data ?? d;
-                        const val = typeof inner === 'boolean' ? inner : inner?.sleep;
+                        const inner = (d as Record<string, unknown>)?.data ?? d;
+                        const val = typeof inner === 'boolean' ? inner : (inner as Record<string, unknown>)?.sleep;
                         if (val !== undefined) config.sleep = val;
                       }
                       r();
@@ -210,8 +214,8 @@ function handleStatus(deps: CommandDeps) {
                   new Promise<void>((r) => {
                     controller.getCCT(nodeId, (ok, _msg, d) => {
                       if (ok) {
-                        const inner = (d as any)?.data ?? d;
-                        const val = typeof inner === 'number' ? inner : inner?.cct;
+                        const inner = (d as Record<string, unknown>)?.data ?? d;
+                        const val = typeof inner === 'number' ? inner : (inner as Record<string, unknown>)?.cct;
                         if (val !== undefined) config.cct = val;
                       }
                       r();
@@ -225,8 +229,8 @@ function handleStatus(deps: CommandDeps) {
                   new Promise<void>((r) => {
                     controller.getIntensity(nodeId, (ok, _msg, d) => {
                       if (ok) {
-                        const inner = (d as any)?.data ?? d;
-                        const val = typeof inner === 'number' ? inner : inner?.intensity;
+                        const inner = (d as Record<string, unknown>)?.data ?? d;
+                        const val = typeof inner === 'number' ? inner : (inner as Record<string, unknown>)?.intensity;
                         if (val !== undefined) config.intensity = val;
                       }
                       r();

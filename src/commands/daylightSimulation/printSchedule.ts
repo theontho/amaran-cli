@@ -14,14 +14,14 @@ type ScheduleCommandOptions = {
   curve?: string;
   cloudCover?: string;
   precipitation?: string;
-  private: boolean;
+  privacyOff: boolean;
 };
 
 export function registerPrintSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
 
   program
-    .command('print-schedule')
+    .command('print')
     .description('Preview auto-cct schedule from sunrise to sunset')
     .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
@@ -32,7 +32,7 @@ export function registerPrintSchedule(program: Command, deps: CommandDeps) {
     .option('-o, --output <file>', 'Output result to a file')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')
     .option('--precipitation <type>', 'Precipitation type')
-    .option('-p, --no-private', 'Show full IP address and precise coordinates', true)
+    .option('--privacy-off', 'Show full IP address and precise coordinates', false)
     .action(asyncCommand(handlePrintSchedule(deps)));
 }
 
@@ -59,7 +59,7 @@ function handlePrintSchedule(deps: CommandDeps) {
 
     const output = textSchedule(schedule, {
       csv: options.csv,
-      private: options.private,
+      privacyOff: options.privacyOff,
       interval: options.interval,
     });
 
@@ -67,7 +67,7 @@ function handlePrintSchedule(deps: CommandDeps) {
       try {
         const cleanOutput = textSchedule(schedule, {
           csv: options.csv,
-          private: options.private,
+          privacyOff: options.privacyOff,
           interval: options.interval,
           stripAnsi: true,
         });

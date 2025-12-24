@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
+import { formatCoordinate } from '../../daylightSimulation/privacyUtil.js';
 import type { CommandDeps, Config } from '../../deviceControl/types.js';
 
 interface ConfigOptions {
@@ -18,6 +19,7 @@ interface ConfigOptions {
   defaultCurve?: string;
   autoStartApp?: string;
   maxLux?: string;
+  privacyOff: boolean;
   show?: boolean;
 }
 
@@ -42,6 +44,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       'Automatically start Amaran desktop app on connection failure (default: true)'
     )
     .option('--max-lux <number>', 'Maximum lux output of the setup (for auto-cct scaling)')
+    .option('--privacy-off', 'Show full coordinates and sensitive data', false)
     .option('--show', 'Show current configuration')
     .action(asyncCommand(handleConfig(deps)));
 }
@@ -68,9 +71,20 @@ function handleConfig(deps: CommandDeps) {
       options.maxLux !== undefined;
 
     if (options.show || !hasSetOptions) {
-      const config = loadConfig();
+      const config = loadConfig() || {};
+      const privacyOff = options.privacyOff === true;
+
       console.log(chalk.blue('Current configuration:'));
-      console.log(JSON.stringify(config, null, 2));
+
+      const displayConfig = { ...config };
+      if (typeof displayConfig.latitude === 'number') {
+        (displayConfig.latitude as unknown as string) = formatCoordinate(displayConfig.latitude, privacyOff);
+      }
+      if (typeof displayConfig.longitude === 'number') {
+        (displayConfig.longitude as unknown as string) = formatCoordinate(displayConfig.longitude, privacyOff);
+      }
+
+      console.log(JSON.stringify(displayConfig, null, 2));
       return;
     }
 

@@ -22,6 +22,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .option('-L, --max-lux <value>', 'Max lux output for scaling intensity')
     .option('--cloud-cover <value>', 'Cloud cover (0-1), e.g. 0.5 for 50% clouds')
     .option('--precipitation <type>', 'Precipitation type: none, rain, snow, drizzle')
+    .option('--privacy-off', 'Show full IP address and precise coordinates', false)
     .action(asyncCommand(handleAutoCct(deps)));
 }
 
@@ -32,6 +33,7 @@ function handleAutoCct(deps: CommandDeps) {
     const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
     const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
     const { interpolateMaxLux, parseMaxLuxMap } = await import('../../daylightSimulation/mathUtil.js');
+    const { formatLocation } = await import('../../daylightSimulation/privacyUtil.js');
     const options = optionsRaw as {
       url?: string;
       clientId?: string;
@@ -44,6 +46,7 @@ function handleAutoCct(deps: CommandDeps) {
       maxLux?: string;
       cloudCover?: string;
       precipitation?: string;
+      privacyOff: boolean;
     };
     const controller = await createController(options.url, options.clientId, options.debug);
 
@@ -230,8 +233,19 @@ function handleAutoCct(deps: CommandDeps) {
     percent = Math.round(percent * 10) / 10;
 
     console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
-    console.log(chalk.gray(`  Location: ${lat.toFixed(4)}, ${lon.toFixed(4)} (${source})`));
-    console.log(chalk.gray(`  Time: ${time.toISOString()}`));
+    console.log(chalk.gray(`  Location: ${formatLocation(lat, lon, source, options.privacyOff)}`));
+    const formattedDate = time.toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const formattedTime = time.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    console.log(chalk.gray(`  Time: ${formattedDate}, ${formattedTime}`));
     console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
     console.log(chalk.gray(`  Mode: ${modeDescription}`));
     if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {

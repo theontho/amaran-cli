@@ -1,10 +1,8 @@
 import type { Command } from 'commander';
 
 import registerAutoCct from './commands/daylightSimulation/autoCct.js';
-import registerGraphSchedule from './commands/daylightSimulation/graphSchedule.js';
-import registerPrintSchedule from './commands/daylightSimulation/printSchedule.js';
+import registerSchedule from './commands/daylightSimulation/schedule.js';
 import registerService from './commands/daylightSimulation/service.js';
-import registerSimulateSchedule from './commands/daylightSimulation/simulateSchedule.js';
 import registerCct from './commands/deviceControl/cct.js';
 import registerColor from './commands/deviceControl/color.js';
 import registerConfig from './commands/deviceControl/config.js';
@@ -30,9 +28,7 @@ export function registerCommands(program: Command, deps: CommandDeps) {
 
   // Register all other commands
   registerAutoCct(program, deps);
-  registerPrintSchedule(program, deps);
-  registerGraphSchedule(program, deps);
-  registerSimulateSchedule(program, deps);
+  registerSchedule(program, deps);
   registerDiscover(program, deps);
   registerList(program, deps);
   registerPower(program, deps);
