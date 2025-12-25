@@ -22,6 +22,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .option('-L, --max-lux <value>', 'Max lux output for scaling intensity')
     .option('--cloud-cover <value>', 'Cloud cover (0-1), e.g. 0.5 for 50% clouds')
     .option('--precipitation <type>', 'Precipitation type: none, rain, snow, drizzle')
+    .option('--weather', 'Automatically fetch weather from wttr.in and apply modifiers')
     .option('--privacy-off', 'Show full IP address and precise coordinates', false)
     .action(asyncCommand(handleAutoCct(deps)));
 }
@@ -30,6 +31,7 @@ function handleAutoCct(deps: CommandDeps) {
   const { createController, loadConfig, findDevice } = deps;
 
   return async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
+    const cfg = loadConfig?.() || {};
     const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
     const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
     const { interpolateMaxLux, parseMaxLuxMap } = await import('../../daylightSimulation/mathUtil.js');
@@ -46,6 +48,7 @@ function handleAutoCct(deps: CommandDeps) {
       maxLux?: string;
       cloudCover?: string;
       precipitation?: string;
+      weather?: boolean;
       privacyOff: boolean;
     };
     const controller = await createController(options.url, options.clientId, options.debug);
@@ -72,9 +75,9 @@ function handleAutoCct(deps: CommandDeps) {
         console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
-    } else if (loadConfig) {
+    } else if (cfg) {
       // Try to get default curve from config
-      const config = loadConfig();
+      const config = cfg;
       if (config?.defaultCurve) {
         try {
           curveType = parseCurveType(config.defaultCurve);
@@ -103,16 +106,13 @@ function handleAutoCct(deps: CommandDeps) {
         process.exit(1);
       }
       source = 'manual';
-    } else if (loadConfig) {
-      const config = loadConfig();
-      if (config) {
-        const storedLat = config.latitude;
-        const storedLon = config.longitude;
-        if (typeof storedLat === 'number' && typeof storedLon === 'number') {
-          lat = storedLat;
-          lon = storedLon;
-          source = 'config';
-        }
+    } else if (cfg) {
+      const storedLat = cfg.latitude;
+      const storedLon = cfg.longitude;
+      if (typeof storedLat === 'number' && typeof storedLon === 'number') {
+        lat = storedLat;
+        lon = storedLon;
+        source = 'config';
       }
     }
 
@@ -140,8 +140,25 @@ function handleAutoCct(deps: CommandDeps) {
       source = `geoip (${ip})`;
     }
 
-    // Load optional bounds from config; fall back to built-in defaults for auto-cct
-    const cfg = (typeof loadConfig === 'function' ? (loadConfig() ?? {}) : {}) as Record<string, unknown>;
+    // Handle automatic weather if requested
+    let weatherOptions: { cloudCover?: number; precipitation?: 'none' | 'rain' | 'snow' | 'drizzle' } | undefined;
+    const configWeather = cfg.weather === true;
+    if (options.weather || (options.weather === undefined && configWeather)) {
+      const { getWeatherData } = await import('../../daylightSimulation/weatherUtil.js');
+      const weather = await getWeatherData(lat, lon, time, options.debug);
+      weatherOptions = {
+        cloudCover: weather.cloudCover,
+        precipitation: weather.precipitation,
+      };
+      if (options.debug) {
+        console.log(
+          chalk.gray(
+            `  Auto-weather: cloudCover=${weather.cloudCover}, precipitation=${weather.precipitation} (from ${weather.source})`
+          )
+        );
+      }
+    }
+
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
     const minKRaw = cfg.cctMin;
@@ -205,7 +222,7 @@ function handleAutoCct(deps: CommandDeps) {
         intensityMinPct: loPct,
         intensityMaxPct: hiPct,
         maxLux: maxLuxMap,
-        weather: {
+        weather: weatherOptions || {
           cloudCover: options.cloudCover ? parseFloat(options.cloudCover) : undefined,
           precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
         },
@@ -256,6 +273,11 @@ function handleAutoCct(deps: CommandDeps) {
       if (options.cloudCover) weatherInfo.push(`Clouds: ${options.cloudCover}`);
       if (options.precipitation) weatherInfo.push(`Precip: ${options.precipitation}`);
       console.log(chalk.gray(`  Weather: ${weatherInfo.join(', ')}`));
+    } else if (weatherOptions && (options.weather || configWeather)) {
+      const weatherInfo = [];
+      if (weatherOptions.cloudCover !== undefined) weatherInfo.push(`Clouds: ${weatherOptions.cloudCover}`);
+      if (weatherOptions.precipitation) weatherInfo.push(`Precip: ${weatherOptions.precipitation}`);
+      console.log(chalk.gray(`  Weather (Auto): ${weatherInfo.join(', ')}`));
     }
 
     let candidateDevices: unknown[] = [];

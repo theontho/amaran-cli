@@ -3,6 +3,7 @@ import type { Command } from 'commander';
 import registerAutoCct from './commands/daylightSimulation/autoCct.js';
 import registerSchedule from './commands/daylightSimulation/schedule.js';
 import registerService from './commands/daylightSimulation/service.js';
+import registerWeather from './commands/daylightSimulation/weather.js';
 import registerCct from './commands/deviceControl/cct.js';
 import registerColor from './commands/deviceControl/color.js';
 import registerConfig from './commands/deviceControl/config.js';
@@ -38,6 +39,7 @@ export function registerCommands(program: Command, deps: CommandDeps) {
   registerColor(program, deps);
   registerStatus(program, deps);
   registerService(program, deps);
+  registerWeather(program, deps);
 
   // New commands
   registerScene(program, deps);

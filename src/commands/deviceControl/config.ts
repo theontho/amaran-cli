@@ -19,6 +19,7 @@ interface ConfigOptions {
   defaultCurve?: string;
   autoStartApp?: string;
   maxLux?: string;
+  weather?: string;
   privacyOff: boolean;
   show?: boolean;
 }
@@ -44,6 +45,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       'Automatically start Amaran desktop app on connection failure (default: true)'
     )
     .option('--max-lux <number>', 'Maximum lux output of the setup (for auto-cct scaling)')
+    .option('--weather <boolean>', 'Enable automatic weather fetching for auto-cct (default: false)')
     .option('--privacy-off', 'Show full coordinates and sensitive data', false)
     .option('--show', 'Show current configuration')
     .action(asyncCommand(handleConfig(deps)));
@@ -68,7 +70,8 @@ function handleConfig(deps: CommandDeps) {
       options.intensityMax !== undefined ||
       options.defaultCurve !== undefined ||
       options.autoStartApp !== undefined ||
-      options.maxLux !== undefined;
+      options.maxLux !== undefined ||
+      options.weather !== undefined;
 
     if (options.show || !hasSetOptions) {
       const config = loadConfig() || {};
@@ -233,6 +236,25 @@ function handleConfig(deps: CommandDeps) {
         console.error(chalk.red('max-lux must be a positive number OR a map string like "2700:8000,5600:10000"'));
         process.exit(1);
       }
+    }
+
+    // Handle weather option
+    if (options.weather !== undefined) {
+      const value = options.weather;
+      if (typeof value === 'boolean') {
+        config.weather = (value as unknown as string).toString() === 'true'; // Commander might pass boolean if it was a flag, but we defined it with <boolean>
+      } else {
+        const lowerValue = (value as string).toLowerCase().trim();
+        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
+          config.weather = true;
+        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
+          config.weather = false;
+        } else {
+          console.error(chalk.red('weather must be true or false'));
+          process.exit(1);
+        }
+      }
+      changes.push(`Default weather enabled: ${config.weather ? 'enabled' : 'disabled'}`);
     }
 
     // Ensure logical ordering if both sides provided

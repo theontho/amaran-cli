@@ -269,7 +269,8 @@ export function calculateCCT(
   // Apply weather modifiers if provided
   let result = calculateCCTCore(lat, lon, date, minK, maxK, minIntensity, maxIntensity, curveType, opts?.weather);
 
-  if (opts?.weather) {
+  // Apply weather modifiers if provided and there is actual light output
+  if (opts?.weather && result.lightOutput && result.lightOutput > 0) {
     result = applyWeatherModifiers(result, opts.weather);
   }
 

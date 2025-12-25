@@ -162,6 +162,7 @@ type CliConfig = Config & {
   intensityMax?: number; // percent [0-100]
   // Autostart behavior
   autoStartApp?: boolean; // Whether to automatically start the Amaran desktop app on connection failure
+  weather?: boolean; // Whether to automatically fetch weather for auto-cct
 };
 
 // Load configuration
