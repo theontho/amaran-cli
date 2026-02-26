@@ -5,6 +5,7 @@ export interface CCTResult {
   cct: number;
   intensity: number;
   lightOutput?: number; // Estimated lux or luminosity
+  maxDailyOutput?: number; // Peak estimated lux for the day
 }
 
 export interface WeatherOptions {
@@ -19,6 +20,7 @@ export interface CCTOptions {
   intensityMaxPct?: number;
   weather?: WeatherOptions;
   maxLux?: number | Record<number, number>;
+  simulationMaxLux?: number;
 }
 
 export enum CurveType {

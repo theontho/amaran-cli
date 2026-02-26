@@ -16,6 +16,7 @@ type GraphCommandOptions = {
   height?: string;
   output?: string;
   metrics?: string;
+  maxLux?: string;
   cloudCover?: string;
   precipitation?: string;
 };
@@ -30,6 +31,7 @@ export function registerGraphSchedule(program: Command, deps: CommandDeps) {
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
     .option('-C, --curve <curve>', CURVE_HELP_TEXT)
+    .option('-L, --max-lux <value>', 'Simulation peak in lux (scales the whole day)')
     .option('-o, --output <filename>', 'Output filename (default: schedule-<date>.png)')
     .option('-W, --width <width>', 'Image width in pixels (default: 1200)', '1200')
     .option('-H, --height <height>', 'Image height in pixels (default: 600)', '600')
@@ -56,6 +58,7 @@ function handleGraphSchedule(deps: CommandDeps) {
         bufferMinutes: 30,
         cloudCover: options.cloudCover,
         precipitation: options.precipitation,
+        maxLuxLimit: options.maxLux ? parseFloat(options.maxLux) : undefined,
       });
     } catch (error) {
       console.error(chalk.red((error as Error).message));

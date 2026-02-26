@@ -12,6 +12,7 @@ type ScheduleCommandOptions = {
   date?: string;
   interval?: string;
   curve?: string;
+  maxLux?: string;
   cloudCover?: string;
   precipitation?: string;
   privacyOff: boolean;
@@ -28,6 +29,7 @@ export function registerPrintSchedule(program: Command, deps: CommandDeps) {
     .option('-d, --date <date>', 'Date to preview (ISO format, e.g., 2025-10-26)')
     .option('-i, --interval <minutes>', 'Minutes between schedule entries (default: 30)', '30')
     .option('-C, --curve <curve>', CURVE_HELP_TEXT, 'all')
+    .option('-L, --max-lux <value>', 'Simulation peak in lux (scales the whole day)')
     .option('-c, --csv', 'Output as CSV format')
     .option('-o, --output <file>', 'Output result to a file')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')
@@ -51,6 +53,7 @@ function handlePrintSchedule(deps: CommandDeps) {
         includeSpecialTimes: true,
         cloudCover: options.cloudCover,
         precipitation: options.precipitation,
+        maxLuxLimit: options.maxLux ? parseFloat(options.maxLux) : undefined,
       });
     } catch (error) {
       console.error(chalk.red((error as Error).message));

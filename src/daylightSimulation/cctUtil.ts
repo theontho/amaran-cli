@@ -102,7 +102,7 @@ function calculateScientificCCT(
   const noonPos = getPosition(_solarNoon, lat, lon);
   const maxAltitude = noonPos.altitude;
 
-  let factors: [number, number, number];
+  let factors: [number, number, number, number];
   switch (curveType) {
     case CurveType.SUN_ALTITUDE:
       factors = calculateRealisticSunAltitude(altitude, maxAltitude);
@@ -123,14 +123,15 @@ function calculateScientificCCT(
       factors = calculateRealisticHazyDaylight(altitude, maxAltitude);
       break;
     default:
-      factors = [0, 0, 0];
+      factors = [0, 0, 0, 0];
   }
 
-  const [cctFactor, intensityFactor, rawIntensity] = factors;
+  const [cctFactor, intensityFactor, rawIntensity, maxDailyIntensity] = factors;
   return {
     cct: Math.round(minK + (maxK - minK) * cctFactor),
     intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * intensityFactor),
     lightOutput: Math.round(rawIntensity * CCT_DEFAULTS.maxLux),
+    maxDailyOutput: Math.round(maxDailyIntensity * CCT_DEFAULTS.maxLux),
   };
 }
 
@@ -179,25 +180,16 @@ function calculateEmpiricalCCT(
     }
 
     const f = curve(x);
-    // For empirical curves, we don't have a physical model, but we can estimate
-    // light output based on the curve factor and the max potential lux.
-    // We scale it by sin(altitude) if available to give some seasonal variation.
-    let luxEstimate = f * CCT_DEFAULTS.maxLux;
-    try {
-      const pos = getPosition(date, lat, lon);
-      if (pos.altitude > 0) {
-        luxEstimate *= Math.sin(pos.altitude);
-      } else {
-        luxEstimate = 0;
-      }
-    } catch {
-      // Fallback if SunCalc fails
-    }
+    // For empirical curves, we don't have a physical model.
+    // We use the curve factor 'f' directly.
+    const luxEstimate = f * CCT_DEFAULTS.maxLux;
+    const maxDailyLux = CCT_DEFAULTS.maxLux; 
 
     return {
       cct: Math.round(minK + (maxK - minK) * f),
       intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * f),
       lightOutput: Math.round(luxEstimate),
+      maxDailyOutput: Math.round(maxDailyLux),
     };
   }
 
@@ -211,6 +203,7 @@ function calculateEmpiricalCCT(
       cct: Math.round(minK + (maxK - minK) * f),
       intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * f),
       lightOutput: Math.round(f * CCT_DEFAULTS.maxLux),
+      maxDailyOutput: CCT_DEFAULTS.maxLux, 
     };
   } catch {
     return { cct: minK, intensity: minIntensity, lightOutput: 0 };
@@ -274,6 +267,16 @@ export function calculateCCT(
     result = applyWeatherModifiers(result, opts.weather);
   }
 
+  // Handle simulation scale (zenith) override
+  if (opts?.simulationMaxLux !== undefined && result.lightOutput !== undefined) {
+    // We normalize by the daily peak to ensure that the user's -L param 
+    // represents the peak for *today*, which is more intuitive for a CLI limit.
+    const dailyPeak = result.maxDailyOutput || CCT_DEFAULTS.maxLux;
+    if (dailyPeak > 0) {
+      result.lightOutput = (result.lightOutput / dailyPeak) * opts.simulationMaxLux;
+    }
+  }
+
   // Handle maxLux scaling if provided
   if (opts?.maxLux !== undefined && result.lightOutput !== undefined) {
     const effectiveMaxLux =
@@ -282,8 +285,9 @@ export function calculateCCT(
         : interpolateMaxLux(result.cct, opts.maxLux as Record<number, number>);
 
     if (effectiveMaxLux > 0) {
-      // Scale intensity based on lightOutput vs maxLux
-      // lightOutput is estimated lux, effectiveMaxLux is the user's calibration point
+      // Scale intensity based on lightOutput vs maxLux (calibration point)
+      // If simulationMaxLux was provided, result.lightOutput is already scaled to it.
+      // If simulationMaxLux == effectiveMaxLux, result.intensity will follow the raw curve factor.
       result.intensity = Math.round((result.lightOutput / effectiveMaxLux) * 1000);
     }
   }

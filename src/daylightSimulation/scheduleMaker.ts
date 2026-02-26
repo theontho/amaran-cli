@@ -31,6 +31,7 @@ export interface MakeScheduleOptions {
   endTime?: Date;
   cloudCover?: string | number; // 0-1 or '50%'
   precipitation?: string; // 'none', 'rain', 'snow'
+  maxLuxLimit?: number; // Simulation peak in lux
 }
 
 export class ScheduleMaker {
@@ -187,6 +188,7 @@ export class ScheduleMaker {
       intensityMinPct: typeof cfg.intensityMin === 'number' ? cfg.intensityMin : undefined,
       intensityMaxPct: typeof cfg.intensityMax === 'number' ? cfg.intensityMax : undefined,
       maxLux: cfg.maxLux as number | Record<number, number> | undefined,
+      simulationMaxLux: options.maxLuxLimit,
       weather: {
         cloudCover:
           options.cloudCover !== undefined

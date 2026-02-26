@@ -17,6 +17,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
     .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-C, --curve <curve>', CURVE_HELP_TEXT, 'hann')
+    .option('-L, --max-lux <value>', 'Simulation peak in lux (scales the whole day)')
     .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')
     .option('--precipitation <type>', 'Precipitation type')
@@ -27,7 +28,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
 function handleSimulateSchedule(deps: CommandDeps) {
   const { createController, findDevice, loadConfig } = deps;
 
-  return async (deviceQuery: string, options: CommandOptions) => {
+  return async (deviceQuery: string, options: CommandOptions & { maxLux?: string; duration?: string; curve?: string; lat?: string; lon?: string; cloudCover?: string; precipitation?: string; privacyOff: boolean }) => {
     const { DEVICE_DEFAULTS, ERROR_MESSAGES } = await import('../../deviceControl/constants.js');
     const { formatLocation } = await import('../../daylightSimulation/privacyUtil.js');
 
@@ -53,6 +54,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
         curves: options.curve,
         cloudCover: options.cloudCover as string | undefined, // ScheduleMaker handles parsing
         precipitation: options.precipitation as string | undefined,
+        maxLuxLimit: options.maxLux ? parseFloat(options.maxLux) : undefined,
       });
 
       const nightEnd = baseInfo.times.nightEnd;
@@ -73,6 +75,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
         endTime: night,
         intervalMinutes: timeStepMs / (60 * 1000), // convert ms to minutes for the maker's interval
         includeSpecialTimes: false, // Smooth simulation doesn't need jumps to special times
+        maxLuxLimit: options.maxLux ? parseFloat(options.maxLux) : undefined,
       });
     } catch (error) {
       console.error(chalk.red((error as Error).message));

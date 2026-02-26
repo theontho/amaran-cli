@@ -171,7 +171,7 @@ describe('auto-cct max-lux logic', () => {
       expect.any(Number),
       expect.any(Number),
       expect.any(Date),
-      expect.objectContaining({ maxLux: 5000 }),
+      expect.objectContaining({ maxLux: 10000, simulationMaxLux: 5000 }),
       expect.any(String)
     );
 

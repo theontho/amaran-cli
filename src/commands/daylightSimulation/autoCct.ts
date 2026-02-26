@@ -191,25 +191,31 @@ function handleAutoCct(deps: CommandDeps) {
       VALIDATION_RANGES.intensity.max
     );
 
-    // Determine maxLux value (number or map), prioritizing CLI option over config
-    let maxLuxMap: Record<number, number> | number | undefined;
+    // Determine maxLux values
+    let systemMaxLux: Record<number, number> | number | undefined;
+    let limitMaxLux: number | undefined;
 
-    // 1. Try CLI option
+    // 1. Load System Capacity from Config
+    if (cfg.maxLux !== undefined) {
+      systemMaxLux = cfg.maxLux as number | Record<string, number>;
+    }
+
+    // 2. Load Limit/Scale from CLI option
     if (options.maxLux) {
-      // Check for map format "cct:lux,cct:lux"
+      // Check for map format "cct:lux,cct:lux" - if map, it's definitely a capacity calibration
       if (options.maxLux.includes(':')) {
         const map = parseMaxLuxMap(options.maxLux);
-        if (map) maxLuxMap = map;
+        if (map) systemMaxLux = map;
       } else {
         const parsed = parseFloat(options.maxLux);
         if (!Number.isNaN(parsed) && parsed > 0) {
-          maxLuxMap = parsed;
+          limitMaxLux = parsed;
+          // Fallback: If no system capacity is known, assume the limit is the capacity
+          if (systemMaxLux === undefined) {
+            systemMaxLux = parsed;
+          }
         }
       }
-    }
-    // 2. Fallback to Config
-    else if (cfg.maxLux !== undefined) {
-      maxLuxMap = cfg.maxLux as number | Record<string, number>;
     }
 
     const result = calculateCCT(
@@ -221,7 +227,8 @@ function handleAutoCct(deps: CommandDeps) {
         cctMaxK: Math.max(loK, hiK),
         intensityMinPct: loPct,
         intensityMaxPct: hiPct,
-        maxLux: maxLuxMap,
+        maxLux: systemMaxLux,
+        simulationMaxLux: limitMaxLux,
         weather: weatherOptions || {
           cloudCover: options.cloudCover ? parseFloat(options.cloudCover) : undefined,
           precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
@@ -235,13 +242,15 @@ function handleAutoCct(deps: CommandDeps) {
 
     // Calculate effective max lux only for logging purposes now, as calculateCCT handled the value
     let effectiveMaxLux: number | undefined;
-    if (maxLuxMap !== undefined && result.lightOutput !== undefined) {
-      if (typeof maxLuxMap === 'number') {
-        effectiveMaxLux = maxLuxMap;
+    if (systemMaxLux !== undefined && result.lightOutput !== undefined) {
+      if (typeof systemMaxLux === 'number') {
+        effectiveMaxLux = systemMaxLux;
       } else {
-        effectiveMaxLux = interpolateMaxLux(result.cct, maxLuxMap);
+        effectiveMaxLux = interpolateMaxLux(result.cct, systemMaxLux);
       }
-      modeDescription = `max lux output of light system (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
+      modeDescription = limitMaxLux
+        ? `circadian curve scaled to ${limitMaxLux} lux peak (capacity: ${Math.round(effectiveMaxLux)} lux)`
+        : `max lux output of light system (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
     }
 
     percent = result.intensity / 10;
@@ -265,8 +274,26 @@ function handleAutoCct(deps: CommandDeps) {
     console.log(chalk.gray(`  Time: ${formattedDate}, ${formattedTime}`));
     console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
     console.log(chalk.gray(`  Mode: ${modeDescription}`));
-    if (effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
-      console.log(chalk.gray(`  Target Output: ${result.lightOutput} lux`));
+    if (effectiveMaxLux !== undefined && result.lightOutput !== undefined && lat !== undefined && lon !== undefined) {
+      const { calculateCCT, CurveType } = await import('../../daylightSimulation/cctUtil.js');
+      const originalResult = calculateCCT(
+        lat,
+        lon,
+        time,
+        {
+          cctMinK: Math.min(loK, hiK),
+          cctMaxK: Math.max(loK, hiK),
+          intensityMinPct: loPct,
+          intensityMaxPct: hiPct,
+          maxLux: systemMaxLux,
+          weather: weatherOptions,
+        },
+        CurveType[curveType]
+      );
+      const originalLux = Math.round(originalResult.lightOutput || 0);
+      console.log(
+        chalk.gray(`  Target Output: ${Math.round(result.lightOutput)} lux (original: ${originalLux} lux)`)
+      );
     }
     if (options.cloudCover || options.precipitation) {
       const weatherInfo = [];
