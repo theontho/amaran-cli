@@ -28,7 +28,19 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
 function handleSimulateSchedule(deps: CommandDeps) {
   const { createController, findDevice, loadConfig } = deps;
 
-  return async (deviceQuery: string, options: CommandOptions & { maxLux?: string; duration?: string; curve?: string; lat?: string; lon?: string; cloudCover?: string; precipitation?: string; privacyOff: boolean }) => {
+  return async (
+    deviceQuery: string,
+    options: CommandOptions & {
+      maxLux?: string;
+      duration?: string;
+      curve?: string;
+      lat?: string;
+      lon?: string;
+      cloudCover?: string;
+      precipitation?: string;
+      privacyOff: boolean;
+    }
+  ) => {
     const { DEVICE_DEFAULTS, ERROR_MESSAGES } = await import('../../deviceControl/constants.js');
     const { formatLocation } = await import('../../daylightSimulation/privacyUtil.js');
 

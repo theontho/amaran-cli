@@ -183,7 +183,7 @@ function calculateEmpiricalCCT(
     // For empirical curves, we don't have a physical model.
     // We use the curve factor 'f' directly.
     const luxEstimate = f * CCT_DEFAULTS.maxLux;
-    const maxDailyLux = CCT_DEFAULTS.maxLux; 
+    const maxDailyLux = CCT_DEFAULTS.maxLux;
 
     return {
       cct: Math.round(minK + (maxK - minK) * f),
@@ -203,7 +203,7 @@ function calculateEmpiricalCCT(
       cct: Math.round(minK + (maxK - minK) * f),
       intensity: Math.round(minIntensity + (maxIntensity - minIntensity) * f),
       lightOutput: Math.round(f * CCT_DEFAULTS.maxLux),
-      maxDailyOutput: CCT_DEFAULTS.maxLux, 
+      maxDailyOutput: CCT_DEFAULTS.maxLux,
     };
   } catch {
     return { cct: minK, intensity: minIntensity, lightOutput: 0 };
@@ -269,7 +269,7 @@ export function calculateCCT(
 
   // Handle simulation scale (zenith) override
   if (opts?.simulationMaxLux !== undefined && result.lightOutput !== undefined) {
-    // We normalize by the daily peak to ensure that the user's -L param 
+    // We normalize by the daily peak to ensure that the user's -L param
     // represents the peak for *today*, which is more intuitive for a CLI limit.
     const dailyPeak = result.maxDailyOutput || CCT_DEFAULTS.maxLux;
     if (dailyPeak > 0) {

@@ -262,7 +262,7 @@ describe('LightController', () => {
     controller = new LightController(WS_URL, 'test_client', undefined, false);
     await new Promise((res) => setTimeout(res, 200));
 
-    await controller.setIntensity(nodeId, 750);
+    controller.setIntensity(nodeId, 750);
     await new Promise<void>((resolve) => {
       controller?.getIntensity(nodeId, (success, _msg, data) => {
         expect(success).toBe(true);
@@ -271,7 +271,7 @@ describe('LightController', () => {
       });
     });
 
-    await controller.setCCT(nodeId, 4500);
+    controller.setCCT(nodeId, 4500);
     await new Promise<void>((resolve) => {
       controller?.getCCT(nodeId, (success, _msg, data) => {
         expect(success).toBe(true);
