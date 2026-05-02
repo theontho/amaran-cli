@@ -8,6 +8,8 @@ Written with AI mostly, including this documentation.  Thanks to [Zac for his co
 
 See [DEVELOPMENT](docs/DEVELOPMENT.md) on how to help with development.  See [KNOWN BUGS](docs/KNOWN_BUGS.md) for known issues.
 
+It's not as obvious, but this repo is published on npm too: https://www.npmjs.com/package/amaran-light-cli 
+
 ## Installation
 
 1. Clone this repository or download the files
