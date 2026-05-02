@@ -291,9 +291,7 @@ function handleAutoCct(deps: CommandDeps) {
         CurveType[curveType]
       );
       const originalLux = Math.round(originalResult.lightOutput || 0);
-      console.log(
-        chalk.gray(`  Target Output: ${Math.round(result.lightOutput)} lux (original: ${originalLux} lux)`)
-      );
+      console.log(chalk.gray(`  Target Output: ${Math.round(result.lightOutput)} lux (original: ${originalLux} lux)`));
     }
     if (options.cloudCover || options.precipitation) {
       const weatherInfo = [];
