@@ -1,7 +1,0 @@
-#!/bin/sh
-set -eu
-
-npm run check
-npm run lint:deprecations
-npm run build
-npm test

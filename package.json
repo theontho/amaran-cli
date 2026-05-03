@@ -33,7 +33,7 @@
     "check:fix": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "verify": "npm run check && npm run lint:deprecations && npm run build && npm test",
-    "prepare": "node scripts/install-hooks.js",
+    "prepare": "lefthook install",
     "release": "node scripts/release.js"
   },
   "files": [
@@ -86,6 +86,7 @@
     "cheerio": "^1.1.2",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.2",
+    "lefthook": "^2.1.6",
     "node-localstorage": "^3.0.5",
     "tsx": "^4.7.1",
     "typescript": "^5.2.2",

@@ -1,0 +1,17 @@
+pre-commit:
+  commands:
+    biome-fix:
+      glob: '*'
+      run: npm run check:fix && git add {staged_files}
+    biome-check:
+      glob: '*'
+      run: npm run check
+    deprecations:
+      glob: '*'
+      run: npm run lint:deprecations
+
+pre-push:
+  commands:
+    verify:
+      glob: '*'
+      run: npm run verify
