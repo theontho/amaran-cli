@@ -36,7 +36,7 @@ describe('CLI Smoke Test', () => {
 
   runBuiltCliTest('should run built cli help through a symlink', () => {
     const binPath = join(configDir, 'amaran-cli');
-    symlinkSync(cliPath, binPath);
+    symlinkSync(cliPath, binPath, 'file');
 
     const proc = spawnSync('node', [binPath, '--help'], {
       encoding: 'utf8',

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { realpathSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { Command } from 'commander';
@@ -26,7 +27,7 @@ import packageJson from '../package.json' with { type: 'json' };
 const { version } = packageJson;
 
 function getRuntimeLabel(): string {
-  return fileURLToPath(import.meta.url).endsWith('/src/cli.ts') ? ' (dev)' : '';
+  return fileURLToPath(import.meta.url).endsWith(path.join('src', 'cli.ts')) ? ' (dev)' : '';
 }
 
 program
