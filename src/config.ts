@@ -121,8 +121,5 @@ function getReadableConfigPath(): string | null {
 }
 
 function replaceFile(sourcePath: string, targetPath: string): void {
-  if (process.platform === 'win32') {
-    rmSync(targetPath, { force: true });
-  }
   renameSync(sourcePath, targetPath);
 }

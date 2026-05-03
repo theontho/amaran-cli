@@ -162,6 +162,7 @@ function saveCliConfig(config: Config, changes?: string[]): void {
     }
   } catch (error) {
     console.error(chalk.red('Error saving configuration:'), error);
+    throw error;
   }
 }
 

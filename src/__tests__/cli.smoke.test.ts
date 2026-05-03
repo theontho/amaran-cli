@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -7,6 +7,8 @@ import { CONFIG_DIR_ENV } from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const cliPath = path.resolve(__dirname, '../../dist/cli.js');
+const runBuiltCliTest = existsSync(cliPath) ? it : it.skip;
 
 describe('CLI Smoke Test', () => {
   let configDir: string;
@@ -20,8 +22,7 @@ describe('CLI Smoke Test', () => {
     rmSync(configDir, { recursive: true, force: true });
   });
 
-  it('should run built cli help without error', () => {
-    const cliPath = path.resolve(__dirname, '../../dist/cli.js');
+  runBuiltCliTest('should run built cli help without error', () => {
     const proc = spawnSync('node', [cliPath, '--help'], {
       encoding: 'utf8',
       timeout: 10000,

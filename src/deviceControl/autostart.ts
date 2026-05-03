@@ -35,6 +35,18 @@ function logAutostart(message: string, debug: boolean = false) {
   }
 }
 
+function loadAutostartConfig(debug: boolean): AppConfig | null {
+  try {
+    return loadConfig();
+  } catch (error) {
+    if (debug) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAutostart(`Ignoring invalid config during autostart: ${message}`, debug);
+    }
+    return null;
+  }
+}
+
 /**
  * Check if the Amaran desktop app is running by looking for processes
  * that contain "amaran desktop" (case-insensitive)
@@ -69,7 +81,7 @@ export async function isAmaranAppRunning(debug: boolean = false): Promise<boolea
  * This implementation tries common locations and methods for macOS
  */
 export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
-  const config = loadConfig();
+  const config = loadAutostartConfig(debug);
 
   // Check if autostart is disabled in config
   if (config?.autoStartApp === false) {
@@ -141,7 +153,7 @@ export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
  * Checks if app is running, and if not, attempts to start it (unless disabled)
  */
 export async function handleAutostart(debug: boolean = false): Promise<boolean> {
-  const config = loadConfig();
+  const config = loadAutostartConfig(debug);
 
   // Log the autostart setting
   const autoStartEnabled = config?.autoStartApp !== false; // Default to true

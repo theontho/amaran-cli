@@ -66,4 +66,14 @@ describe('CLI config integration', () => {
     expect(proc.status).toBe(1);
     expect(proc.stderr).toContain('Failed to load config');
   });
+
+  it('exits non-zero when config save fails', () => {
+    rmSync(configDir, { recursive: true, force: true });
+    writeFileSync(configDir, 'not a directory');
+
+    const proc = runCli(['config', '--debug', 'true'], configDir);
+
+    expect(proc.status).toBe(1);
+    expect(proc.stderr).toContain('Error saving configuration');
+  });
 });
