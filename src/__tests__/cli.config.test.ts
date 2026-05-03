@@ -34,6 +34,8 @@ describe('CLI config integration', () => {
     const proc = runCli(['--help'], configDir);
 
     expect(proc.status).toBe(0);
+    expect(proc.stdout).toContain('Amaran Light Control CLI - v');
+    expect(proc.stdout).toContain('(dev)');
     expect(proc.stdout).toContain('Usage: amaran-cli');
   });
 

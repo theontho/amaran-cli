@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -31,5 +31,21 @@ describe('CLI Smoke Test', () => {
 
     expect(proc.status).toBe(0);
     expect(proc.stdout).toMatch(/Usage|Help|Options/i);
+    expect(proc.stdout).not.toContain('(dev)');
+  });
+
+  runBuiltCliTest('should run built cli help through a symlink', () => {
+    const binPath = join(configDir, 'amaran-cli');
+    symlinkSync(cliPath, binPath, 'file');
+
+    const proc = spawnSync('node', [binPath, '--help'], {
+      encoding: 'utf8',
+      timeout: 10000,
+      env: { ...process.env, [CONFIG_DIR_ENV]: configDir, FORCE_COLOR: '0' },
+    });
+
+    expect(proc.status).toBe(0);
+    expect(proc.stdout).toContain('Usage: amaran-cli');
+    expect(proc.stdout).not.toContain('(dev)');
   });
 });

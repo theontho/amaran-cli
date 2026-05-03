@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { realpathSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import registerCommands from './commands.js';
@@ -22,6 +25,10 @@ const program = new Command();
 import packageJson from '../package.json' with { type: 'json' };
 
 const { version } = packageJson;
+
+function getRuntimeLabel(): string {
+  return fileURLToPath(import.meta.url).endsWith(path.join('src', 'cli.ts')) ? ' (dev)' : '';
+}
 
 program
   .name('amaran-cli')
@@ -49,7 +56,7 @@ program
       const displayName = 'amaran-cli';
 
       const sections = [
-        `${chalk.blue('Amaran Light Control CLI')}`,
+        `${chalk.blue(`Amaran Light Control CLI - v${version}${getRuntimeLabel()}`)}`,
         '',
         `${chalk.blue('Usage:')} ${displayName}${commandName ? ` ${commandName}` : ''} [options]${isRoot ? ' [command]' : ''}`,
         '',
@@ -342,10 +349,20 @@ registerCommands(program, {
 // Add custom help command that preserves the formatting
 program.helpCommand('help [command]', 'Display help for a specific command');
 
-// If this file is run directly, parse the arguments
-import { fileURLToPath } from 'node:url';
+function isDirectRun(): boolean {
+  const entrypoint = process.argv[1];
+  if (!entrypoint) return false;
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  try {
+    return realpathSync(entrypoint) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+// If this file is run directly, parse the arguments. Resolve symlinks so npm
+// global bins like /opt/homebrew/bin/amaran-cli still execute the CLI.
+if (isDirectRun()) {
   program.parse(process.argv);
 }
 
