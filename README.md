@@ -36,6 +36,50 @@ It's not as obvious, but this repo is published on npm too: https://www.npmjs.co
 - Aputure Amaran Desktop application must be running
 - WebSocket server should be accessible (default: ws://localhost:60124)
 
+## Library Usage
+
+This package can also be imported from Node.js ESM projects. The root export exposes the device controller and common helpers:
+
+```ts
+import { LightController, discoverLocalWebSocket } from 'amaran-light-cli';
+
+const discovered = await discoverLocalWebSocket();
+const controller = new LightController(discovered?.url ?? 'ws://localhost:60124');
+
+controller.getDeviceList((success, message, devices) => {
+  if (!success) throw new Error(message);
+  console.log(devices);
+});
+```
+
+Device-control APIs are also available from a focused submodule:
+
+```ts
+import { LightController, type Device } from 'amaran-light-cli/device-control';
+```
+
+Circadian rhythm, sun simulation, weather, and scheduling utilities live in their own submodule:
+
+```ts
+import { calculateCCT, CurveType, ScheduleMaker, textSchedule } from 'amaran-light-cli/circadian';
+
+const current = calculateCCT(40.7128, -74.006, new Date(), undefined, CurveType.CIE_DAYLIGHT);
+
+const maker = new ScheduleMaker();
+const schedule = await maker.makeSchedule({ lat: '40.7128', lon: '-74.0060', curves: 'hann,cie-daylight' });
+console.log(textSchedule(schedule, { stripAnsi: true }));
+```
+
+Commander command registration functions are available for embedding the CLI in another program:
+
+```ts
+import { Command } from 'commander';
+import { registerCommands } from 'amaran-light-cli/commands';
+
+const program = new Command();
+registerCommands(program, deps);
+```
+
 ## Configuration
 
 Configure the WebSocket URL and other settings:

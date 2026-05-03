@@ -3,14 +3,30 @@
   "version": "1.10.0",
   "type": "module",
   "description": "Command line tool for controlling Aputure Amaran lights via WebSocket to a local Amaran desktop app.",
-  "main": "dist/deviceControl/lightControl.js",
-  "types": "dist/deviceControl/lightControl.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/deviceControl/lightControl.d.ts",
-      "import": "./dist/deviceControl/lightControl.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
-    "./cli": "./dist/cli.js"
+    "./device-control": {
+      "types": "./dist/device-control.d.ts",
+      "import": "./dist/device-control.js"
+    },
+    "./circadian": {
+      "types": "./dist/circadian.d.ts",
+      "import": "./dist/circadian.js"
+    },
+    "./commands": {
+      "types": "./dist/commands-api.d.ts",
+      "import": "./dist/commands-api.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "amaran-cli": "dist/cli.js"
