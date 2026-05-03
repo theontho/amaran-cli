@@ -1,5 +1,5 @@
+import { parseCloudCover } from '../commands/parseUtils.js';
 import { ALL_CURVE_TYPES_ORDERED, SPECIAL_TIME_CONFIG } from './constants.js';
-
 import type { CCTResult, CommandDeps } from './types.js';
 
 export interface SchedulePoint {
@@ -190,12 +190,7 @@ export class ScheduleMaker {
       maxLux: cfg.maxLux as number | Record<number, number> | undefined,
       simulationMaxLux: options.maxLuxLimit,
       weather: {
-        cloudCover:
-          options.cloudCover !== undefined
-            ? typeof options.cloudCover === 'string'
-              ? parseFloat(options.cloudCover)
-              : options.cloudCover
-            : undefined,
+        cloudCover: parseCloudCover(options.cloudCover),
         precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
       },
     };

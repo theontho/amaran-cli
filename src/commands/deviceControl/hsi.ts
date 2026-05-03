@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackPromise, getLightDevices, runDeviceAction } from '../cmdUtils.js';
 
 export function registerHsi(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -106,9 +106,7 @@ function handleHsi(deps: CommandDeps) {
           }
 
           // Filter for light devices only, skipping groups like 'ALL'
-          const lightDevices = devices.filter(
-            (d) => d.node_id?.includes('-') && d.node_id !== '00000000000000000000000000000000'
-          );
+          const lightDevices = getLightDevices(devices);
 
           if (lightDevices.length === 0) {
             console.log(chalk.yellow('No light devices found'));
@@ -205,20 +203,9 @@ function handleHsi(deps: CommandDeps) {
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} color set to H:${hue} S:${saturation} I:${intensity}`,
       },
       (device, controller) => {
-        return new Promise((resolve) => {
-          controller.setHSI(
-            device.node_id as string,
-            hue,
-            saturation,
-            apiIntensity,
-            undefined,
-            undefined,
-            (success, message) => {
-              if (!success) throw new Error(message);
-              resolve();
-            }
-          );
-        });
+        return commandCallbackPromise((callback) =>
+          controller.setHSI(device.node_id as string, hue, saturation, apiIntensity, undefined, undefined, callback)
+        );
       },
       async (controller) => {
         await controller.setHSIForAllLights(hue, saturation, apiIntensity, undefined, undefined, (success, message) => {

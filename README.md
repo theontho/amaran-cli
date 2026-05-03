@@ -208,8 +208,6 @@ If a bound is not set, the default is used. When both min and max are set, min m
 
 #### Max Lux Output (Advanced)
 
-#### Max Lux Output (Advanced)
-
 If you have measured the maximum lux output of your lighting setup, you can provide this value to `auto-cct` to enable more accurate intensity scaling.
 
 By default, `auto-cct` maps the daylight curve's `lightOutput` directly to intensity percentage (e.g. max curve value = 100% intensity). With Max Lux mode, it uses your specific setup's capability as the reference.
@@ -579,4 +577,3 @@ amaran-cli status "Key Light"
 # Turn off all lights
 amaran-cli off
 ```
-

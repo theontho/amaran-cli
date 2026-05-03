@@ -33,6 +33,37 @@ interface WttrResponse {
   [key: string]: unknown;
 }
 
+function hasWeatherDescription(value: unknown): value is Array<{ value: string }> {
+  return Array.isArray(value) && value.length > 0 && typeof value[0]?.value === 'string';
+}
+
+function isWttrResponse(data: unknown): data is WttrResponse {
+  if (!data || typeof data !== 'object') return false;
+  const candidate = data as Partial<WttrResponse>;
+  const current = candidate.current_condition?.[0];
+  return (
+    Array.isArray(candidate.current_condition) &&
+    typeof current?.weatherCode === 'string' &&
+    typeof current.temp_C === 'string' &&
+    typeof current.localObsDateTime === 'string' &&
+    hasWeatherDescription(current.weatherDesc) &&
+    Array.isArray(candidate.weather) &&
+    candidate.weather.every(
+      (day) =>
+        typeof day.date === 'string' &&
+        Array.isArray(day.hourly) &&
+        day.hourly.length > 0 &&
+        day.hourly.every(
+          (hour) =>
+            typeof hour.time === 'string' &&
+            typeof hour.weatherCode === 'string' &&
+            typeof hour.tempC === 'string' &&
+            hasWeatherDescription(hour.weatherDesc)
+        )
+    )
+  );
+}
+
 /**
  * WWO Weather Code Mapping to Cloud Cover and Precipitation
  * Based on: https://www.worldweatheronline.com/feed/wwo-weather-codes.ashx
@@ -129,6 +160,9 @@ export async function getWeatherData(
     if (fs.existsSync(CACHE_FILE)) {
       const cacheContent = fs.readFileSync(CACHE_FILE, 'utf8');
       const cache: WeatherCache = JSON.parse(cacheContent);
+      if (!isWttrResponse(cache.data)) {
+        throw new Error('Invalid weather cache format');
+      }
 
       const now = Date.now();
       const isRecent = now - cache.timestamp < CACHE_TTL_MS;
@@ -173,6 +207,9 @@ export async function getWeatherData(
     }
 
     const data = await response.json();
+    if (!isWttrResponse(data)) {
+      throw new Error('Weather API returned an unexpected response');
+    }
 
     const cacheObj: WeatherCache = {
       lat,
@@ -199,6 +236,9 @@ export async function getWeatherData(
       if (fs.existsSync(CACHE_FILE)) {
         const cacheContent = fs.readFileSync(CACHE_FILE, 'utf8');
         const cache: WeatherCache = JSON.parse(cacheContent);
+        if (!isWttrResponse(cache.data)) {
+          throw new Error('Invalid weather cache format');
+        }
         const isSameLocation = Math.abs(cache.lat - lat) < 0.1 && Math.abs(cache.lon - lon) < 0.1;
 
         if (isSameLocation) {

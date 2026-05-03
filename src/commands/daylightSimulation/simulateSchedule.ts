@@ -3,6 +3,8 @@ import type { Command } from 'commander';
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
+import type { Device } from '../../deviceControl/types.js';
+import { commandCallbackPromise, getLightDevices } from '../cmdUtils.js';
 
 export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -96,22 +98,36 @@ function handleSimulateSchedule(deps: CommandDeps) {
 
     // 2. Connect to controller and find device
     const controller = await createController(options.url, options.clientId, options.debug);
-    const device = findDevice(controller, deviceQuery);
+    let devices: Device[];
+    if (deviceQuery.toLowerCase() === 'all') {
+      devices = getLightDevices(controller.getDevices());
+    } else {
+      const device = findDevice(controller, deviceQuery);
+      devices = device ? [device] : [];
+    }
 
-    if (!device) {
+    if (devices.length === 0) {
       console.error(chalk.red(ERROR_MESSAGES.deviceNotFound(deviceQuery)));
       await controller.disconnect();
       process.exit(1);
     }
 
-    const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
-    const nodeId = device.node_id as string;
+    if (devices.some((device) => !device.node_id)) {
+      console.error(chalk.red(ERROR_MESSAGES.deviceNotFound(deviceQuery)));
+      await controller.disconnect();
+      process.exit(1);
+    }
+
+    const targetLabel =
+      devices.length === 1
+        ? devices[0].device_name || devices[0].name || devices[0].id || devices[0].node_id || 'Unknown'
+        : `${devices.length} lights`;
 
     console.log(chalk.blue('\n═══════════════════════════════════════════════════════════'));
     console.log(chalk.blue('               CCT Schedule Simulation'));
     console.log(chalk.blue('═══════════════════════════════════════════════════════════\n'));
 
-    console.log(chalk.cyan(`Device: ${displayName} (${nodeId})`));
+    console.log(chalk.cyan(`Device: ${targetLabel}`));
     console.log(
       chalk.cyan(`Location: ${formatLocation(schedule.lat, schedule.lon, schedule.source, options.privacyOff)}`)
     );
@@ -120,8 +136,12 @@ function handleSimulateSchedule(deps: CommandDeps) {
     console.log(chalk.cyan(`Curve: ${schedule.curves[0]}\n`));
 
     // 3. Render the schedule by making the lights execute it
-    console.log(chalk.yellow(`Turning on ${displayName}...`));
-    controller.turnLightOn(nodeId);
+    console.log(chalk.yellow(`Turning on ${targetLabel}...`));
+    await Promise.all(
+      devices.map((device) =>
+        commandCallbackPromise((callback) => controller.turnLightOn(device.node_id as string, callback))
+      )
+    );
 
     const _cfg = (loadConfig?.() ?? {}) as Record<string, unknown>;
 
@@ -138,10 +158,16 @@ function handleSimulateSchedule(deps: CommandDeps) {
         const timeStr = point.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
         process.stdout.write(
-          `\r${chalk.gray(`[${progress}% | ${timeStr}] `)}${chalk.green(`Setting ${displayName} to ${val.cct}K at ${percent}%`)}          `
+          `\r${chalk.gray(`[${progress}% | ${timeStr}] `)}${chalk.green(`Setting ${targetLabel} to ${val.cct}K at ${percent}%`)}          `
         );
 
-        controller.setCCT(nodeId, val.cct, val.intensity);
+        await Promise.all(
+          devices.map((device) =>
+            commandCallbackPromise((callback) =>
+              controller.setCCT(device.node_id as string, val.cct, val.intensity, callback)
+            )
+          )
+        );
 
         if (i < schedule.points.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, updateInterval));

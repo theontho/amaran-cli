@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions, Device, NodeConfig } from '../../deviceControl/types.js';
-import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
+import { addStandardOptions, getLightDevices, runDeviceAction } from '../cmdUtils.js';
 
 export function registerStatus(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -168,16 +168,15 @@ function handleStatus(deps: CommandDeps) {
           return;
         }
 
-        console.log(chalk.bold(`Fetching status for ${devices.length} device(s)...`));
         // Filter for valid devices
-        const lightDevices = devices.filter(
-          (d) => d.node_id?.includes('-') && d.node_id !== '00000000000000000000000000000000'
-        );
+        const lightDevices = getLightDevices(devices);
 
         if (lightDevices.length === 0) {
           console.log(chalk.yellow('No light devices found.'));
           return;
         }
+
+        console.log(chalk.bold(`Fetching status for ${lightDevices.length} light(s)...`));
 
         for (const device of lightDevices) {
           const nodeId = device.node_id;

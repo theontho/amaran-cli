@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import { VALIDATION_RANGES } from '../../deviceControl/constants.js';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackPromise, getLightDevices, runDeviceAction } from '../cmdUtils.js';
 
 export function registerCct(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -36,8 +36,12 @@ function handleCct(deps: CommandDeps) {
         async (device, controller) => {
           return new Promise((resolve) => {
             controller.getCCT(device.node_id as string, (success, message, data) => {
-              if (!success) throw new Error(message);
               const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
+              if (!success) {
+                console.error(chalk.red(`✗ ${displayName}: Failed to get CCT: ${message}`));
+                resolve();
+                return;
+              }
 
               // Handle potential nesting: { data: { data: 1700 } } or { data: { cct: 1700 } }
               let state = data;
@@ -73,9 +77,7 @@ function handleCct(deps: CommandDeps) {
           }
 
           // Filter for light devices only, skipping groups like 'ALL'
-          const lightDevices = devices.filter(
-            (d) => d.node_id?.includes('-') && d.node_id !== '00000000000000000000000000000000'
-          );
+          const lightDevices = getLightDevices(devices);
 
           if (lightDevices.length === 0) {
             console.log(chalk.yellow('No light devices found'));
@@ -169,12 +171,9 @@ function handleCct(deps: CommandDeps) {
         },
       },
       (device, controller) => {
-        return new Promise((resolve) => {
-          controller.setCCT(device.node_id as string, temperature, intensity, (success, message) => {
-            if (!success) throw new Error(message);
-            resolve();
-          });
-        });
+        return commandCallbackPromise((callback) =>
+          controller.setCCT(device.node_id as string, temperature, intensity, callback)
+        );
       },
       async (controller) => {
         await controller.setCCTAndIntensityForAllLights(temperature, intensity, (success, message) => {

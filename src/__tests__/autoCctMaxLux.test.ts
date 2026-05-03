@@ -24,7 +24,11 @@ describe('auto-cct max-lux logic', () => {
   const mockFetch = vi.fn();
 
   // Common stub setups
-  const setCCT = vi.fn();
+  const setCCT = vi.fn(
+    (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+      cb?.(true, 'ok');
+    }
+  );
   const disconnect = vi.fn(async () => Promise.resolve());
 
   const controllerStub = {
@@ -83,7 +87,7 @@ describe('auto-cct max-lux logic', () => {
     await program.parseAsync(['node', 'test', 'auto-cct']);
 
     // Should use raw intensity: 500 (50.0%)
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500, expect.any(Function));
   });
 
   test('uses max-lux scaling when CLI option provided', async () => {
@@ -116,7 +120,7 @@ describe('auto-cct max-lux logic', () => {
     );
 
     // Should use the intensity returned by the mock: 500 (50.0%)
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500, expect.any(Function));
   });
 
   test('uses max-lux scaling from config', async () => {
@@ -145,7 +149,7 @@ describe('auto-cct max-lux logic', () => {
       expect.any(String)
     );
 
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 200);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 200, expect.any(Function));
   });
 
   test('CLI option overrides config for max-lux', async () => {
@@ -175,7 +179,7 @@ describe('auto-cct max-lux logic', () => {
       expect.any(String)
     );
 
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500, expect.any(Function));
   });
 
   test('falls back to intensity curve if lightOutput is missing', async () => {
@@ -197,7 +201,7 @@ describe('auto-cct max-lux logic', () => {
     await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '10000']);
 
     // Should use the 30% intensity since lightOutput is missing
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 300);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 300, expect.any(Function));
   });
 
   test('clamps intensity to 100% if lux exceeds max-lux', async () => {
@@ -218,7 +222,7 @@ describe('auto-cct max-lux logic', () => {
 
     await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '10000']);
 
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 1000); // 100%
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 1000, expect.any(Function)); // 100%
   });
 
   test('respects intensityMin even when max-lux is set', async () => {
@@ -250,6 +254,6 @@ describe('auto-cct max-lux logic', () => {
     );
 
     // Should be 100 (10.0%)
-    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 100);
+    expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 100, expect.any(Function));
   });
 });
