@@ -116,10 +116,18 @@ export interface Command {
 
 export interface Config {
   wsUrl?: string;
+  clientId?: string;
+  debug?: boolean;
   latitude?: number;
   longitude?: number;
   defaultCurve?: string;
+  cctMin?: number;
+  cctMax?: number;
+  intensityMin?: number;
+  intensityMax?: number;
+  autoStartApp?: boolean;
   maxLux?: number | Record<string, number>;
+  weather?: boolean;
   [key: string]: unknown;
 }
 

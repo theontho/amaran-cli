@@ -161,6 +161,28 @@ describe('autostart', () => {
       expect(result).toBe(true);
       expect(mockExec).toHaveBeenCalledTimes(3);
     });
+
+    it('should ignore invalid config and use default autostart behavior', async () => {
+      // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
+      mockExec.mockImplementation((command: string, ...args: any[]) => {
+        const callback = args.find((arg) => typeof arg === 'function');
+        if (command.includes('open -a "amaran Desktop"')) {
+          callback(null, '', '');
+        }
+        // biome-ignore lint/suspicious/noExplicitAny: mock return
+        return {} as any;
+      });
+
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.readFileSync.mockReturnValue('{invalid-json');
+
+      const promise = startAmaranApp(true);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result).toBe(true);
+      expect(mockExec).toHaveBeenCalledWith('open -a "amaran Desktop" 2>/dev/null', expect.any(Function));
+    });
   });
 
   describe('handleAutostart', () => {

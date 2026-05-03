@@ -2,6 +2,7 @@ import { exec } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
+import { loadConfig } from '../config.js';
 
 export interface AppConfig {
   wsUrl?: string;
@@ -15,21 +16,6 @@ export interface AppConfig {
   intensityMax?: number;
   autoStartApp?: boolean; // New option to control autostart behavior
   [key: string]: unknown;
-}
-
-const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
-
-function loadConfig(): AppConfig | null {
-  try {
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, 'utf8');
-      return JSON.parse(configData);
-    }
-    return null;
-  } catch (_error) {
-    console.warn(chalk.yellow('Warning: Could not load config file'));
-    return null;
-  }
 }
 
 function logAutostart(message: string, debug: boolean = false) {
@@ -46,6 +32,18 @@ function logAutostart(message: string, debug: boolean = false) {
     fs.appendFileSync(logPath, `${logMessage}\n`);
   } catch (_error) {
     // Ignore logging errors
+  }
+}
+
+function loadAutostartConfig(debug: boolean): AppConfig | null {
+  try {
+    return loadConfig();
+  } catch (error) {
+    if (debug) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAutostart(`Ignoring invalid config during autostart: ${message}`, debug);
+    }
+    return null;
   }
 }
 
@@ -83,7 +81,7 @@ export async function isAmaranAppRunning(debug: boolean = false): Promise<boolea
  * This implementation tries common locations and methods for macOS
  */
 export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
-  const config = loadConfig();
+  const config = loadAutostartConfig(debug);
 
   // Check if autostart is disabled in config
   if (config?.autoStartApp === false) {
@@ -155,7 +153,7 @@ export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
  * Checks if app is running, and if not, attempts to start it (unless disabled)
  */
 export async function handleAutostart(debug: boolean = false): Promise<boolean> {
-  const config = loadConfig();
+  const config = loadAutostartConfig(debug);
 
   // Log the autostart setting
   const autoStartEnabled = config?.autoStartApp !== false; // Default to true
