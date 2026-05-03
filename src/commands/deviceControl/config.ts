@@ -1,7 +1,6 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { getConfigPath, getConfigReadPath } from '../../config.js';
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { formatCoordinate } from '../../daylightSimulation/privacyUtil.js';
 import type { CommandDeps, Config } from '../../deviceControl/types.js';
@@ -78,7 +77,12 @@ function handleConfig(deps: CommandDeps) {
       const config = loadConfig() || {};
       const privacyOff = options.privacyOff === true;
 
+      const readPath = getConfigReadPath();
       console.log(chalk.blue('Current configuration:'));
+      console.log(chalk.gray(`Config path: ${readPath ?? getConfigPath()}`));
+      if (readPath && readPath !== getConfigPath() && Object.keys(config).length > 0) {
+        console.log(chalk.gray(`Run any config update to migrate this file to ${getConfigPath()}.`));
+      }
 
       const displayConfig = { ...config };
       if (typeof displayConfig.latitude === 'number') {
@@ -296,22 +300,10 @@ function handleConfig(deps: CommandDeps) {
       process.exit(1);
     }
 
-    // Save the config using provided deps if available, otherwise fallback to local write
     if (typeof saveConfig === 'function') {
       saveConfig(config, changes);
     } else {
-      // Filesystem and Path imports are handled at top level
-      const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-
-      if (changes && changes.length > 0) {
-        console.log(chalk.green('Configuration saved successfully:'));
-        changes.forEach((change) => {
-          console.log(chalk.green(`  • ${change}`));
-        });
-      } else {
-        console.log(chalk.green('Configuration saved successfully'));
-      }
+      throw new Error('saveConfig dependency is required');
     }
   };
 }

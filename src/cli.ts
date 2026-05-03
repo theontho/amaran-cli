@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import registerCommands from './commands.js';
+import { loadConfig, saveConfig } from './config.js';
 import { handleAutostart } from './deviceControl/autostart.js';
 import { discoverLocalWebSocket } from './deviceControl/discovery.js';
 import LightController from './deviceControl/lightControl.js';
@@ -149,40 +148,9 @@ program
   })
   .showHelpAfterError('(add --help for additional information)');
 
-// Configuration file path
-const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
-
-type CliConfig = Config & {
-  clientId?: string;
-  debug?: boolean;
-  // Auto-CCT bounds
-  cctMin?: number; // Kelvin
-  cctMax?: number; // Kelvin
-  intensityMin?: number; // percent [0-100]
-  intensityMax?: number; // percent [0-100]
-  // Autostart behavior
-  autoStartApp?: boolean; // Whether to automatically start the Amaran desktop app on connection failure
-  weather?: boolean; // Whether to automatically fetch weather for auto-cct
-};
-
-// Load configuration
-function loadConfig(): CliConfig | null {
+function saveCliConfig(config: Config, changes?: string[]): void {
   try {
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, 'utf8');
-      return JSON.parse(configData) as CliConfig;
-    }
-    return null;
-  } catch (_error) {
-    console.warn(chalk.yellow('Warning: Could not load config file'));
-    return null;
-  }
-}
-
-// Save configuration
-function saveConfig(config: Config, changes?: string[]): void {
-  try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    saveConfig(config);
 
     if (changes && changes.length > 0) {
       console.log(chalk.green('Configuration saved successfully:'));
@@ -200,7 +168,7 @@ function saveConfig(config: Config, changes?: string[]): void {
 function saveWsUrl(url: string) {
   const current = loadConfig() || {};
   current.wsUrl = url;
-  saveConfig(current, [`WebSocket URL: ${url}`]);
+  saveCliConfig(current, [`WebSocket URL: ${url}`]);
 }
 
 // Create light controller with connection handling
@@ -361,7 +329,14 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
 // (The 'config' command is registered centrally in src/commands/config.ts via registerCommands.)
 
 // Register all commands
-registerCommands(program, { createController, findDevice, asyncCommand, saveWsUrl, loadConfig, saveConfig });
+registerCommands(program, {
+  createController,
+  findDevice,
+  asyncCommand,
+  saveWsUrl,
+  loadConfig,
+  saveConfig: saveCliConfig,
+});
 
 // Add custom help command that preserves the formatting
 program.helpCommand('help [command]', 'Display help for a specific command');

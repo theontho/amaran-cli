@@ -2,6 +2,7 @@ import { exec } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
+import { loadConfig } from '../config.js';
 
 export interface AppConfig {
   wsUrl?: string;
@@ -15,21 +16,6 @@ export interface AppConfig {
   intensityMax?: number;
   autoStartApp?: boolean; // New option to control autostart behavior
   [key: string]: unknown;
-}
-
-const configPath = path.join(process.env.HOME || '', '.amaran-cli.json');
-
-function loadConfig(): AppConfig | null {
-  try {
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, 'utf8');
-      return JSON.parse(configData);
-    }
-    return null;
-  } catch (_error) {
-    console.warn(chalk.yellow('Warning: Could not load config file'));
-    return null;
-  }
 }
 
 function logAutostart(message: string, debug: boolean = false) {
