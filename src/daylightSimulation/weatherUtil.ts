@@ -33,15 +33,34 @@ interface WttrResponse {
   [key: string]: unknown;
 }
 
+function hasWeatherDescription(value: unknown): value is Array<{ value: string }> {
+  return Array.isArray(value) && value.length > 0 && typeof value[0]?.value === 'string';
+}
+
 function isWttrResponse(data: unknown): data is WttrResponse {
   if (!data || typeof data !== 'object') return false;
   const candidate = data as Partial<WttrResponse>;
+  const current = candidate.current_condition?.[0];
   return (
     Array.isArray(candidate.current_condition) &&
-    candidate.current_condition.length > 0 &&
-    typeof candidate.current_condition[0].weatherCode === 'string' &&
-    Array.isArray(candidate.current_condition[0].weatherDesc) &&
-    Array.isArray(candidate.weather)
+    typeof current?.weatherCode === 'string' &&
+    typeof current.temp_C === 'string' &&
+    typeof current.localObsDateTime === 'string' &&
+    hasWeatherDescription(current.weatherDesc) &&
+    Array.isArray(candidate.weather) &&
+    candidate.weather.every(
+      (day) =>
+        typeof day.date === 'string' &&
+        Array.isArray(day.hourly) &&
+        day.hourly.length > 0 &&
+        day.hourly.every(
+          (hour) =>
+            typeof hour.time === 'string' &&
+            typeof hour.weatherCode === 'string' &&
+            typeof hour.tempC === 'string' &&
+            hasWeatherDescription(hour.weatherDesc)
+        )
+    )
   );
 }
 

@@ -24,9 +24,11 @@ describe('auto-cct max-lux logic', () => {
   const mockFetch = vi.fn();
 
   // Common stub setups
-  const setCCT = vi.fn((_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
-    cb?.(true, 'ok');
-  });
+  const setCCT = vi.fn(
+    (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+      cb?.(true, 'ok');
+    }
+  );
   const disconnect = vi.fn(async () => Promise.resolve());
 
   const controllerStub = {

@@ -44,9 +44,11 @@ describe('auto-cct command', () => {
   });
 
   test('skips sleeping lights when running auto-cct', async () => {
-    const setCCT = vi.fn((_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
-      cb?.(true, 'ok');
-    });
+    const setCCT = vi.fn(
+      (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+        cb?.(true, 'ok');
+      }
+    );
     const disconnect = vi.fn(async () => Promise.resolve());
 
     const sleepState: Record<string, boolean> = {
@@ -92,9 +94,11 @@ describe('auto-cct command', () => {
   });
 
   test('targets specific device when argument is provided', async () => {
-    const setCCT = vi.fn((_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
-      cb?.(true, 'ok');
-    });
+    const setCCT = vi.fn(
+      (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+        cb?.(true, 'ok');
+      }
+    );
     const disconnect = vi.fn(async () => Promise.resolve());
 
     const targetDevice = { node_id: '400J5-F2C008', device_name: 'Target Light' };

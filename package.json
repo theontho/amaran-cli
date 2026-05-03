@@ -31,6 +31,9 @@
     "format:check": "biome format .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run check && npm run lint:deprecations && npm run build && npm test",
+    "prepare": "node scripts/install-hooks.js",
     "release": "node scripts/release.js"
   },
   "files": [

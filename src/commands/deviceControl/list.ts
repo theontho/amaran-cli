@@ -27,7 +27,7 @@ function handleList(deps: CommandDeps) {
       const devices = getLightDevices(controller.getDevices());
 
       if (devices.length === 0) {
-        console.log(chalk.yellow('No devices found'));
+        console.log(chalk.yellow('No light devices found'));
         return;
       }
 

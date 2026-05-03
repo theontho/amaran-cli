@@ -132,7 +132,9 @@ function handleIntensity(deps: CommandDeps) {
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} intensity set to ${intensity}%`,
       },
       (device, controller) => {
-        return commandCallbackPromise((callback) => controller.setIntensity(device.node_id as string, apiIntensity, callback));
+        return commandCallbackPromise((callback) =>
+          controller.setIntensity(device.node_id as string, apiIntensity, callback)
+        );
       },
       async (controller) => {
         await controller.setIntensityForAllLights(apiIntensity, (success, message) => {

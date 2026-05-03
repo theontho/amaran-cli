@@ -242,7 +242,9 @@ function handleColor(deps: CommandDeps) {
         },
       },
       (device, controller) => {
-        return commandCallbackPromise((callback) => controller.setColor(device.node_id as string, color, intensity, callback));
+        return commandCallbackPromise((callback) =>
+          controller.setColor(device.node_id as string, color, intensity, callback)
+        );
       },
       async (controller) => {
         await controller.setColorForAllLights(color, intensity, (success, message) => {

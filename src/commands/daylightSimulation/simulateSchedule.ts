@@ -137,9 +137,11 @@ function handleSimulateSchedule(deps: CommandDeps) {
 
     // 3. Render the schedule by making the lights execute it
     console.log(chalk.yellow(`Turning on ${targetLabel}...`));
-    for (const device of devices) {
-      await commandCallbackPromise((callback) => controller.turnLightOn(device.node_id as string, callback));
-    }
+    await Promise.all(
+      devices.map((device) =>
+        commandCallbackPromise((callback) => controller.turnLightOn(device.node_id as string, callback))
+      )
+    );
 
     const _cfg = (loadConfig?.() ?? {}) as Record<string, unknown>;
 
@@ -159,9 +161,13 @@ function handleSimulateSchedule(deps: CommandDeps) {
           `\r${chalk.gray(`[${progress}% | ${timeStr}] `)}${chalk.green(`Setting ${targetLabel} to ${val.cct}K at ${percent}%`)}          `
         );
 
-        for (const device of devices) {
-          await commandCallbackPromise((callback) => controller.setCCT(device.node_id as string, val.cct, val.intensity, callback));
-        }
+        await Promise.all(
+          devices.map((device) =>
+            commandCallbackPromise((callback) =>
+              controller.setCCT(device.node_id as string, val.cct, val.intensity, callback)
+            )
+          )
+        );
 
         if (i < schedule.points.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, updateInterval));

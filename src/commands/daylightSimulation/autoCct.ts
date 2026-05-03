@@ -212,7 +212,11 @@ function handleAutoCct(deps: CommandDeps) {
       // Check for map format "cct:lux,cct:lux" - if map, it's definitely a capacity calibration
       if (options.maxLux.includes(':')) {
         const map = parseMaxLuxMap(options.maxLux);
-        if (map) systemMaxLux = map;
+        if (!map) {
+          console.error(chalk.red('max-lux must be a positive number OR a map string like "2700:8000,5600:10000"'));
+          process.exit(1);
+        }
+        systemMaxLux = map;
       } else {
         let parsed: number;
         try {
@@ -226,6 +230,9 @@ function handleAutoCct(deps: CommandDeps) {
           if (systemMaxLux === undefined) {
             systemMaxLux = parsed;
           }
+        } else {
+          console.error(chalk.red('max-lux must be a positive number OR a map string like "2700:8000,5600:10000"'));
+          process.exit(1);
         }
       }
     }
