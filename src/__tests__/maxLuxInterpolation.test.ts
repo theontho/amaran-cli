@@ -82,7 +82,11 @@ describe('Max Lux Map Feature', () => {
     }));
 
     it('uses interpolated max lux for intensity calculation', async () => {
-      const setCCT = vi.fn();
+      const setCCT = vi.fn(
+        (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+          cb?.(true, 'ok');
+        }
+      );
       const disconnect = vi.fn(async () => Promise.resolve());
       const controllerStub = {
         getDevices: () => [{ node_id: 'AAA-111' }],
@@ -119,7 +123,7 @@ describe('Max Lux Map Feature', () => {
 
       await program.parseAsync(['node', 'test', 'auto-cct', '--max-lux', '2700:8000,5600:10000']);
 
-      expect(setCCT).toHaveBeenCalledWith('AAA-111', 4150, 500);
+      expect(setCCT).toHaveBeenCalledWith('AAA-111', 4150, 500, expect.any(Function));
     });
   });
 });

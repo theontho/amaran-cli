@@ -5,6 +5,7 @@ import type { Command } from 'commander';
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { formatCoordinate } from '../../daylightSimulation/privacyUtil.js';
 import type { CommandDeps, Config } from '../../deviceControl/types.js';
+import { parseBooleanString, parseStrictInteger, parseStrictNumber } from '../parseUtils.js';
 
 interface ConfigOptions {
   url?: string;
@@ -107,20 +108,23 @@ function handleConfig(deps: CommandDeps) {
       if (typeof value === 'boolean') {
         config.debug = value;
       } else {
-        const lowerValue = value.toLowerCase().trim();
-        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
-          config.debug = true;
-        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
-          config.debug = false;
-        } else {
-          console.error(chalk.red('debug must be true or false'));
+        try {
+          config.debug = parseBooleanString(value, 'debug');
+        } catch (error) {
+          console.error(chalk.red((error as Error).message));
           process.exit(1);
         }
       }
       changes.push(`Debug mode: ${config.debug ? 'enabled' : 'disabled'}`);
     }
     if (options.lat !== undefined) {
-      const lat = parseFloat(options.lat);
+      let lat: number;
+      try {
+        lat = parseStrictNumber(options.lat, 'Latitude');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
+        process.exit(1);
+      }
       if (Number.isNaN(lat) || lat < -90 || lat > 90) {
         console.error(chalk.red('Latitude must be between -90 and 90'));
         process.exit(1);
@@ -129,7 +133,13 @@ function handleConfig(deps: CommandDeps) {
       changes.push(`Latitude: ${lat}`);
     }
     if (options.lon !== undefined) {
-      const lon = parseFloat(options.lon);
+      let lon: number;
+      try {
+        lon = parseStrictNumber(options.lon, 'Longitude');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
+        process.exit(1);
+      }
       if (Number.isNaN(lon) || lon < -180 || lon > 180) {
         console.error(chalk.red('Longitude must be between -180 and 180'));
         process.exit(1);
@@ -141,36 +151,44 @@ function handleConfig(deps: CommandDeps) {
     // Bounds validation helpers
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
     if (options.cctMin !== undefined) {
-      const k = parseInt(options.cctMin, 10);
-      if (Number.isNaN(k)) {
-        console.error(chalk.red('cct-min must be a number (Kelvin)'));
+      let k: number;
+      try {
+        k = parseStrictInteger(options.cctMin, 'cct-min');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
       config.cctMin = clamp(k, 1000, 20000);
       changes.push(`CCT minimum: ${config.cctMin}K`);
     }
     if (options.cctMax !== undefined) {
-      const k = parseInt(options.cctMax, 10);
-      if (Number.isNaN(k)) {
-        console.error(chalk.red('cct-max must be a number (Kelvin)'));
+      let k: number;
+      try {
+        k = parseStrictInteger(options.cctMax, 'cct-max');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
       config.cctMax = clamp(k, 1000, 20000);
       changes.push(`CCT maximum: ${config.cctMax}K`);
     }
     if (options.intensityMin !== undefined) {
-      const p = parseFloat(options.intensityMin);
-      if (Number.isNaN(p)) {
-        console.error(chalk.red('intensity-min must be a number (percent)'));
+      let p: number;
+      try {
+        p = parseStrictNumber(options.intensityMin, 'intensity-min');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
       config.intensityMin = clamp(p, 0, 100);
       changes.push(`Intensity minimum: ${config.intensityMin}%`);
     }
     if (options.intensityMax !== undefined) {
-      const p = parseFloat(options.intensityMax);
-      if (Number.isNaN(p)) {
-        console.error(chalk.red('intensity-max must be a number (percent)'));
+      let p: number;
+      try {
+        p = parseStrictNumber(options.intensityMax, 'intensity-max');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
       config.intensityMax = clamp(p, 0, 100);
@@ -197,13 +215,10 @@ function handleConfig(deps: CommandDeps) {
       if (typeof value === 'boolean') {
         config.autoStartApp = value;
       } else {
-        const lowerValue = value.toLowerCase().trim();
-        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
-          config.autoStartApp = true;
-        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
-          config.autoStartApp = false;
-        } else {
-          console.error(chalk.red('auto-start-app must be true or false'));
+        try {
+          config.autoStartApp = parseBooleanString(value, 'auto-start-app');
+        } catch (error) {
+          console.error(chalk.red((error as Error).message));
           process.exit(1);
         }
       }
@@ -216,7 +231,12 @@ function handleConfig(deps: CommandDeps) {
       const luxVal = options.maxLux;
 
       // Try as simple number
-      const luxNum = parseFloat(luxVal);
+      let luxNum: number;
+      try {
+        luxNum = parseStrictNumber(luxVal, 'max-lux');
+      } catch (_error) {
+        luxNum = Number.NaN;
+      }
       if (!Number.isNaN(luxNum) && luxNum > 0 && !luxVal.includes(':')) {
         config.maxLux = luxNum;
         changes.push(`Max Lux: ${luxNum}`);
@@ -242,15 +262,12 @@ function handleConfig(deps: CommandDeps) {
     if (options.weather !== undefined) {
       const value = options.weather;
       if (typeof value === 'boolean') {
-        config.weather = (value as unknown as string).toString() === 'true'; // Commander might pass boolean if it was a flag, but we defined it with <boolean>
+        config.weather = value;
       } else {
-        const lowerValue = (value as string).toLowerCase().trim();
-        if (lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on') {
-          config.weather = true;
-        } else if (lowerValue === 'false' || lowerValue === '0' || lowerValue === 'no' || lowerValue === 'off') {
-          config.weather = false;
-        } else {
-          console.error(chalk.red('weather must be true or false'));
+        try {
+          config.weather = parseBooleanString(value as string, 'weather');
+        } catch (error) {
+          console.error(chalk.red((error as Error).message));
           process.exit(1);
         }
       }

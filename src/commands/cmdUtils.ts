@@ -1,7 +1,29 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type LightController from '../deviceControl/lightControl.js';
-import type { CommandDeps, CommandOptions, Device } from '../deviceControl/types.js';
+import type { CommandCallback, CommandDeps, CommandOptions, Device } from '../deviceControl/types.js';
+
+const LIGHT_NODE_PATTERN = /^[A-Z0-9]+-[A-Z0-9]+$/i;
+
+export function isLightDevice(device: Device): boolean {
+  return typeof device.node_id === 'string' && LIGHT_NODE_PATTERN.test(device.node_id);
+}
+
+export function getLightDevices(devices: Device[]): Device[] {
+  return devices.filter(isLightDevice);
+}
+
+export function commandCallbackPromise(register: (callback: CommandCallback) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    register((success, message) => {
+      if (!success) {
+        reject(new Error(message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
 
 /**
  * Adds standard options to a commander command
@@ -59,6 +81,7 @@ export async function runDeviceAction(
     }
   } catch (error) {
     console.error(chalk.red(`✗ Failed to ${actionName}: ${(error as Error).message}`));
+    throw error;
   } finally {
     await controller.disconnect();
   }

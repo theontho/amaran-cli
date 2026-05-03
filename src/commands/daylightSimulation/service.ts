@@ -11,6 +11,7 @@ const __dirname = dirname(__filename);
 
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
+import { escapeXmlText } from '../parseUtils.js';
 
 export function registerService(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -124,20 +125,28 @@ function handleInstall(_deps: CommandDeps) {
       fs.mkdirSync(logDir, { recursive: true });
     }
 
+    const escapedPlistName = escapeXmlText(plistName);
+    const escapedNodePath = escapeXmlText(nodePath);
+    const escapedCliPath = escapeXmlText(cliPath);
+    const escapedCurveType = escapeXmlText(curveType);
+    const escapedStdoutPath = escapeXmlText(path.join(logDir, 'amaran-circadian-service.log'));
+    const escapedStderrPath = escapeXmlText(path.join(logDir, 'amaran-circadian-service-error.log'));
+    const escapedWorkingDirectory = escapeXmlText(path.dirname(path.dirname(cliPath)));
+
     const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>${plistName}</string>
+    <string>${escapedPlistName}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${nodePath}</string>
-        <string>${cliPath}</string>
+        <string>${escapedNodePath}</string>
+        <string>${escapedCliPath}</string>
         <string>auto-cct</string>
         <string>--service-mode</string>
         <string>--curve</string>
-        <string>${curveType}</string>
+        <string>${escapedCurveType}</string>
     </array>
     <key>StartInterval</key>
     <integer>${interval}</integer>
@@ -146,13 +155,13 @@ function handleInstall(_deps: CommandDeps) {
     <key>KeepAlive</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>${path.join(logDir, 'amaran-circadian-service.log')}</string>
+    <string>${escapedStdoutPath}</string>
     <key>StandardErrorPath</key>
-    <string>${path.join(logDir, 'amaran-circadian-service-error.log')}</string>
+    <string>${escapedStderrPath}</string>
     ${
       !isGlobal
         ? `<key>WorkingDirectory</key>
-    <string>${path.dirname(path.dirname(cliPath))}</string>`
+    <string>${escapedWorkingDirectory}</string>`
         : ''
     }
 </dict>

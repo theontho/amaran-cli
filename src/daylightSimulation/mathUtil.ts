@@ -12,12 +12,18 @@ export function parseMaxLuxMap(input: string): CctLuxMap | null {
 
   for (const pair of pairs) {
     const [cctStr, luxStr] = pair.split(':');
+    if (cctStr === undefined || luxStr === undefined || pair.split(':').length !== 2) {
+      return null;
+    }
+
     const cct = parseInt(cctStr.trim(), 10);
     const lux = parseFloat(luxStr.trim());
 
-    if (!Number.isNaN(cct) && !Number.isNaN(lux) && cct > 0 && lux > 0) {
-      map[cct] = lux;
+    if (Number.isNaN(cct) || Number.isNaN(lux) || cct <= 0 || lux <= 0) {
+      return null;
     }
+
+    map[cct] = lux;
   }
 
   return Object.keys(map).length > 0 ? map : null;

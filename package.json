@@ -3,8 +3,15 @@
   "version": "1.10.0",
   "type": "module",
   "description": "Command line tool for controlling Aputure Amaran lights via WebSocket to a local Amaran desktop app.",
-  "main": "dist/lightControl.js",
-  "types": "dist/lightControl.d.ts",
+  "main": "dist/deviceControl/lightControl.js",
+  "types": "dist/deviceControl/lightControl.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/deviceControl/lightControl.d.ts",
+      "import": "./dist/deviceControl/lightControl.js"
+    },
+    "./cli": "./dist/cli.js"
+  },
   "bin": {
     "amaran-cli": "dist/cli.js"
   },
@@ -31,7 +38,7 @@
     "scripts",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "docs/CHANGELOG.md"
   ],
   "repository": {
     "type": "git",
@@ -54,7 +61,7 @@
   "author": "Mahyar McDonald <github@hmmfn.com>",
   "license": "MIT",
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "chalk": "^5.3.0",

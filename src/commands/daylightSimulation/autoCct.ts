@@ -3,6 +3,8 @@ import type { Command } from 'commander';
 import { CCT_DEFAULTS, CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { DEVICE_DEFAULTS, VALIDATION_RANGES } from '../../deviceControl/constants.js';
 import type { CommandDeps } from '../../deviceControl/types.js';
+import { commandCallbackPromise, isLightDevice } from '../cmdUtils.js';
+import { parseCloudCover, parseStrictNumber } from '../parseUtils.js';
 
 export function registerAutoCct(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -95,8 +97,13 @@ function handleAutoCct(deps: CommandDeps) {
     }
 
     if (options.lat !== undefined && options.lon !== undefined) {
-      lat = parseFloat(options.lat);
-      lon = parseFloat(options.lon);
+      try {
+        lat = parseStrictNumber(options.lat, 'Latitude');
+        lon = parseStrictNumber(options.lon, 'Longitude');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
+        process.exit(1);
+      }
       if (Number.isNaN(lat) || lat < -90 || lat > 90) {
         console.error(chalk.red('Latitude must be between -90 and 90'));
         process.exit(1);
@@ -207,7 +214,12 @@ function handleAutoCct(deps: CommandDeps) {
         const map = parseMaxLuxMap(options.maxLux);
         if (map) systemMaxLux = map;
       } else {
-        const parsed = parseFloat(options.maxLux);
+        let parsed: number;
+        try {
+          parsed = parseStrictNumber(options.maxLux, 'max-lux');
+        } catch (_error) {
+          parsed = Number.NaN;
+        }
         if (!Number.isNaN(parsed) && parsed > 0) {
           limitMaxLux = parsed;
           // Fallback: If no system capacity is known, assume the limit is the capacity
@@ -230,7 +242,7 @@ function handleAutoCct(deps: CommandDeps) {
         maxLux: systemMaxLux,
         simulationMaxLux: limitMaxLux,
         weather: weatherOptions || {
-          cloudCover: options.cloudCover ? parseFloat(options.cloudCover) : undefined,
+          cloudCover: parseCloudCover(options.cloudCover),
           precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
         },
       },
@@ -318,7 +330,6 @@ function handleAutoCct(deps: CommandDeps) {
       candidateDevices = controller.getDevices?.() ?? [];
     }
 
-    const lightPattern = /^[A-Z0-9]+-[A-Z0-9]+$/i;
     type LightDevice = {
       node_id: string;
       device_name?: string;
@@ -327,13 +338,9 @@ function handleAutoCct(deps: CommandDeps) {
       [key: string]: unknown;
     };
 
-    const lightDevices = candidateDevices.filter((device): device is LightDevice => {
-      if (!device || typeof device !== 'object') {
-        return false;
-      }
-      const candidate = device as { node_id?: unknown };
-      return typeof candidate.node_id === 'string' && lightPattern.test(candidate.node_id);
-    });
+    const lightDevices = candidateDevices.filter((device): device is LightDevice =>
+      isLightDevice(device as LightDevice)
+    );
 
     if (lightDevices.length === 0) {
       console.log(chalk.yellow('No light devices found; skipping auto CCT update.'));
@@ -461,7 +468,7 @@ function handleAutoCct(deps: CommandDeps) {
               : device.node_id;
 
       console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`);
-      controller.setCCT(device.node_id, result.cct, percent * 10);
+      await commandCallbackPromise((callback) => controller.setCCT(device.node_id, result.cct, percent * 10, callback));
       if (i < activeDevices.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       }

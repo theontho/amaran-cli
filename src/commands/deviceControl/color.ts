@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackPromise, getLightDevices, runDeviceAction } from '../cmdUtils.js';
 
 export function registerColor(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -127,9 +127,7 @@ function handleColor(deps: CommandDeps) {
             return;
           }
           // Filter for light devices only
-          const lightDevices = devices.filter(
-            (d) => d.node_id?.includes('-') && d.node_id !== '00000000000000000000000000000000'
-          );
+          const lightDevices = getLightDevices(devices);
 
           if (lightDevices.length === 0) {
             console.log(chalk.yellow('No light devices found'));
@@ -244,12 +242,7 @@ function handleColor(deps: CommandDeps) {
         },
       },
       (device, controller) => {
-        return new Promise((resolve) => {
-          controller.setColor(device.node_id as string, color, intensity, (success, message) => {
-            if (!success) throw new Error(message);
-            resolve();
-          });
-        });
+        return commandCallbackPromise((callback) => controller.setColor(device.node_id as string, color, intensity, callback));
       },
       async (controller) => {
         await controller.setColorForAllLights(color, intensity, (success, message) => {

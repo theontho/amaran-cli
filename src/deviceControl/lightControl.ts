@@ -29,6 +29,8 @@ import WebSocket from 'ws';
 import { DEVICE_DEFAULTS } from './constants.js';
 import type { Command, CommandArgs, CommandCallback, CommandType, Device, NodeConfig } from './types.js';
 
+const LIGHT_NODE_PATTERN = /^[A-Z0-9]+-[A-Z0-9]+$/i;
+
 interface PendingCommand {
   nodeId: string | undefined;
   type: CommandType;
@@ -47,7 +49,7 @@ class LightController {
   private deviceList: Device[] = [];
   private sceneList: unknown[] = [];
   private nodeConfigs: Map<string, NodeConfig> = new Map();
-  private commandCallbacks: Map<string, CommandCallback> = new Map();
+  private commandCallbacks: Map<string, CommandCallback[]> = new Map();
   private pendingQueue: PendingCommand[] = [];
   private onInitializedCallback?: () => void;
   private debug: boolean = false;
@@ -106,28 +108,26 @@ class LightController {
       if (action && nodeId) {
         const key = `${action}_${nodeId}`;
         if (this.commandCallbacks.has(key)) {
-          callback = this.commandCallbacks.get(key);
+          callback = this.commandCallbacks.get(key)?.[0];
           usedKey = key;
         }
       }
 
       if (!callback && action && this.commandCallbacks.has(action)) {
-        callback = this.commandCallbacks.get(action);
+        callback = this.commandCallbacks.get(action)?.[0];
         usedKey = action;
       }
 
       if (parsedData.code !== 0) {
         console.error('Error from server:', parsedData.message);
         if (callback && usedKey) {
-          callback(false, parsedData.message);
-          this.commandCallbacks.delete(usedKey);
+          this.popCommandCallback(usedKey)?.(false, parsedData.message);
         }
         return;
       }
 
       if (callback && usedKey) {
-        callback(true, parsedData.message, parsedData.data);
-        this.commandCallbacks.delete(usedKey);
+        this.popCommandCallback(usedKey)?.(true, parsedData.message, parsedData.data);
       }
 
       if (action) {
@@ -225,7 +225,7 @@ class LightController {
       }
 
       const lightDevices = this.deviceList.filter((device) =>
-        device.node_id ? this.isLightNodeId(device.node_id) : false
+        typeof device.node_id === 'string' ? this.isLightNodeId(device.node_id) : false
       );
 
       if (lightDevices.length === 0) {
@@ -610,7 +610,9 @@ class LightController {
 
       if (callback) {
         const callbackKey = nodeId ? `${type}_${nodeId}` : type;
-        this.commandCallbacks.set(callbackKey, callback);
+        const callbacks = this.commandCallbacks.get(callbackKey) ?? [];
+        callbacks.push(callback);
+        this.commandCallbacks.set(callbackKey, callbacks);
       }
 
       this.ws.send(JSON.stringify(command));
@@ -630,9 +632,19 @@ class LightController {
     }
   }
 
+  private popCommandCallback(key: string): CommandCallback | undefined {
+    const callbacks = this.commandCallbacks.get(key);
+    if (!callbacks || callbacks.length === 0) return undefined;
+
+    const callback = callbacks.shift();
+    if (callbacks.length === 0) {
+      this.commandCallbacks.delete(key);
+    }
+    return callback;
+  }
+
   private isLightNodeId(nodeId: string): boolean {
-    const lightPattern = /^[A-Z0-9]+-[A-Z0-9]+$/i;
-    return lightPattern.test(nodeId);
+    return LIGHT_NODE_PATTERN.test(nodeId);
   }
 
   private sleep(ms: number): Promise<void> {

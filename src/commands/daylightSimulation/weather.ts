@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps } from '../../deviceControl/types.js';
+import { parseStrictNumber } from '../parseUtils.js';
 
 export function registerWeather(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -30,15 +31,28 @@ function handleWeather(deps: CommandDeps) {
     let source = '';
 
     // 1. Check CLI options
-    if (options.lat && options.lon) {
-      lat = parseFloat(options.lat);
-      lon = parseFloat(options.lon);
+    if (options.lat !== undefined && options.lon !== undefined) {
+      try {
+        lat = parseStrictNumber(options.lat, 'Latitude');
+        lon = parseStrictNumber(options.lon, 'Longitude');
+      } catch (error) {
+        console.error(chalk.red((error as Error).message));
+        process.exit(1);
+      }
+      if (lat < -90 || lat > 90) {
+        console.error(chalk.red('Latitude must be between -90 and 90'));
+        process.exit(1);
+      }
+      if (lon < -180 || lon > 180) {
+        console.error(chalk.red('Longitude must be between -180 and 180'));
+        process.exit(1);
+      }
       source = 'manual';
     }
     // 2. Check config
     else if (loadConfig) {
       const config = loadConfig();
-      if (config?.latitude && config?.longitude) {
+      if (typeof config?.latitude === 'number' && typeof config?.longitude === 'number') {
         lat = config.latitude;
         lon = config.longitude;
         source = 'config';

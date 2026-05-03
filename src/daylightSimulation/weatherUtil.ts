@@ -33,6 +33,18 @@ interface WttrResponse {
   [key: string]: unknown;
 }
 
+function isWttrResponse(data: unknown): data is WttrResponse {
+  if (!data || typeof data !== 'object') return false;
+  const candidate = data as Partial<WttrResponse>;
+  return (
+    Array.isArray(candidate.current_condition) &&
+    candidate.current_condition.length > 0 &&
+    typeof candidate.current_condition[0].weatherCode === 'string' &&
+    Array.isArray(candidate.current_condition[0].weatherDesc) &&
+    Array.isArray(candidate.weather)
+  );
+}
+
 /**
  * WWO Weather Code Mapping to Cloud Cover and Precipitation
  * Based on: https://www.worldweatheronline.com/feed/wwo-weather-codes.ashx
@@ -129,6 +141,9 @@ export async function getWeatherData(
     if (fs.existsSync(CACHE_FILE)) {
       const cacheContent = fs.readFileSync(CACHE_FILE, 'utf8');
       const cache: WeatherCache = JSON.parse(cacheContent);
+      if (!isWttrResponse(cache.data)) {
+        throw new Error('Invalid weather cache format');
+      }
 
       const now = Date.now();
       const isRecent = now - cache.timestamp < CACHE_TTL_MS;
@@ -173,6 +188,9 @@ export async function getWeatherData(
     }
 
     const data = await response.json();
+    if (!isWttrResponse(data)) {
+      throw new Error('Weather API returned an unexpected response');
+    }
 
     const cacheObj: WeatherCache = {
       lat,
@@ -199,6 +217,9 @@ export async function getWeatherData(
       if (fs.existsSync(CACHE_FILE)) {
         const cacheContent = fs.readFileSync(CACHE_FILE, 'utf8');
         const cache: WeatherCache = JSON.parse(cacheContent);
+        if (!isWttrResponse(cache.data)) {
+          throw new Error('Invalid weather cache format');
+        }
         const isSameLocation = Math.abs(cache.lat - lat) < 0.1 && Math.abs(cache.lon - lon) < 0.1;
 
         if (isSameLocation) {

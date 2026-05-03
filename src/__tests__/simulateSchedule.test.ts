@@ -53,13 +53,17 @@ describe('simulate-schedule command', () => {
   });
 
   test('runs simulation and calls setCCT', async () => {
-    const setCCT = vi.fn();
+    const setCCT = vi.fn((_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+      cb?.(true, 'ok');
+    });
     const disconnect = vi.fn(async () => Promise.resolve());
 
     const controllerStub = {
       getDevices: vi.fn(() => [{ node_id: '400J5-F2C008', device_name: 'Key Light' }]),
       getLightSleepStatus: vi.fn(),
-      turnLightOn: vi.fn(),
+      turnLightOn: vi.fn((_: string, cb?: (success: boolean, message: string) => void) => {
+        cb?.(true, 'ok');
+      }),
       setCCT,
       disconnect,
     };
@@ -86,7 +90,7 @@ describe('simulate-schedule command', () => {
     await program.parseAsync(['node', 'test', 'schedule', 'simulate', 'Key Light', '--duration', '1']);
 
     // Check that turnLightOn and setCCT were called
-    expect(controllerStub.turnLightOn).toHaveBeenCalledWith('400J5-F2C008');
+    expect(controllerStub.turnLightOn).toHaveBeenCalledWith('400J5-F2C008', expect.any(Function));
     expect(setCCT).toHaveBeenCalled();
     const [nodeId, cct, intensity] = setCCT.mock.calls[0];
     expect(nodeId).toBe('400J5-F2C008');

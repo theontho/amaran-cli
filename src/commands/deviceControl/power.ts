@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackPromise, getLightDevices, runDeviceAction } from '../cmdUtils.js';
 
 export function registerPower(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -42,8 +42,12 @@ async function getPowerStatus(
     async (device, controller) => {
       return new Promise((resolve) => {
         controller.getLightSleepStatus(device.node_id as string, (success, message, data) => {
-          if (!success) throw new Error(message);
           const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
+          if (!success) {
+            console.error(chalk.red(`✗ ${displayName}: Failed to get status: ${message}`));
+            resolve();
+            return;
+          }
 
           // Handle potential nesting: { data: { data: false } } or { data: { sleep: false } }
           let state = data;
@@ -75,9 +79,7 @@ async function getPowerStatus(
       }
 
       // Filter for light devices only, skipping groups like 'ALL'
-      const lightDevices = devices.filter(
-        (d) => d.node_id?.includes('-') && d.node_id !== '00000000000000000000000000000000'
-      );
+      const lightDevices = getLightDevices(devices);
 
       if (lightDevices.length === 0) {
         console.log(chalk.yellow('No light devices found'));
@@ -132,12 +134,7 @@ function handleOn(deps: CommandDeps) {
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} turned on`,
       },
       (device, controller) => {
-        return new Promise((resolve) => {
-          controller.turnLightOn(device.node_id as string, (success, message) => {
-            if (!success) throw new Error(message);
-            resolve();
-          });
-        });
+        return commandCallbackPromise((callback) => controller.turnLightOn(device.node_id as string, callback));
       },
       async (controller) => {
         await controller.turnOnAllLights((success, message) => {
@@ -163,12 +160,7 @@ function handleOff(deps: CommandDeps) {
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} turned off`,
       },
       (device, controller) => {
-        return new Promise((resolve) => {
-          controller.turnLightOff(device.node_id as string, (success, message) => {
-            if (!success) throw new Error(message);
-            resolve();
-          });
-        });
+        return commandCallbackPromise((callback) => controller.turnLightOff(device.node_id as string, callback));
       },
       async (controller) => {
         await controller.turnOffAllLights((success, message) => {
@@ -191,12 +183,7 @@ function handleToggle(deps: CommandDeps) {
           `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} toggled`,
       },
       (device, controller) => {
-        return new Promise((resolve) => {
-          controller.toggleLight(device.node_id as string, (success, message) => {
-            if (!success) throw new Error(message);
-            resolve();
-          });
-        });
+        return commandCallbackPromise((callback) => controller.toggleLight(device.node_id as string, callback));
       },
       async (controller) => {
         await controller.toggleAllLights((success, message) => {
