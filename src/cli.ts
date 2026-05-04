@@ -366,4 +366,4 @@ if (isDirectRun()) {
   program.parse(process.argv);
 }
 
-export { program, createController, findDevice, asyncCommand };
+export { program, createController, findDevice, asyncCommand, registerCommands };

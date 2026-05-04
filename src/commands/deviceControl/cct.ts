@@ -26,11 +26,13 @@ export function registerCct(program: Command, deps: CommandDeps) {
 function handleCct(deps: CommandDeps) {
   return async (tempStr: string | undefined, deviceQuery: string | undefined, options: CommandOptions) => {
     if (options.get) {
+      const targetDevice = deviceQuery ?? tempStr;
+
       return runDeviceAction(
         {
           deps,
           options,
-          deviceQuery,
+          deviceQuery: targetDevice,
           actionName: 'get temperature',
         },
         async (device, controller) => {

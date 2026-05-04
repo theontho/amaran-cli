@@ -158,6 +158,25 @@ describe('CLI Integration Tests', () => {
     consoleSpy.mockRestore();
   });
 
+  it('should get intensity for a named device when --get is used', async () => {
+    const program = new Command();
+    program.exitOverride();
+    const deps = createDeps();
+    registerCommands(program, deps);
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
+
+    await program.parseAsync(['node', 'test', 'intensity', '--get', 'Test Light 1']);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Test Light 1'));
+
+    consoleSpy.mockRestore();
+  });
+
   it('should set CCT via cct command', async () => {
     const program = new Command();
     program.exitOverride();
@@ -175,6 +194,25 @@ describe('CLI Integration Tests', () => {
     expect(state?.cct).toBe(5600);
     expect(state?.work_mode).toBe('CCT');
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('set to 5600K'));
+
+    consoleSpy.mockRestore();
+  });
+
+  it('should get CCT for a named device when --get is used', async () => {
+    const program = new Command();
+    program.exitOverride();
+    const deps = createDeps();
+    registerCommands(program, deps);
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* no-op */
+    });
+
+    await program.parseAsync(['node', 'test', 'cct', '--get', 'Test Light 1']);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Test Light 1'));
 
     consoleSpy.mockRestore();
   });

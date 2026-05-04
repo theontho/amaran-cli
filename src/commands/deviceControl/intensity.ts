@@ -18,11 +18,13 @@ export function registerIntensity(program: Command, deps: CommandDeps) {
 function handleIntensity(deps: CommandDeps) {
   return async (intensityStr: string | undefined, deviceQuery: string | undefined, options: CommandOptions) => {
     if (options.get) {
+      const targetDevice = deviceQuery ?? intensityStr;
+
       return runDeviceAction(
         {
           deps,
           options,
-          deviceQuery,
+          deviceQuery: targetDevice,
           actionName: 'get intensity',
         },
         async (device, controller) => {
