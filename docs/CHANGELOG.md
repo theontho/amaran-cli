@@ -1,3 +1,11 @@
+## [1.11.0] - 2026-05-03
+
+- **Feature**: Added public library entrypoints for the root SDK, device control APIs, circadian scheduling utilities, command registration, and CLI embedding.
+- **Feature**: Made `ScheduleMaker` usable as a standalone library API without requiring full CLI dependency wiring.
+- **Fix**: Corrected `cct --get <device>` and `intensity --get <device>` so they target the named device instead of all lights.
+- **Docs**: Added README examples for importing and using the package as a library.
+- **Test**: Added package export smoke coverage and getter-targeting regression tests.
+
 ## [1.9.0] - 2025-12-24
 
 - **Feature**: Consolidated all schedule-related commands (`print-schedule`, `graph-schedule`, `simulate-schedule`) under a unified `schedule` namespace:
