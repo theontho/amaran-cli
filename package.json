@@ -10,9 +10,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./amaran-lights": {
+      "types": "./dist/amaranLights.d.ts",
+      "import": "./dist/amaranLights.js"
+    },
     "./device-control": {
       "types": "./dist/device-control.d.ts",
       "import": "./dist/device-control.js"
+    },
+    "./circadiansim": {
+      "types": "./dist/circadianSim.d.ts",
+      "import": "./dist/circadianSim.js"
     },
     "./circadian": {
       "types": "./dist/circadian.d.ts",

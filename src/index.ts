@@ -1,3 +1,5 @@
+export * as amaranLights from './amaranLights.js';
+export * as circadianSim from './circadianSim.js';
 export { registerCommands } from './commands.js';
 export type { Config as CliConfig } from './config.js';
 export {

@@ -1,3 +1,4 @@
+export { registerCircadianSimCommands } from './commands/circadianSim.js';
 export {
   addStandardOptions,
   commandCallbackPromise,
@@ -28,6 +29,7 @@ export { registerPreset } from './commands/deviceControl/preset.js';
 export { registerQuickshot } from './commands/deviceControl/quickshot.js';
 export { registerScene } from './commands/deviceControl/scene.js';
 export { registerStatus } from './commands/deviceControl/status.js';
+export { registerDeviceControlCommands } from './commands/deviceControl.js';
 export {
   escapeXmlText,
   parseBooleanString,

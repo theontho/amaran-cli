@@ -5,13 +5,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { Command } from 'commander';
+import {
+  type Config,
+  type Device,
+  discoverLocalWebSocket,
+  enableGlobalTimestamps,
+  handleAutostart,
+  LightController,
+} from './amaranLights.js';
 import registerCommands from './commands.js';
 import { loadConfig, saveConfig } from './config.js';
-import { handleAutostart } from './deviceControl/autostart.js';
-import { discoverLocalWebSocket } from './deviceControl/discovery.js';
-import LightController from './deviceControl/lightControl.js';
-import { enableGlobalTimestamps } from './deviceControl/logging.js';
-import type { Config, Device } from './deviceControl/types.js';
 
 // Enable global timestamps only if running in service mode
 if (process.argv.includes('--service-mode')) {

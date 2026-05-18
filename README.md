@@ -52,23 +52,28 @@ controller.getDeviceList((success, message, devices) => {
 });
 ```
 
-Device-control APIs are also available from a focused submodule:
+Amaran light-control APIs are also available from a focused submodule:
 
 ```ts
-import { LightController, type Device } from 'amaran-light-cli/device-control';
+import { LightController, type Device } from 'amaran-light-cli/amaran-lights';
 ```
 
-Circadian rhythm, sun simulation, weather, and scheduling utilities live in their own submodule:
+The older `amaran-light-cli/device-control` submodule remains available as a compatibility alias.
+
+Circadian rhythm, sun simulation, weather, and schedule text/graph output utilities live in their own `circadiansim` submodule:
 
 ```ts
-import { calculateCCT, CurveType, ScheduleMaker, textSchedule } from 'amaran-light-cli/circadian';
+import { calculateCCT, CurveType, graphSchedule, ScheduleMaker, textSchedule } from 'amaran-light-cli/circadiansim';
 
 const current = calculateCCT(40.7128, -74.006, new Date(), undefined, CurveType.CIE_DAYLIGHT);
 
 const maker = new ScheduleMaker();
 const schedule = await maker.makeSchedule({ lat: '40.7128', lon: '-74.0060', curves: 'hann,cie-daylight' });
 console.log(textSchedule(schedule, { stripAnsi: true }));
+const graphPng = await graphSchedule(schedule);
 ```
+
+The older `amaran-light-cli/circadian` submodule remains available as a compatibility alias.
 
 Commander command registration functions are available for embedding the CLI in another program:
 
