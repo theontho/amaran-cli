@@ -5,7 +5,7 @@ import type { Command } from 'commander';
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { graphSchedule } from '../../daylightSimulation/graphSchedule.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
-import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
+import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
 
 type GraphCommandOptions = {
   lat?: string;

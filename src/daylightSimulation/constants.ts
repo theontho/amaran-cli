@@ -51,6 +51,8 @@ export const SPECIAL_TIME_CONFIG = [
 export const VALIDATION_RANGES = {
   latitude: { min: -90, max: 90 },
   longitude: { min: -180, max: 180 },
+  cct: { min: 1000, max: 20000 },
+  intensity: { min: 0, max: 100 },
 };
 
 // Error messages

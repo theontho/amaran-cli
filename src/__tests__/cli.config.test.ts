@@ -59,6 +59,23 @@ describe('CLI config integration', () => {
     expect(config.debug).toBe(true);
   });
 
+  it('saves BLE backend configuration', () => {
+    const proc = runCli(
+      ['config', '--backend', 'ble', '--ble-url', 'http://localhost:2708', '--ble-api-key', 'test-key'],
+      configDir
+    );
+
+    expect(proc.status).toBe(0);
+    expect(proc.stdout).toContain('Backend: ble');
+    expect(proc.stdout).toContain('BLE HTTP URL: http://localhost:2708');
+    expect(proc.stdout).toContain('BLE HTTP API key: configured');
+
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    expect(config.backend).toBe('ble');
+    expect(config.bleUrl).toBe('http://localhost:2708');
+    expect(config.bleApiKey).toBe('test-key');
+  });
+
   it('fails fast on invalid persisted configuration', () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(configPath, JSON.stringify({ latitude: 200 }));

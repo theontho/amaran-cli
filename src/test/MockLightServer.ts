@@ -22,6 +22,7 @@ interface Command {
 
 export class MockLightServer {
   private wss: WebSocketServer;
+  public readonly ready: Promise<void>;
   private devices: Device[] = [
     { node_id: '400J5-F2C008', device_name: 'Test Light 1' },
     { node_id: '400J5-F2C009', device_name: 'Test Light 2' },
@@ -32,6 +33,10 @@ export class MockLightServer {
 
   constructor(port: number) {
     this.wss = new WebSocketServer({ port });
+    this.ready = new Promise((resolve, reject) => {
+      this.wss.once('listening', resolve);
+      this.wss.once('error', reject);
+    });
     this.initializeState();
 
     this.wss.on('connection', (ws) => {

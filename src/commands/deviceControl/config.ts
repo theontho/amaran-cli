@@ -7,7 +7,10 @@ import type { CommandDeps, Config } from '../../deviceControl/types.js';
 import { parseBooleanString, parseStrictInteger, parseStrictNumber } from '../parseUtils.js';
 
 interface ConfigOptions {
+  backend?: string;
   url?: string;
+  bleUrl?: string;
+  bleApiKey?: string;
   clientId?: string;
   debug?: string;
   lat?: string;
@@ -29,8 +32,11 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
 
   program
     .command('config')
-    .description('Configure WebSocket URL and other settings')
+    .description('Configure light backend and other settings')
+    .option('-b, --backend <backend>', 'Light control backend: websocket or ble (default: websocket)')
     .option('-u, --url <url>', 'WebSocket URL (default: ws://localhost:60124)')
+    .option('--ble-url <url>', 'BLE HTTP daemon URL (default: http://localhost:2708)')
+    .option('--ble-api-key <key>', 'BLE HTTP daemon API key')
     .option('-c, --client-id <id>', 'Client ID (default: amaran-cli)')
     .option('-d, --debug <boolean>', 'Enable debug mode')
     .option('--lat <latitude>', 'Default latitude for auto-cct (overrides geoip)')
@@ -59,7 +65,10 @@ function handleConfig(deps: CommandDeps) {
 
   return async (options: ConfigOptions) => {
     const hasSetOptions =
+      options.backend !== undefined ||
       options.url !== undefined ||
+      options.bleUrl !== undefined ||
+      options.bleApiKey !== undefined ||
       options.clientId !== undefined ||
       options.debug !== undefined ||
       options.lat !== undefined ||
@@ -99,9 +108,26 @@ function handleConfig(deps: CommandDeps) {
     const config: Config = loadConfig() || {};
     const changes: string[] = [];
 
+    if (options.backend !== undefined) {
+      const backend = options.backend.trim().toLowerCase();
+      if (backend !== 'websocket' && backend !== 'ble') {
+        console.error(chalk.red('Backend must be "websocket" or "ble"'));
+        process.exit(1);
+      }
+      config.backend = backend;
+      changes.push(`Backend: ${backend}`);
+    }
     if (options.url) {
       config.wsUrl = options.url;
       changes.push(`WebSocket URL: ${options.url}`);
+    }
+    if (options.bleUrl) {
+      config.bleUrl = options.bleUrl;
+      changes.push(`BLE HTTP URL: ${options.bleUrl}`);
+    }
+    if (options.bleApiKey !== undefined) {
+      config.bleApiKey = options.bleApiKey;
+      changes.push('BLE HTTP API key: configured');
     }
     if (options.clientId) {
       config.clientId = options.clientId;

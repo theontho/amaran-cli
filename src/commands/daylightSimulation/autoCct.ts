@@ -1,10 +1,13 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { CCT_DEFAULTS, CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
-import { DEVICE_DEFAULTS, VALIDATION_RANGES } from '../../deviceControl/constants.js';
+import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
+import { calculateCurrentCCT } from '../../daylightSimulation/currentCct.js';
+import { formatLocation } from '../../daylightSimulation/privacyUtil.js';
+import type { WeatherOptions } from '../../daylightSimulation/types.js';
+import { DEVICE_DEFAULTS } from '../../deviceControl/constants.js';
 import type { CommandDeps } from '../../deviceControl/types.js';
 import { commandCallbackPromise, isLightDevice } from '../cmdUtils.js';
-import { parseCloudCover, parseStrictNumber } from '../parseUtils.js';
+import { parseStrictNumber } from '../parseUtils.js';
 
 export function registerAutoCct(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -13,7 +16,8 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .command('auto-cct [device]')
     .usage('[device] [options]')
     .description('Set CCT for lights (or specific device) based on current location and time (geoip)')
-    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
+    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .option('-i, --ip <ip>', 'Override IP address for geoip lookup')
@@ -33,13 +37,9 @@ function handleAutoCct(deps: CommandDeps) {
   const { createController, loadConfig, findDevice } = deps;
 
   return async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
-    const cfg = loadConfig?.() || {};
-    const { getLocationFromIP } = await import('../../daylightSimulation/geoipUtil.js');
-    const { calculateCCT, CurveType, parseCurveType } = await import('../../daylightSimulation/cctUtil.js');
-    const { interpolateMaxLux, parseMaxLuxMap } = await import('../../daylightSimulation/mathUtil.js');
-    const { formatLocation } = await import('../../daylightSimulation/privacyUtil.js');
     const options = optionsRaw as {
       url?: string;
+      backend?: 'websocket' | 'ble';
       clientId?: string;
       debug?: boolean;
       ip?: string;
@@ -53,12 +53,9 @@ function handleAutoCct(deps: CommandDeps) {
       weather?: boolean;
       privacyOff: boolean;
     };
-    const controller = await createController(options.url, options.clientId, options.debug);
-
     let lat: number | undefined;
     let lon: number | undefined;
-    let time: Date = new Date();
-    let source = '';
+    let time = new Date();
 
     if (options.time) {
       time = new Date(options.time);
@@ -68,217 +65,66 @@ function handleAutoCct(deps: CommandDeps) {
       }
     }
 
-    // Validate curve option
-    let curveType: keyof typeof CurveType;
-    if (options.curve) {
+    if (options.lat !== undefined) {
       try {
-        curveType = parseCurveType(options.curve);
+        lat = parseStrictNumber(options.lat, 'Latitude');
       } catch (error) {
         console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
-    } else if (cfg) {
-      // Try to get default curve from config
-      const config = cfg;
-      if (config?.defaultCurve) {
-        try {
-          curveType = parseCurveType(config.defaultCurve);
-        } catch (_) {
-          console.warn(
-            chalk.yellow(`Warning: Invalid default curve in config: ${config.defaultCurve}. Using 'hann' as fallback.`)
-          );
-          curveType = 'HANN';
-        }
-      } else {
-        curveType = 'HANN'; // Default fallback
-      }
-    } else {
-      curveType = 'HANN'; // Fallback if loadConfig is not available
     }
-
-    if (options.lat !== undefined && options.lon !== undefined) {
+    if (options.lon !== undefined) {
       try {
-        lat = parseStrictNumber(options.lat, 'Latitude');
         lon = parseStrictNumber(options.lon, 'Longitude');
       } catch (error) {
         console.error(chalk.red((error as Error).message));
         process.exit(1);
       }
-      if (Number.isNaN(lat) || lat < -90 || lat > 90) {
-        console.error(chalk.red('Latitude must be between -90 and 90'));
-        process.exit(1);
-      }
-      if (Number.isNaN(lon) || lon < -180 || lon > 180) {
-        console.error(chalk.red('Longitude must be between -180 and 180'));
-        process.exit(1);
-      }
-      source = 'manual';
-    } else if (cfg) {
-      const storedLat = cfg.latitude;
-      const storedLon = cfg.longitude;
-      if (typeof storedLat === 'number' && typeof storedLon === 'number') {
-        lat = storedLat;
-        lon = storedLon;
-        source = 'config';
-      }
     }
 
-    if (lat === undefined || lon === undefined) {
-      let ip = options.ip;
-      if (!ip) {
-        try {
-          const res = await fetch('https://api.ipify.org?format=json');
-          const data = await res.json();
-          ip = data.ip;
-        } catch (_err) {
-          ip = '127.0.0.1';
-        }
-      }
-      const location = getLocationFromIP(ip);
-      if (!location || !location.ll) {
-        console.error(
-          chalk.red(
-            'Could not determine location from IP. Use --lat and --lon to specify manually, or set defaults with: amaran config --lat <lat> --lon <lon>'
-          )
-        );
-        process.exit(1);
-      }
-      [lat, lon] = location.ll;
-      source = `geoip (${ip})`;
-    }
-
-    // Handle automatic weather if requested
-    let weatherOptions: { cloudCover?: number; precipitation?: 'none' | 'rain' | 'snow' | 'drizzle' } | undefined;
-    const configWeather = cfg.weather === true;
-    if (options.weather || (options.weather === undefined && configWeather)) {
-      const { getWeatherData } = await import('../../daylightSimulation/weatherUtil.js');
-      const weather = await getWeatherData(lat, lon, time, options.debug);
-      weatherOptions = {
-        cloudCover: weather.cloudCover,
-        precipitation: weather.precipitation,
-      };
-      if (options.debug) {
-        console.log(
-          chalk.gray(
-            `  Auto-weather: cloudCover=${weather.cloudCover}, precipitation=${weather.precipitation} (from ${weather.source})`
-          )
-        );
-      }
-    }
-
-    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-    const minKRaw = cfg.cctMin;
-    const maxKRaw = cfg.cctMax;
-    // maxLux logic handled later with interpolation support
-    const minKCfg = typeof minKRaw === 'number' ? minKRaw : undefined;
-    const maxKCfg = typeof maxKRaw === 'number' ? maxKRaw : undefined;
-    const loK =
-      minKCfg !== undefined
-        ? clamp(minKCfg, VALIDATION_RANGES.cct.min, VALIDATION_RANGES.cct.max)
-        : CCT_DEFAULTS.cctMinK;
-    const hiK =
-      maxKCfg !== undefined
-        ? clamp(maxKCfg, VALIDATION_RANGES.cct.min, VALIDATION_RANGES.cct.max)
-        : CCT_DEFAULTS.cctMaxK;
-
-    // For auto-cct defaults: use CCT defaults if not configured
-    const minPctRaw = cfg.intensityMin;
-    const maxPctRaw = cfg.intensityMax;
-    const minPctCfg = typeof minPctRaw === 'number' ? minPctRaw : CCT_DEFAULTS.intensityMinPct;
-    const maxPctCfg = typeof maxPctRaw === 'number' ? maxPctRaw : CCT_DEFAULTS.intensityMaxPct;
-    const loPct = clamp(
-      Math.min(minPctCfg, maxPctCfg),
-      VALIDATION_RANGES.intensity.min,
-      VALIDATION_RANGES.intensity.max
-    );
-    const hiPct = clamp(
-      Math.max(minPctCfg, maxPctCfg),
-      VALIDATION_RANGES.intensity.min,
-      VALIDATION_RANGES.intensity.max
-    );
-
-    // Determine maxLux values
-    let systemMaxLux: Record<number, number> | number | undefined;
-    let limitMaxLux: number | undefined;
-
-    // 1. Load System Capacity from Config
-    if (cfg.maxLux !== undefined) {
-      systemMaxLux = cfg.maxLux as number | Record<string, number>;
-    }
-
-    // 2. Load Limit/Scale from CLI option
-    if (options.maxLux) {
-      // Check for map format "cct:lux,cct:lux" - if map, it's definitely a capacity calibration
-      if (options.maxLux.includes(':')) {
-        const map = parseMaxLuxMap(options.maxLux);
-        if (!map) {
-          console.error(chalk.red('max-lux must be a positive number OR a map string like "2700:8000,5600:10000"'));
-          process.exit(1);
-        }
-        systemMaxLux = map;
-      } else {
-        let parsed: number;
-        try {
-          parsed = parseStrictNumber(options.maxLux, 'max-lux');
-        } catch (_error) {
-          parsed = Number.NaN;
-        }
-        if (!Number.isNaN(parsed) && parsed > 0) {
-          limitMaxLux = parsed;
-          // Fallback: If no system capacity is known, assume the limit is the capacity
-          if (systemMaxLux === undefined) {
-            systemMaxLux = parsed;
-          }
-        } else {
-          console.error(chalk.red('max-lux must be a positive number OR a map string like "2700:8000,5600:10000"'));
-          process.exit(1);
-        }
-      }
-    }
-
-    const result = calculateCCT(
-      lat,
-      lon,
-      time,
-      {
-        cctMinK: Math.min(loK, hiK),
-        cctMaxK: Math.max(loK, hiK),
-        intensityMinPct: loPct,
-        intensityMaxPct: hiPct,
-        maxLux: systemMaxLux,
-        simulationMaxLux: limitMaxLux,
-        weather: weatherOptions || {
-          cloudCover: parseCloudCover(options.cloudCover),
-          precipitation: options.precipitation as 'none' | 'rain' | 'snow' | 'drizzle' | undefined,
+    let calculation: Awaited<ReturnType<typeof calculateCurrentCCT>>;
+    try {
+      calculation = await calculateCurrentCCT(
+        {
+          lat,
+          lon,
+          ip: options.ip,
+          time,
+          curve: options.curve,
+          maxLux: options.maxLux,
+          cloudCover: options.cloudCover,
+          precipitation: options.precipitation as WeatherOptions['precipitation'] | undefined,
+          weather: options.weather,
+          debug: options.debug,
         },
-      },
-      CurveType[curveType]
-    );
-
-    let percent: number;
-    let modeDescription = 'intensity curve';
-
-    // Calculate effective max lux only for logging purposes now, as calculateCCT handled the value
-    let effectiveMaxLux: number | undefined;
-    if (systemMaxLux !== undefined && result.lightOutput !== undefined) {
-      if (typeof systemMaxLux === 'number') {
-        effectiveMaxLux = systemMaxLux;
-      } else {
-        effectiveMaxLux = interpolateMaxLux(result.cct, systemMaxLux);
-      }
-      modeDescription = limitMaxLux
-        ? `circadian curve scaled to ${limitMaxLux} lux peak (capacity: ${Math.round(effectiveMaxLux)} lux)`
-        : `max lux output of light system (${Math.round(effectiveMaxLux)} lux @ ${result.cct}K)`;
+        { loadConfig }
+      );
+    } catch (error) {
+      console.error(chalk.red((error as Error).message));
+      process.exit(1);
     }
 
-    percent = result.intensity / 10;
-    // Final clamp to configured intensity boundaries
-    percent = Math.min(hiPct, Math.max(loPct, percent));
-    percent = Math.round(percent * 10) / 10;
+    for (const warning of calculation.warnings) {
+      console.warn(chalk.yellow(warning));
+    }
+
+    if (options.debug && calculation.weatherSource === 'auto' && calculation.weatherOptions) {
+      console.log(
+        chalk.gray(
+          `  Auto-weather: cloudCover=${calculation.weatherOptions.cloudCover}, precipitation=${calculation.weatherOptions.precipitation} (from ${calculation.weatherDataSource})`
+        )
+      );
+    }
+
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
+    const { result, percent } = calculation;
 
     console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
-    console.log(chalk.gray(`  Location: ${formatLocation(lat, lon, source, options.privacyOff)}`));
+    console.log(
+      chalk.gray(
+        `  Location: ${formatLocation(calculation.lat, calculation.lon, calculation.source, options.privacyOff)}`
+      )
+    );
     const formattedDate = time.toLocaleDateString(undefined, {
       weekday: 'long',
       year: 'numeric',
@@ -291,25 +137,10 @@ function handleAutoCct(deps: CommandDeps) {
       second: '2-digit',
     });
     console.log(chalk.gray(`  Time: ${formattedDate}, ${formattedTime}`));
-    console.log(chalk.gray(`  Curve: ${curveType.toLowerCase()}`));
-    console.log(chalk.gray(`  Mode: ${modeDescription}`));
-    if (effectiveMaxLux !== undefined && result.lightOutput !== undefined && lat !== undefined && lon !== undefined) {
-      const { calculateCCT, CurveType } = await import('../../daylightSimulation/cctUtil.js');
-      const originalResult = calculateCCT(
-        lat,
-        lon,
-        time,
-        {
-          cctMinK: Math.min(loK, hiK),
-          cctMaxK: Math.max(loK, hiK),
-          intensityMinPct: loPct,
-          intensityMaxPct: hiPct,
-          maxLux: systemMaxLux,
-          weather: weatherOptions,
-        },
-        CurveType[curveType]
-      );
-      const originalLux = Math.round(originalResult.lightOutput || 0);
+    console.log(chalk.gray(`  Curve: ${calculation.curveType.toLowerCase()}`));
+    console.log(chalk.gray(`  Mode: ${calculation.modeDescription}`));
+    if (calculation.effectiveMaxLux !== undefined && result.lightOutput !== undefined) {
+      const originalLux = Math.round(calculation.originalResult?.lightOutput || 0);
       console.log(chalk.gray(`  Target Output: ${Math.round(result.lightOutput)} lux (original: ${originalLux} lux)`));
     }
     if (options.cloudCover || options.precipitation) {
@@ -317,10 +148,14 @@ function handleAutoCct(deps: CommandDeps) {
       if (options.cloudCover) weatherInfo.push(`Clouds: ${options.cloudCover}`);
       if (options.precipitation) weatherInfo.push(`Precip: ${options.precipitation}`);
       console.log(chalk.gray(`  Weather: ${weatherInfo.join(', ')}`));
-    } else if (weatherOptions && (options.weather || configWeather)) {
+    } else if (calculation.weatherSource === 'auto' && calculation.weatherOptions) {
       const weatherInfo = [];
-      if (weatherOptions.cloudCover !== undefined) weatherInfo.push(`Clouds: ${weatherOptions.cloudCover}`);
-      if (weatherOptions.precipitation) weatherInfo.push(`Precip: ${weatherOptions.precipitation}`);
+      if (calculation.weatherOptions.cloudCover !== undefined) {
+        weatherInfo.push(`Clouds: ${calculation.weatherOptions.cloudCover}`);
+      }
+      if (calculation.weatherOptions.precipitation) {
+        weatherInfo.push(`Precip: ${calculation.weatherOptions.precipitation}`);
+      }
       console.log(chalk.gray(`  Weather (Auto): ${weatherInfo.join(', ')}`));
     }
 
@@ -382,7 +217,6 @@ function handleAutoCct(deps: CommandDeps) {
           }
           // Normalize various possible representations of sleep state
           if (data) {
-            // Direct sleep field
             if (hasSleep(data)) {
               const v = (data as { sleep: unknown }).sleep;
               if (typeof v === 'boolean') {
@@ -399,7 +233,6 @@ function handleAutoCct(deps: CommandDeps) {
                 return;
               }
             }
-            // Server may return { data: boolean }
             const inner = (data as { data?: unknown }).data;
             if (typeof inner === 'boolean') {
               resolve(inner);
@@ -438,6 +271,10 @@ function handleAutoCct(deps: CommandDeps) {
 
     for (const device of lightDevices) {
       const nodeId = device.node_id as string;
+      if (device.backend === 'ble') {
+        activeDevices.push(device);
+        continue;
+      }
       const sleep = await getSleepStatus(nodeId);
       if (sleep === false) {
         activeDevices.push(device);

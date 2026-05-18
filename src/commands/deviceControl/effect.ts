@@ -34,7 +34,7 @@ export function registerEffect(program: Command, deps: CommandDeps) {
 function handleEffectList(deps: CommandDeps) {
   const { createController } = deps;
   return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.getSystemEffectList((success, message, data) => {
       if (success) {
@@ -64,7 +64,7 @@ function handleEffectSet(deps: CommandDeps) {
     // Special handling for "all" devices
     if (deviceQuery.toLowerCase() === 'all') {
       const { createController } = deps;
-      const controller = await createController(options.url, options.clientId, options.debug);
+      const controller = await createController(options.url, options.clientId, options.debug, options.backend);
       try {
         await controller.setSystemEffectForAllLights(effectType, intensity, (success, message) => {
           if (!success) {

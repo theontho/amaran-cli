@@ -19,7 +19,7 @@ export function registerQuickshot(program: Command, deps: CommandDeps) {
 function handleQuickshotList(deps: CommandDeps) {
   const { createController } = deps;
   return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.getQuickshotList((success, message, data) => {
       if (success) {
@@ -45,7 +45,7 @@ function handleQuickshotList(deps: CommandDeps) {
 function handleQuickshotSet(deps: CommandDeps) {
   const { createController } = deps;
   return async (id: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.setQuickshot(id, (success, message) => {
       if (success) {

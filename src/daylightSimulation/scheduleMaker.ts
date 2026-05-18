@@ -1,6 +1,6 @@
-import { parseCloudCover } from '../commands/parseUtils.js';
 import { ALL_CURVE_TYPES_ORDERED, SPECIAL_TIME_CONFIG } from './constants.js';
-import type { CCTResult, Config } from './types.js';
+import { parseCloudCover } from './parseUtils.js';
+import type { CCTResult, CircadianConfig } from './types.js';
 
 export interface SchedulePoint {
   time: Date;
@@ -35,7 +35,7 @@ export interface MakeScheduleOptions {
 }
 
 export interface ScheduleMakerDeps {
-  loadConfig?: () => Config | null;
+  loadConfig?: () => CircadianConfig | null;
 }
 
 export class ScheduleMaker {
