@@ -133,8 +133,9 @@ export interface Config {
   [key: string]: unknown;
 }
 
-// Keep injected findDevice callbacks bivariant so tests and embedders that type
-// the controller as the concrete WebSocket class remain source compatible.
+// Keep injected findDevice callbacks bivariant. This allows callbacks typed for
+// the LightController interface, or for concrete implementations such as the
+// WebSocket controller class, to remain assignable in method positions.
 type FindDevice = {
   bivariantFindDevice(controller: LightController, deviceQuery: string): Device | null;
 }['bivariantFindDevice'];
