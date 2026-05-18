@@ -1,7 +1,6 @@
 // Common types for the Amaran CLI
-import type LightController from './lightControl.js';
 
-export type { LightController };
+export type LightBackend = 'websocket' | 'ble';
 
 export type CommandType =
   | 'get_device_list'
@@ -115,7 +114,10 @@ export interface Command {
 }
 
 export interface Config {
+  backend?: LightBackend;
   wsUrl?: string;
+  bleUrl?: string;
+  bleApiKey?: string;
   clientId?: string;
   debug?: boolean;
   latitude?: number;
@@ -132,9 +134,14 @@ export interface Config {
 }
 
 export interface CommandDeps {
-  createController: (wsUrl?: string, clientId?: string, debug?: boolean) => Promise<LightController>;
-  findDevice: (controller: LightController, deviceQuery: string) => Device | null;
-  asyncCommand: <T extends unknown[]>(fn: (...args: T) => Promise<void>) => (...args: T) => Promise<void>;
+  createController(
+    wsUrl?: string,
+    clientId?: string,
+    debug?: boolean,
+    backend?: LightBackend
+  ): Promise<LightController>;
+  findDevice(controller: LightController, deviceQuery: string): Device | null;
+  asyncCommand<T extends unknown[]>(fn: (...args: T) => Promise<void>): (...args: T) => Promise<void>;
   saveWsUrl?: (url: string) => void;
   loadConfig?: () => Config | null;
   saveConfig?: (config: Config, changes?: string[]) => void;
@@ -142,6 +149,7 @@ export interface CommandDeps {
 
 export interface CommandOptions {
   url?: string;
+  backend?: LightBackend;
   clientId?: string;
   debug?: boolean;
   intensity?: string;
@@ -154,4 +162,83 @@ export interface CommandOptions {
   curve?: string;
   privacyOff?: boolean;
   [key: string]: unknown;
+}
+
+export interface LightController {
+  disconnect(): Promise<void>;
+  getDevices(): Device[];
+  getWebSocket?: () => unknown;
+  getFixtureList(callback?: CommandCallback): void;
+  getDeviceList(callback?: CommandCallback): void;
+  getSceneList(callback?: CommandCallback): void;
+  saveScene(name: string, callback?: CommandCallback): void;
+  deleteScene(sceneId: string, callback?: CommandCallback): void;
+  recallScene(sceneId: string, callback?: CommandCallback): void;
+  updateScene(sceneId: string, name?: string, callback?: CommandCallback): void;
+  getPresetList(callback?: CommandCallback): void;
+  recallPreset(nodeId: string, presetId: string, callback?: CommandCallback): void;
+  setPreset(nodeId: string, presetId: string, callback?: CommandCallback): void;
+  getSystemEffectList(callback?: CommandCallback): void;
+  getQuickshotList(callback?: CommandCallback): void;
+  setQuickshot(quickshotId: string, callback?: CommandCallback): void;
+  getGroupList(callback?: CommandCallback): void;
+  createGroup(name: string, callback?: CommandCallback): void;
+  deleteGroup(groupId: string, callback?: CommandCallback): void;
+  addToGroup(groupId: string, nodeId: string, callback?: CommandCallback): void;
+  removeFromGroup(groupId: string, nodeId: string, callback?: CommandCallback): void;
+  getNodeConfig(nodeId: string, callback?: CommandCallback): void;
+  turnLightOn(nodeId: string, callback?: CommandCallback): void;
+  turnLightOff(nodeId: string, callback?: CommandCallback): void;
+  getLightSleepStatus(nodeId: string, callback?: CommandCallback): void;
+  toggleLight(nodeId: string, callback?: CommandCallback): void;
+  getIntensity(nodeId: string, callback?: CommandCallback): void;
+  setIntensity(nodeId: string, intensity: number, callback?: CommandCallback): void;
+  incrementIntensity(nodeId: string, delta: number, callback?: CommandCallback): void;
+  getCCT(nodeId: string, callback?: CommandCallback): void;
+  setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback): void;
+  incrementCCT(nodeId: string, delta: number, intensity?: number, callback?: CommandCallback): void;
+  getHSI(nodeId: string, callback?: CommandCallback): void;
+  setHSI(
+    nodeId: string,
+    hue: number,
+    sat: number,
+    intensity: number,
+    cct?: number,
+    gm?: number,
+    callback?: CommandCallback
+  ): void;
+  getRGB(nodeId: string, callback?: CommandCallback): void;
+  setRGB(nodeId: string, r: number, g: number, b: number, intensity?: number, callback?: CommandCallback): void;
+  getXY(nodeId: string, callback?: CommandCallback): void;
+  setXY(nodeId: string, x: number, y: number, intensity?: number, callback?: CommandCallback): void;
+  setColor(nodeId: string, color: string, intensity?: number, callback?: CommandCallback): void;
+  getSystemEffect(nodeId: string, callback?: CommandCallback): void;
+  setSystemEffect(nodeId: string, effectType: string, intensity?: number, callback?: CommandCallback): void;
+  getEffect(nodeId: string, callback?: CommandCallback): void;
+  setEffect(nodeId: string, effectName: string, args?: CommandArgs, callback?: CommandCallback): void;
+  getFanMode(nodeId: string, callback?: CommandCallback): void;
+  setFanMode(nodeId: string, mode: number, callback?: CommandCallback): void;
+  getFanSpeed(nodeId: string, callback?: CommandCallback): void;
+  setFanSpeed(nodeId: string, speed: number, callback?: CommandCallback): void;
+  setEffectSpeed(nodeId: string, speed: number, callback?: CommandCallback): void;
+  setEffectIntensity(nodeId: string, intensity: number, callback?: CommandCallback): void;
+  getDeviceInfo(nodeId: string, callback?: CommandCallback): void;
+  updateFirmware(nodeId: string, callback?: CommandCallback): void;
+  setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback): Promise<void>;
+  turnOnAllLights(callback?: CommandCallback): Promise<void>;
+  turnOffAllLights(callback?: CommandCallback): Promise<void>;
+  toggleAllLights(callback?: CommandCallback): Promise<void>;
+  setIntensityForAllLights(intensity: number, callback?: CommandCallback): Promise<void>;
+  incrementIntensityForAllLights(delta: number, callback?: CommandCallback): Promise<void>;
+  incrementCCTForAllLights(delta: number, intensity?: number, callback?: CommandCallback): Promise<void>;
+  setHSIForAllLights(
+    hue: number,
+    sat: number,
+    intensity: number,
+    cct?: number,
+    gm?: number,
+    callback?: CommandCallback
+  ): Promise<void>;
+  setColorForAllLights(color: string, intensity?: number, callback?: CommandCallback): Promise<void>;
+  setSystemEffectForAllLights(effectType: string, intensity?: number, callback?: CommandCallback): Promise<void>;
 }

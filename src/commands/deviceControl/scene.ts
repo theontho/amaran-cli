@@ -31,7 +31,7 @@ export function registerScene(program: Command, deps: CommandDeps) {
 function handleSceneList(deps: CommandDeps) {
   const { createController } = deps;
   return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.getSceneList((success, message, data) => {
       if (success) {
@@ -59,7 +59,7 @@ function handleSceneList(deps: CommandDeps) {
 function handleSceneSave(deps: CommandDeps) {
   const { createController } = deps;
   return async (name: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.saveScene(name, (success, message, data) => {
       if (success) {
@@ -76,7 +76,7 @@ function handleSceneSave(deps: CommandDeps) {
 function handleSceneRecall(deps: CommandDeps) {
   const { createController } = deps;
   return async (id: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.recallScene(id, (success, message) => {
       if (success) {
@@ -92,7 +92,7 @@ function handleSceneRecall(deps: CommandDeps) {
 function handleSceneDelete(deps: CommandDeps) {
   const { createController } = deps;
   return async (id: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.deleteScene(id, (success, message) => {
       if (success) {
@@ -108,7 +108,7 @@ function handleSceneDelete(deps: CommandDeps) {
 function handleSceneUpdate(deps: CommandDeps) {
   const { createController } = deps;
   return async (id: string, options: CommandOptions & { name?: string }) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.updateScene(id, options.name, (success, message) => {
       if (success) {

@@ -13,7 +13,8 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .command('auto-cct [device]')
     .usage('[device] [options]')
     .description('Set CCT for lights (or specific device) based on current location and time (geoip)')
-    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
+    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .option('-i, --ip <ip>', 'Override IP address for geoip lookup')
@@ -40,6 +41,7 @@ function handleAutoCct(deps: CommandDeps) {
     const { formatLocation } = await import('../../daylightSimulation/privacyUtil.js');
     const options = optionsRaw as {
       url?: string;
+      backend?: 'websocket' | 'ble';
       clientId?: string;
       debug?: boolean;
       ip?: string;
@@ -53,7 +55,7 @@ function handleAutoCct(deps: CommandDeps) {
       weather?: boolean;
       privacyOff: boolean;
     };
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     let lat: number | undefined;
     let lon: number | undefined;

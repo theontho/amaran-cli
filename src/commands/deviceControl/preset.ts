@@ -23,7 +23,7 @@ export function registerPreset(program: Command, deps: CommandDeps) {
 function handlePresetList(deps: CommandDeps) {
   const { createController } = deps;
   return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.getPresetList((success, message, data) => {
       if (success) {

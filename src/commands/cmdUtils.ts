@@ -1,12 +1,15 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type LightController from '../deviceControl/lightControl.js';
-import type { CommandCallback, CommandDeps, CommandOptions, Device } from '../deviceControl/types.js';
+import type { CommandCallback, CommandDeps, CommandOptions, Device, LightController } from '../deviceControl/types.js';
 
 const LIGHT_NODE_PATTERN = /^[A-Z0-9]+-[A-Z0-9]+$/i;
 
 export function isLightDevice(device: Device): boolean {
-  return typeof device.node_id === 'string' && LIGHT_NODE_PATTERN.test(device.node_id);
+  return (
+    (typeof device.node_id === 'string' && LIGHT_NODE_PATTERN.test(device.node_id)) ||
+    device.backend === 'ble' ||
+    device.device_type === 'ble-light'
+  );
 }
 
 export function getLightDevices(devices: Device[]): Device[] {
@@ -30,7 +33,8 @@ export function commandCallbackPromise(register: (callback: CommandCallback) => 
  */
 export function addStandardOptions(command: Command): Command {
   return command
-    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
+    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode');
 }
@@ -55,7 +59,7 @@ export async function runDeviceAction(
   allAction: (controller: LightController) => void | Promise<void>
 ) {
   const { createController, findDevice } = deps;
-  const controller = await createController(options.url, options.clientId, options.debug);
+  const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
   try {
     if (!deviceQuery || deviceQuery.toLowerCase() === 'all') {

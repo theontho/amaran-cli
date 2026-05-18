@@ -25,7 +25,10 @@ const maxLuxSchema = z.union([
 
 export const ConfigSchema = z
   .object({
+    backend: z.enum(['websocket', 'ble']).optional(),
     wsUrl: z.string().trim().min(1).optional(),
+    bleUrl: z.string().trim().min(1).optional(),
+    bleApiKey: z.string().optional(),
     clientId: z.string().trim().min(1).optional(),
     debug: z.boolean().optional(),
     latitude: z.number().min(-90).max(90).optional(),
