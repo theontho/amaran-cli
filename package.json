@@ -86,7 +86,7 @@
     "chart.js": "^4.5.1",
     "chartjs-node-canvas": "^5.0.0",
     "commander": "^14.0.0",
-    "geoip-lite": "^1.4.10",
+    "geoip-lite": "^2.0.2",
     "suncalc": "^1.9.0",
     "ws": "^8.14.2",
     "zod": "^3.23.0"
