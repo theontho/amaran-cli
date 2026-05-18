@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getLightDevices } from '../commands/cmdUtils.js';
-import BleHttpController from '../deviceControl/bleHttpControl.js';
+import BleHttpController, { trimTrailingSlashes } from '../deviceControl/bleHttpControl.js';
 
 describe('BleHttpController', () => {
   let server: http.Server;
@@ -95,5 +95,14 @@ describe('BleHttpController', () => {
       body: {},
       authorization: 'Bearer test-key',
     });
+  });
+});
+
+describe('trimTrailingSlashes', () => {
+  it('removes trailing slashes without changing the rest of the URL', () => {
+    expect(trimTrailingSlashes('http://localhost:2708/')).toBe('http://localhost:2708');
+    expect(trimTrailingSlashes('http://localhost:2708///')).toBe('http://localhost:2708');
+    expect(trimTrailingSlashes('http://localhost:2708')).toBe('http://localhost:2708');
+    expect(trimTrailingSlashes('')).toBe('');
   });
 });

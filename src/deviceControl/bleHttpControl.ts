@@ -392,7 +392,7 @@ export default class BleHttpController {
   }
 }
 
-function trimTrailingSlashes(value: string): string {
+export function trimTrailingSlashes(value: string): string {
   let end = value.length;
   while (end > 0 && value.charCodeAt(end - 1) === 47) {
     end--;
