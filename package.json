@@ -22,10 +22,6 @@
       "types": "./dist/circadianSim.d.ts",
       "import": "./dist/circadianSim.js"
     },
-    "./circadiansim": {
-      "types": "./dist/circadianSim.d.ts",
-      "import": "./dist/circadianSim.js"
-    },
     "./circadian": {
       "types": "./dist/circadian.d.ts",
       "import": "./dist/circadian.js"

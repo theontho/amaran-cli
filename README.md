@@ -73,7 +73,7 @@ console.log(textSchedule(schedule, { stripAnsi: true }));
 const graphPng = await graphSchedule(schedule);
 ```
 
-The older `amaran-light-cli/circadian` submodule and lowercase `amaran-light-cli/circadiansim` submodule remain available as compatibility aliases.
+The older `amaran-light-cli/circadian` submodule remains available as a compatibility alias.
 
 Commander command registration functions are available for embedding the CLI in another program:
 
