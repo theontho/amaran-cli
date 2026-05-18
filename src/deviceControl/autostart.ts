@@ -1,4 +1,4 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
@@ -53,7 +53,7 @@ function loadAutostartConfig(debug: boolean): AppConfig | null {
  */
 export async function isAmaranAppRunning(debug: boolean = false): Promise<boolean> {
   return new Promise((resolve) => {
-    exec('ps aux | grep -i "amaran desktop" | grep -v grep', (error, stdout) => {
+    execFile('ps', ['aux'], (error, stdout) => {
       if (error) {
         if (debug) {
           logAutostart(`Failed to check if app is running: ${error.message}`, debug);
@@ -62,12 +62,16 @@ export async function isAmaranAppRunning(debug: boolean = false): Promise<boolea
         return;
       }
 
-      const isRunning = stdout.trim().length > 0;
+      const matchingProcesses = stdout
+        .split(/\r?\n/)
+        .filter((line) => /amaran desktop/i.test(line))
+        .join('\n');
+      const isRunning = matchingProcesses.length > 0;
 
       if (debug) {
         logAutostart(`App running check: ${isRunning ? 'FOUND' : 'NOT FOUND'}`, debug);
         if (isRunning) {
-          console.log(chalk.gray(`[AUTOSTART] Found Amaran Desktop processes:\n${stdout}`));
+          console.log(chalk.gray(`[AUTOSTART] Found Amaran Desktop processes:\n${matchingProcesses}`));
         }
       }
 
@@ -94,12 +98,12 @@ export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
 
     // Try different methods to start the app on macOS
     const startMethods = [
-      'open -a "amaran Desktop" 2>/dev/null',
-      'open -a "amaran desktop" 2>/dev/null',
-      'open -a "Amaran Desktop" 2>/dev/null',
-      'open -a "AMARAN DESKTOP" 2>/dev/null',
-      'open "/Applications/amaran Desktop.app" 2>/dev/null',
-      'open "/Applications/Amaran Desktop.app" 2>/dev/null',
+      ['-a', 'amaran Desktop'],
+      ['-a', 'amaran desktop'],
+      ['-a', 'Amaran Desktop'],
+      ['-a', 'AMARAN DESKTOP'],
+      ['/Applications/amaran Desktop.app'],
+      ['/Applications/Amaran Desktop.app'],
     ];
 
     let methodIndex = 0;
@@ -111,7 +115,7 @@ export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
         if (debug) {
           console.log(chalk.yellow('[AUTOSTART] Could not find or start Amaran app. Tried:'));
           startMethods.forEach((method) => {
-            console.log(chalk.gray(`  - ${method}`));
+            console.log(chalk.gray(`  - open ${method.join(' ')}`));
           });
           console.log(
             chalk.yellow('Make sure the Amaran desktop app is installed in /Applications or available via "open -a"')
@@ -123,7 +127,7 @@ export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
       }
 
       const method = startMethods[methodIndex];
-      exec(method, (error) => {
+      execFile('open', method, (error) => {
         if (error) {
           // Try the next method
           methodIndex++;
@@ -131,10 +135,10 @@ export async function startAmaranApp(debug: boolean = false): Promise<boolean> {
           return;
         }
 
-        logAutostart(`Successfully started app using: ${method}`, debug);
+        logAutostart(`Successfully started app using: open ${method.join(' ')}`, debug);
 
         if (debug) {
-          console.log(chalk.green(`[AUTOSTART] Started Amaran app using: ${method}`));
+          console.log(chalk.green(`[AUTOSTART] Started Amaran app using: open ${method.join(' ')}`));
         }
 
         // Give the app a moment to start up

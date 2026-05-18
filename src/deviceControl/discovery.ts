@@ -1,8 +1,8 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import WebSocket from 'ws';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface DiscoveryResult {
   url: string; // e.g., ws://127.0.0.1:60124
@@ -110,7 +110,7 @@ export async function discoverLocalWebSocket(
   debug = false
 ): Promise<DiscoveryResult | null> {
   try {
-    const { stdout } = await execAsync('lsof -i -P -n');
+    const { stdout } = await execFileAsync('lsof', ['-i', '-P', '-n']);
     const candidates = parseAmaranPorts(stdout);
     if (debug) {
       console.log('[discovery] lsof candidates:', candidates);
