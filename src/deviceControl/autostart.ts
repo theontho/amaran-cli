@@ -62,9 +62,7 @@ export async function isAmaranAppRunning(debug: boolean = false): Promise<boolea
         return;
       }
 
-      const matchingProcessLines = stdout
-        .split(/\r?\n/)
-        .filter((line) => /amaran desktop/i.test(line) && !/\bps\s+aux\b/i.test(line));
+      const matchingProcessLines = stdout.split(/\r?\n/).filter((line) => /amaran desktop/i.test(line));
       const isRunning = matchingProcessLines.length > 0;
 
       if (debug) {

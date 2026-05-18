@@ -22,7 +22,7 @@ const runCommand = (command, args = []) => {
   try {
     execFileSync(command, args, { stdio: 'inherit' });
   } catch (_error) {
-    console.error(`Error executing command: ${command}`);
+    console.error(`Error executing command: ${[command, ...args].join(' ')}`);
     process.exit(1);
   }
 };
