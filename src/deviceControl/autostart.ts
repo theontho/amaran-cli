@@ -62,16 +62,13 @@ export async function isAmaranAppRunning(debug: boolean = false): Promise<boolea
         return;
       }
 
-      const matchingProcesses = stdout
-        .split(/\r?\n/)
-        .filter((line) => /amaran desktop/i.test(line))
-        .join('\n');
-      const isRunning = matchingProcesses.length > 0;
+      const matchingProcessLines = stdout.split(/\r?\n/).filter((line) => /amaran desktop/i.test(line));
+      const isRunning = matchingProcessLines.length > 0;
 
       if (debug) {
         logAutostart(`App running check: ${isRunning ? 'FOUND' : 'NOT FOUND'}`, debug);
         if (isRunning) {
-          console.log(chalk.gray(`[AUTOSTART] Found Amaran Desktop processes:\n${matchingProcesses}`));
+          console.log(chalk.gray(`[AUTOSTART] Found Amaran Desktop processes:\n${matchingProcessLines.join('\n')}`));
         }
       }
 

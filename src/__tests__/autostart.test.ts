@@ -62,7 +62,7 @@ describe('autostart', () => {
     it('should return true when amaran process is found', async () => {
       // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
       mockExecFile.mockImplementation((_command, _commandArgs, ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function') as ExecCallback;
+        const callback = findExecCallback(args);
         callback(
           null,
           'amaran Desktop 12345 0.0  0.1  123456  1234 ??  10:30AM 0:00.01 /Applications/amaran Desktop.app/Contents/MacOS/amaran Desktop',
@@ -81,7 +81,7 @@ describe('autostart', () => {
     it('should return false when no amaran process is found', async () => {
       // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
       mockExecFile.mockImplementation((_command, _commandArgs, ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function') as ExecCallback;
+        const callback = findExecCallback(args);
         callback(null, '', '');
         // biome-ignore lint/suspicious/noExplicitAny: mock return
         return {} as any;
@@ -95,7 +95,7 @@ describe('autostart', () => {
     it('should return false when exec fails', async () => {
       // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
       mockExecFile.mockImplementation((_command, _commandArgs, ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function') as ExecCallback;
+        const callback = findExecCallback(args);
         callback(new Error('Command failed'), '', '');
         // biome-ignore lint/suspicious/noExplicitAny: mock return
         return {} as any;
@@ -145,7 +145,7 @@ describe('autostart', () => {
       let callCount = 0;
       // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
       mockExecFile.mockImplementation((_command, _commandArgs, ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function') as ExecCallback;
+        const callback = findExecCallback(args);
         callCount++;
         if (callCount < 3) {
           callback(new Error('Command not found'), '', '');
