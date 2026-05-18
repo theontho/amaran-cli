@@ -133,15 +133,19 @@ export interface Config {
   [key: string]: unknown;
 }
 
+type FindDevice = {
+  bivarianceHack(controller: LightController, deviceQuery: string): Device | null;
+}['bivarianceHack'];
+
 export interface CommandDeps {
-  createController(
+  createController: (
     wsUrl?: string,
     clientId?: string,
     debug?: boolean,
     backend?: LightBackend
-  ): Promise<LightController>;
-  findDevice(controller: LightController, deviceQuery: string): Device | null;
-  asyncCommand<T extends unknown[]>(fn: (...args: T) => Promise<void>): (...args: T) => Promise<void>;
+  ) => Promise<LightController>;
+  findDevice: FindDevice;
+  asyncCommand: <T extends unknown[]>(fn: (...args: T) => Promise<void>) => (...args: T) => Promise<void>;
   saveWsUrl?: (url: string) => void;
   loadConfig?: () => Config | null;
   saveConfig?: (config: Config, changes?: string[]) => void;
