@@ -26,9 +26,9 @@ describe('package exports', () => {
           if (typeof root.circadianSim.calculateCCT !== 'function') throw new Error('missing root circadianSim namespace');
           if (typeof amaranLights.LightController !== 'function') throw new Error('missing amaran-lights LightController');
           if (typeof deviceControl.LightController !== 'function') throw new Error('missing device-control LightController');
-          if (typeof circadianSim.calculateCCT !== 'function') throw new Error('missing circadiansim calculateCCT');
-          if (typeof circadianSim.graphSchedule !== 'function') throw new Error('missing circadiansim graphSchedule');
-          if (typeof circadianSim.textSchedule !== 'function') throw new Error('missing circadiansim textSchedule');
+          if (typeof circadianSim.calculateCCT !== 'function') throw new Error('missing circadianSim calculateCCT');
+          if (typeof circadianSim.graphSchedule !== 'function') throw new Error('missing circadianSim graphSchedule');
+          if (typeof circadianSim.textSchedule !== 'function') throw new Error('missing circadianSim textSchedule');
           if (typeof circadian.calculateCCT !== 'function') throw new Error('missing circadian calculateCCT');
           if (typeof circadian.ScheduleMaker !== 'function') throw new Error('missing circadian ScheduleMaker');
           if (typeof commands.registerCommands !== 'function') throw new Error('missing commands registerCommands');
