@@ -12,7 +12,8 @@ export function registerList(program: Command, deps: CommandDeps) {
     .usage('[options]')
     .alias('ls')
     .description('List all available lights')
-    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
+    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .action(asyncCommand(handleList(deps)));
@@ -21,7 +22,7 @@ export function registerList(program: Command, deps: CommandDeps) {
 function handleList(deps: CommandDeps) {
   const { createController } = deps;
   return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     try {
       const devices = getLightDevices(controller.getDevices());

@@ -14,6 +14,7 @@ export {
 } from './config.js';
 export type { AppConfig } from './deviceControl/autostart.js';
 export { handleAutostart, isAmaranAppRunning, startAmaranApp } from './deviceControl/autostart.js';
+export { default as BleHttpController } from './deviceControl/bleHttpControl.js';
 export type { DiscoveryResult } from './deviceControl/discovery.js';
 export { discoverLocalWebSocket, parseAmaranPorts } from './deviceControl/discovery.js';
 export { default, default as LightController } from './deviceControl/lightControl.js';
@@ -27,5 +28,7 @@ export type {
   CommandType,
   Config as DeviceControlConfig,
   Device,
+  LightBackend,
+  LightController as LightControllerBackend,
   NodeConfig,
 } from './deviceControl/types.js';

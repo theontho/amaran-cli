@@ -12,7 +12,8 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
     .command('simulate')
     .description('Simulate a CCT schedule curve in real-time on a specific device')
     .argument('<device>', 'Device name, ID, or node_id to control')
-    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
+    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
@@ -96,7 +97,7 @@ function handleSimulateSchedule(deps: CommandDeps) {
     }
 
     // 2. Connect to controller and find device
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
     let devices: Device[];
     if (deviceQuery.toLowerCase() === 'all') {
       devices = getLightDevices(controller.getDevices());

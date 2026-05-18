@@ -8,10 +8,11 @@ import { Command } from 'commander';
 import registerCommands from './commands.js';
 import { loadConfig, saveConfig } from './config.js';
 import { handleAutostart } from './deviceControl/autostart.js';
+import BleHttpController from './deviceControl/bleHttpControl.js';
 import { discoverLocalWebSocket } from './deviceControl/discovery.js';
 import LightController from './deviceControl/lightControl.js';
 import { enableGlobalTimestamps } from './deviceControl/logging.js';
-import type { Config, Device } from './deviceControl/types.js';
+import type { Config, Device, LightBackend } from './deviceControl/types.js';
 
 // Enable global timestamps only if running in service mode
 if (process.argv.includes('--service-mode')) {
@@ -179,9 +180,29 @@ function saveWsUrl(url: string) {
   saveCliConfig(current, [`WebSocket URL: ${url}`]);
 }
 
+function parseBackend(value: unknown): LightBackend | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'websocket' || value === 'ble') return value;
+  throw new Error('Backend must be "websocket" or "ble"');
+}
+
 // Create light controller with connection handling
-async function createController(wsUrl?: string, clientId?: string, debug?: boolean): Promise<LightController> {
+async function createController(
+  wsUrl?: string,
+  clientId?: string,
+  debug?: boolean,
+  backend?: LightBackend
+): Promise<LightController | BleHttpController> {
   const config = loadConfig();
+  const selectedBackend = backend || config?.backend || 'websocket';
+  if (selectedBackend === 'ble') {
+    const url = wsUrl || config?.bleUrl || 'http://localhost:2708';
+    if (debug) {
+      console.log(chalk.blue(`Connecting to BLE HTTP backend at ${url}`));
+    }
+    return BleHttpController.connect(url, config?.bleApiKey);
+  }
+
   let url = wsUrl || config?.wsUrl;
   const id = clientId || config?.clientId || 'amaran-cli';
   const debugMode = debug !== undefined ? debug : config?.debug || false;
@@ -338,7 +359,8 @@ function findDevice(controller: LightController, deviceQuery: string): Device | 
 
 // Register all commands
 registerCommands(program, {
-  createController,
+  createController: (wsUrl, clientId, debug, backend) =>
+    createController(wsUrl, clientId, debug, parseBackend(backend)),
   findDevice,
   asyncCommand,
   saveWsUrl,

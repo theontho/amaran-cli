@@ -29,7 +29,7 @@ export function registerGroup(program: Command, deps: CommandDeps) {
 function handleGroupList(deps: CommandDeps) {
   const { createController } = deps;
   return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.getGroupList((success, message, data) => {
       if (success) {
@@ -57,7 +57,7 @@ function handleGroupList(deps: CommandDeps) {
 function handleGroupCreate(deps: CommandDeps) {
   const { createController } = deps;
   return async (name: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.createGroup(name, (success, message, data) => {
       if (success) {
@@ -74,7 +74,7 @@ function handleGroupCreate(deps: CommandDeps) {
 function handleGroupDelete(deps: CommandDeps) {
   const { createController } = deps;
   return async (id: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.deleteGroup(id, (success, message) => {
       if (success) {
@@ -90,7 +90,7 @@ function handleGroupDelete(deps: CommandDeps) {
 function handleGroupAdd(deps: CommandDeps) {
   const { createController } = deps;
   return async (groupId: string, nodeId: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.addToGroup(groupId, nodeId, (success, message) => {
       if (success) {
@@ -106,7 +106,7 @@ function handleGroupAdd(deps: CommandDeps) {
 function handleGroupRemove(deps: CommandDeps) {
   const { createController } = deps;
   return async (groupId: string, nodeId: string, options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
     controller.removeFromGroup(groupId, nodeId, (success, message) => {
       if (success) {

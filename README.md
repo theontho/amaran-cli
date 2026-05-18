@@ -1,6 +1,6 @@
 # Amaran Light CLI
 
-A command line tool for controlling Aputure Amaran lights via WebSocket connection to the Amaran Desktop application.  Not an offical Amaran command line tool.
+A command line tool for controlling Aputure Amaran lights via WebSocket connection to the Amaran Desktop application, or via the optional BLE HTTP daemon from [wesbos/amaran-BLE-control](https://github.com/wesbos/amaran-BLE-control).  Not an official Amaran command line tool.
 
 Also has a circadian lighting command called `auto-cct` that will set the CCT & intensity according to the time of day it is currently at your location, and a service that will run the command every minute to automate it.
 
@@ -33,8 +33,8 @@ It's not as obvious, but this repo is published on npm too: https://www.npmjs.co
 
 ## Prerequisites
 
-- Aputure Amaran Desktop application must be running
-- WebSocket server should be accessible (default: ws://localhost:60124)
+- Default WebSocket backend: Aputure Amaran Desktop application must be running and the WebSocket server should be accessible (default: ws://localhost:60124)
+- Optional BLE backend: run the `amaran-BLE-control` setup and daemon so its HTTP API is available (default: http://localhost:2708)
 
 ## Library Usage
 
@@ -82,11 +82,20 @@ registerCommands(program, deps);
 
 ## Configuration
 
-Configure the WebSocket URL and other settings:
+Configure the light control backend and other settings:
 
 ```bash
+# Use the default WebSocket backend
+amaran-cli config --backend websocket
+
 # Set WebSocket URL
 amaran-cli config -u ws://localhost:60124
+
+# Use the BLE backend backed by https://github.com/wesbos/amaran-BLE-control
+amaran-cli config --backend ble --ble-url http://localhost:2708
+
+# If the BLE daemon has http.apiKey configured
+amaran-cli config --ble-api-key my-secret
 
 # Set client ID
 amaran-cli config -c my-cli-client
@@ -101,7 +110,16 @@ amaran-cli config --lat 40.7128 --lon -74.0060
 amaran-cli config --show
 ```
 
-Configuration is stored in `~/.amaran-cli.json`.
+Configuration is stored in the platform config directory used by the CLI; legacy `~/.amaran-cli.json` is still read when no new config exists.
+
+You can also select the backend per command without changing config:
+
+```bash
+amaran-cli list --backend ble --url http://localhost:2708
+amaran-cli cct 5600 -i 80 --backend ble
+```
+
+The WebSocket backend remains the default. The BLE backend currently maps the daemon REST API for listing lights, on/off, intensity, CCT, and HSI commands; WebSocket-only features such as scenes, groups, effects, presets, fan controls, firmware updates, and state reads will report that they are unsupported.
 
 ## Discovery
 

@@ -16,7 +16,8 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .command('auto-cct [device]')
     .usage('[device] [options]')
     .description('Set CCT for lights (or specific device) based on current location and time (geoip)')
-    .option('-u, --url <url>', 'WebSocket URL')
+    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
+    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .option('-i, --ip <ip>', 'Override IP address for geoip lookup')
@@ -38,6 +39,7 @@ function handleAutoCct(deps: CommandDeps) {
   return async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
     const options = optionsRaw as {
       url?: string;
+      backend?: 'websocket' | 'ble';
       clientId?: string;
       debug?: boolean;
       ip?: string;
@@ -51,7 +53,6 @@ function handleAutoCct(deps: CommandDeps) {
       weather?: boolean;
       privacyOff: boolean;
     };
-
     let lat: number | undefined;
     let lon: number | undefined;
     let time = new Date();
@@ -115,7 +116,7 @@ function handleAutoCct(deps: CommandDeps) {
       );
     }
 
-    const controller = await createController(options.url, options.clientId, options.debug);
+    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
     const { result, percent } = calculation;
 
     console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
@@ -270,6 +271,10 @@ function handleAutoCct(deps: CommandDeps) {
 
     for (const device of lightDevices) {
       const nodeId = device.node_id as string;
+      if (device.backend === 'ble') {
+        activeDevices.push(device);
+        continue;
+      }
       const sleep = await getSleepStatus(nodeId);
       if (sleep === false) {
         activeDevices.push(device);
