@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -92,7 +93,10 @@ const main = async () => {
 
     // Create GitHub release using GitHub CLI if available
     try {
-      runCommand('gh', ['release', 'create', `v${newVersion}`, '--notes', releaseNotes]);
+      const releaseNotesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'amaran-release-notes-'));
+      const releaseNotesPath = path.join(releaseNotesDir, 'notes.md');
+      fs.writeFileSync(releaseNotesPath, releaseNotes);
+      runCommand('gh', ['release', 'create', `v${newVersion}`, '--notes-file', releaseNotesPath]);
       console.log(`\n🎉 Successfully created release v${newVersion} on GitHub!`);
     } catch (_error) {
       console.warn('\nGitHub CLI not found or failed to create release.');

@@ -47,6 +47,15 @@ function loadAutostartConfig(debug: boolean): AppConfig | null {
   }
 }
 
+function isAmaranDesktopProcess(line: string): boolean {
+  if (!/amaran desktop/i.test(line)) {
+    return false;
+  }
+
+  const command = line.trim().split(/\s+/, 11)[10];
+  return command !== 'ps';
+}
+
 /**
  * Check if the Amaran desktop app is running by looking for processes
  * that contain "amaran desktop" (case-insensitive)
@@ -62,7 +71,7 @@ export async function isAmaranAppRunning(debug: boolean = false): Promise<boolea
         return;
       }
 
-      const matchingProcessLines = stdout.split(/\r?\n/).filter((line) => /amaran desktop/i.test(line));
+      const matchingProcessLines = stdout.split(/\r?\n/).filter(isAmaranDesktopProcess);
       const isRunning = matchingProcessLines.length > 0;
 
       if (debug) {
