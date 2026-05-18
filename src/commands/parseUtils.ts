@@ -1,3 +1,5 @@
+export { parseCloudCover } from '../daylightSimulation/parseUtils.js';
+
 export function parseStrictNumber(value: string, label: string): number {
   const trimmed = value.trim();
   if (!/^-?(?:\d+|\d*\.\d+)$/.test(trimmed)) {
@@ -19,17 +21,6 @@ export function parseBooleanString(value: string, label: string): boolean {
   if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') return true;
   if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'off') return false;
   throw new Error(`${label} must be true or false`);
-}
-
-export function parseCloudCover(value: string | number | undefined): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value === 'number') return value;
-
-  const trimmed = value.trim();
-  if (trimmed.endsWith('%')) {
-    return parseStrictNumber(trimmed.slice(0, -1), 'cloud-cover') / 100;
-  }
-  return parseStrictNumber(trimmed, 'cloud-cover');
 }
 
 export function escapeXmlText(value: string): string {

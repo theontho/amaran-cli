@@ -1,6 +1,3 @@
-// Daylight simulation specific types
-export * from '../deviceControl/types.js';
-
 export interface CCTResult {
   cct: number;
   intensity: number;
@@ -13,14 +10,28 @@ export interface WeatherOptions {
   precipitation?: 'none' | 'rain' | 'snow' | 'drizzle';
 }
 
+export type MaxLuxCalibration = number | Record<number, number> | Record<string, number>;
+
 export interface CCTOptions {
   cctMinK?: number;
   cctMaxK?: number;
   intensityMinPct?: number;
   intensityMaxPct?: number;
   weather?: WeatherOptions;
-  maxLux?: number | Record<number, number>;
+  maxLux?: MaxLuxCalibration;
   simulationMaxLux?: number;
+}
+
+export interface CircadianConfig {
+  latitude?: number;
+  longitude?: number;
+  defaultCurve?: string;
+  cctMin?: number;
+  cctMax?: number;
+  intensityMin?: number;
+  intensityMax?: number;
+  maxLux?: MaxLuxCalibration;
+  weather?: boolean;
 }
 
 export enum CurveType {

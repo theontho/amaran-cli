@@ -2,8 +2,7 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
-import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
-import type { Device } from '../../deviceControl/types.js';
+import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
 import { commandCallbackPromise, getLightDevices } from '../cmdUtils.js';
 
 export function registerSimulateSchedule(program: Command, deps: CommandDeps) {

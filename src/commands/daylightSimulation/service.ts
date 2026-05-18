@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
-import type { CommandDeps, CommandOptions } from '../../daylightSimulation/types.js';
+import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
 import { escapeXmlText } from '../parseUtils.js';
 
 export function registerService(program: Command, deps: CommandDeps) {
