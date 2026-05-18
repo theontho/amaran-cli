@@ -20,6 +20,7 @@ interface BleCommandResponse {
 }
 
 const DEFAULT_BLE_URL = 'http://localhost:2708';
+const REQUEST_TIMEOUT_MS = 10_000;
 const UNSUPPORTED_MESSAGE = 'Command is not supported by the BLE backend';
 
 export default class BleHttpController {
@@ -368,12 +369,37 @@ export default class BleHttpController {
     if (this.apiKey) {
       headers.authorization = `Bearer ${this.apiKey}`;
     }
-    const response = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
-    const data = (await response.json()) as T & { error?: string };
+    const url = `${this.baseUrl}${path}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(url, { ...init, headers, signal: controller.signal });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`BLE backend request timed out after ${REQUEST_TIMEOUT_MS}ms: ${url}`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+    const raw = await response.text();
+    const data = this.parseResponseBody<T>(raw, response.status, url);
     if (!response.ok) {
       throw new Error(data.error || `BLE backend HTTP ${response.status}`);
     }
     return data;
+  }
+
+  private parseResponseBody<T>(raw: string, status: number, url: string): T & { error?: string } {
+    if (!raw) {
+      return {} as T & { error?: string };
+    }
+    try {
+      return JSON.parse(raw) as T & { error?: string };
+    } catch (error) {
+      throw new Error(`Invalid JSON response from BLE backend (${status}) at ${url}: ${(error as Error).message}`);
+    }
   }
 
   private cctBody(cct: number, intensity?: number): Record<string, unknown> {

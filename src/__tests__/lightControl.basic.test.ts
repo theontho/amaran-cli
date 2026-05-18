@@ -1,14 +1,13 @@
-import { setupLightControllerSuite, TEST_NODE_ID, wait } from './lightControlTestUtils.js';
+import { setupLightControllerSuite, TEST_NODE_ID } from './lightControlTestUtils.js';
 
 describe('LightController basic light commands', () => {
   const fixture = setupLightControllerSuite(18089);
 
   it('should initialize and fetch devices', async () => {
-    const controller = fixture.createController(() => {
+    const controller = await fixture.createReadyController(() => {
       expect(fixture.controller?.getDevices().length).toBe(2);
     });
 
-    await wait(500);
     expect(controller.getDevices().length).toBe(2);
   }, 5000);
 
@@ -86,8 +85,12 @@ describe('LightController basic light commands', () => {
   it('should increment intensity for all lights', async () => {
     const controller = await fixture.createReadyController();
 
-    await controller.setIntensityForAllLights(500);
-    await wait(100);
+    await new Promise<void>((resolve) => {
+      controller.setIntensityForAllLights(500, (success) => {
+        expect(success).toBe(true);
+        resolve();
+      });
+    });
 
     await new Promise<void>((resolve) => {
       controller.incrementIntensityForAllLights(100, (success, msg) => {
@@ -121,8 +124,12 @@ describe('LightController basic light commands', () => {
   it('should increment CCT for all lights', async () => {
     const controller = await fixture.createReadyController();
 
-    await controller.setCCTAndIntensityForAllLights(3200, 100);
-    await wait(100);
+    await new Promise<void>((resolve) => {
+      controller.setCCTAndIntensityForAllLights(3200, 100, (success) => {
+        expect(success).toBe(true);
+        resolve();
+      });
+    });
 
     await new Promise<void>((resolve) => {
       controller.incrementCCTForAllLights(100, 200, (success, msg) => {

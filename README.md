@@ -119,6 +119,8 @@ amaran-cli list --backend ble --url http://localhost:2708
 amaran-cli cct 5600 -i 80 --backend ble
 ```
 
+When `--url` is used with `--backend`, it overrides the endpoint for that backend: a WebSocket URL for `websocket`, or an HTTP base URL for `ble`.
+
 The WebSocket backend remains the default. The BLE backend currently maps the daemon REST API for listing lights, on/off, intensity, CCT, and HSI commands; WebSocket-only features such as scenes, groups, effects, presets, fan controls, firmware updates, and state reads will report that they are unsupported.
 
 ## Discovery
@@ -593,7 +595,7 @@ amaran-cli delete-quickshot "My Scene"
 
 All commands support these options:
 
-- `-u, --url <url>`: Override WebSocket URL
+- `-u, --url <url>`: Override backend endpoint URL (WebSocket URL for `websocket`, HTTP base URL for `ble`)
 - `-c, --client-id <id>`: Override client ID  
 - `-d, --debug`: Enable debug mode
 

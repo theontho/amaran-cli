@@ -10,6 +10,12 @@ describe('BleHttpController', () => {
   let server: http.Server;
   let baseUrl: string;
   const requests: Array<{ method?: string; url?: string; body: unknown; authorization?: string }> = [];
+  const waitForRequests = async (count: number) => {
+    const deadline = Date.now() + 1000;
+    while (requests.length < count && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  };
 
   beforeEach(async () => {
     requests.length = 0;
@@ -34,6 +40,12 @@ describe('BleHttpController', () => {
             lights: [{ key: 'key', name: 'Key Light', mac: 'A4:C1:38:13:41:38', address: 2 }],
           })
         );
+        return;
+      }
+
+      if (req.url === '/lights/key/off' && req.method === 'POST') {
+        res.writeHead(204);
+        res.end();
         return;
       }
 
@@ -78,7 +90,7 @@ describe('BleHttpController', () => {
     await controller.setCCTAndIntensityForAllLights(5600, 750);
     controller.setIntensity('key', 250);
     controller.turnLightOff('key');
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitForRequests(4);
 
     expect(requests).toContainEqual({
       method: 'POST',

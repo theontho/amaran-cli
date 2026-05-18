@@ -295,7 +295,18 @@ function clamp(value: number, min: number, max: number): number {
 
 async function fetchJson(url: string): Promise<unknown> {
   const response = await fetch(url);
-  return await response.json();
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText} while fetching ${url}`);
+  }
+  if (!body) {
+    throw new Error(`Empty JSON response while fetching ${url}`);
+  }
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    throw new Error(`Invalid JSON response while fetching ${url}: ${(error as Error).message}`);
+  }
 }
 
 function readIp(data: unknown): string | undefined {

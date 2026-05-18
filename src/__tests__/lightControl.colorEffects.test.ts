@@ -48,7 +48,12 @@ describe('LightController color, effects, and hardware commands', () => {
   it('should get intensity and CCT', async () => {
     const controller = await fixture.createReadyController();
 
-    controller.setIntensity(TEST_NODE_ID, 750);
+    await new Promise<void>((resolve) => {
+      controller.setIntensity(TEST_NODE_ID, 750, (success) => {
+        expect(success).toBe(true);
+        resolve();
+      });
+    });
     await new Promise<void>((resolve) => {
       controller.getIntensity(TEST_NODE_ID, (success, _msg, data) => {
         expect(success).toBe(true);
@@ -57,7 +62,12 @@ describe('LightController color, effects, and hardware commands', () => {
       });
     });
 
-    controller.setCCT(TEST_NODE_ID, 4500);
+    await new Promise<void>((resolve) => {
+      controller.setCCT(TEST_NODE_ID, 4500, undefined, (success) => {
+        expect(success).toBe(true);
+        resolve();
+      });
+    });
     await new Promise<void>((resolve) => {
       controller.getCCT(TEST_NODE_ID, (success, _msg, data) => {
         expect(success).toBe(true);
