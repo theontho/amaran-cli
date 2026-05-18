@@ -1,6 +1,6 @@
 # Amaran Light CLI
 
-A command line tool for controlling Aputure Amaran lights via WebSocket connection to the Amaran Desktop application, or via the optional BLE HTTP daemon from [wesbos/amaran-BLE-control](https://github.com/wesbos/amaran-BLE-control).  Not an offical Amaran command line tool.
+A command line tool for controlling Aputure Amaran lights via WebSocket connection to the Amaran Desktop application, or via the optional BLE HTTP daemon from [wesbos/amaran-BLE-control](https://github.com/wesbos/amaran-BLE-control).  Not an official Amaran command line tool.
 
 Also has a circadian lighting command called `auto-cct` that will set the CCT & intensity according to the time of day it is currently at your location, and a service that will run the command every minute to automate it.
 

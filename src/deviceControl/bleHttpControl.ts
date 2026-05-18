@@ -28,7 +28,7 @@ export default class BleHttpController {
   private devices: Device[] = [];
 
   constructor(baseUrl = DEFAULT_BLE_URL, apiKey?: string) {
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.baseUrl = trimTrailingSlashes(baseUrl);
     this.apiKey = apiKey;
   }
 
@@ -390,4 +390,12 @@ export default class BleHttpController {
   private unsupported(callback?: CommandCallback) {
     callback?.(false, UNSUPPORTED_MESSAGE);
   }
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end--;
+  }
+  return value.slice(0, end);
 }

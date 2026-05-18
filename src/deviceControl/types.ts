@@ -133,9 +133,11 @@ export interface Config {
   [key: string]: unknown;
 }
 
+// Keep injected findDevice callbacks bivariant so tests and embedders that type
+// the controller as the concrete WebSocket class remain source compatible.
 type FindDevice = {
-  bivarianceHack(controller: LightController, deviceQuery: string): Device | null;
-}['bivarianceHack'];
+  bivariantFindDevice(controller: LightController, deviceQuery: string): Device | null;
+}['bivariantFindDevice'];
 
 export interface CommandDeps {
   createController: (
