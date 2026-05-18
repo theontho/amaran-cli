@@ -16,7 +16,8 @@ describe('package exports', () => {
           const root = await import('amaran-light-cli');
           const amaranLights = await import('amaran-light-cli/amaran-lights');
           const deviceControl = await import('amaran-light-cli/device-control');
-          const circadianSim = await import('amaran-light-cli/circadiansim');
+          const circadianSim = await import('amaran-light-cli/circadianSim');
+          const circadianSimAlias = await import('amaran-light-cli/circadiansim');
           const circadian = await import('amaran-light-cli/circadian');
           const commands = await import('amaran-light-cli/commands');
           const cli = await import('amaran-light-cli/cli');
@@ -29,6 +30,7 @@ describe('package exports', () => {
           if (typeof circadianSim.calculateCCT !== 'function') throw new Error('missing circadiansim calculateCCT');
           if (typeof circadianSim.graphSchedule !== 'function') throw new Error('missing circadiansim graphSchedule');
           if (typeof circadianSim.textSchedule !== 'function') throw new Error('missing circadiansim textSchedule');
+          if (typeof circadianSimAlias.calculateCCT !== 'function') throw new Error('missing circadiansim alias calculateCCT');
           if (typeof circadian.calculateCCT !== 'function') throw new Error('missing circadian calculateCCT');
           if (typeof circadian.ScheduleMaker !== 'function') throw new Error('missing circadian ScheduleMaker');
           if (typeof commands.registerCommands !== 'function') throw new Error('missing commands registerCommands');

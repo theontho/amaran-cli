@@ -18,6 +18,10 @@
       "types": "./dist/device-control.d.ts",
       "import": "./dist/device-control.js"
     },
+    "./circadianSim": {
+      "types": "./dist/circadianSim.d.ts",
+      "import": "./dist/circadianSim.js"
+    },
     "./circadiansim": {
       "types": "./dist/circadianSim.d.ts",
       "import": "./dist/circadianSim.js"
