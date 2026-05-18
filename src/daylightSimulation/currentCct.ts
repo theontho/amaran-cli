@@ -56,7 +56,7 @@ export async function calculateCurrentCCT(
   const warnings: string[] = [];
   const { lat, lon, source } = await resolveLocation(options, config, deps);
   const curveType = resolveCurveType(options.curve, config, warnings);
-  const weather = await resolveWeather(options, config, lat, lon, time, deps);
+  const weather = await resolveWeather(options, config, lat, lon, time, deps, warnings);
   const { systemMaxLux, limitMaxLux } = resolveMaxLux(options.maxLux, config.maxLux);
   const bounds = resolveBounds(config);
 
@@ -188,19 +188,27 @@ async function resolveWeather(
   lat: number,
   lon: number,
   time: Date,
-  deps: CurrentCCTDeps
+  deps: CurrentCCTDeps,
+  warnings: string[]
 ): Promise<{ options?: WeatherOptions; source: 'auto' | 'manual' | 'none'; dataSource?: string }> {
   const useAutoWeather = options.weather || (options.weather === undefined && config.weather === true);
   if (useAutoWeather) {
-    const weather = await (deps.getWeatherData ?? getWeatherData)(lat, lon, time, options.debug);
-    return {
-      options: {
-        cloudCover: weather.cloudCover,
-        precipitation: weather.precipitation,
-      },
-      source: 'auto',
-      dataSource: weather.source,
-    };
+    try {
+      const weather = await (deps.getWeatherData ?? getWeatherData)(lat, lon, time, options.debug);
+      return {
+        options: {
+          cloudCover: weather.cloudCover,
+          precipitation: weather.precipitation,
+        },
+        source: 'auto',
+        dataSource: weather.source,
+      };
+    } catch (error) {
+      warnings.push(
+        `Warning: Auto-weather unavailable (${(error as Error).message}). Continuing without weather adjustments.`
+      );
+      return { source: 'none', dataSource: 'auto-weather unavailable' };
+    }
   }
 
   const cloudCover = parseCloudCover(options.cloudCover);

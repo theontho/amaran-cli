@@ -14,9 +14,12 @@ export function setupLightControllerSuite(testPort: number) {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       server.close((err) => {
-        if (err) console.error('Error closing server:', err);
+        if (err) {
+          reject(err);
+          return;
+        }
         resolve();
       });
     });
