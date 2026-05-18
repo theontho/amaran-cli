@@ -5,6 +5,10 @@ import { handleAutostart, isAmaranAppRunning, startAmaranApp } from '../deviceCo
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
+/**
+ * Extracts the execFile callback from its variable arguments, since Node allows
+ * the callback position to vary when options are omitted or provided.
+ */
 function findExecCallback(args: unknown[]): ExecCallback {
   return args.find((arg) => typeof arg === 'function') as ExecCallback;
 }
