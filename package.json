@@ -11,16 +11,16 @@
       "import": "./dist/index.js"
     },
     "./amaran-lights": {
-      "types": "./dist/amaranLights.d.ts",
-      "import": "./dist/amaranLights.js"
+      "types": "./dist/amaran-lights.d.ts",
+      "import": "./dist/amaran-lights.js"
     },
     "./device-control": {
       "types": "./dist/device-control.d.ts",
       "import": "./dist/device-control.js"
     },
-    "./circadianSim": {
-      "types": "./dist/circadianSim.d.ts",
-      "import": "./dist/circadianSim.js"
+    "./circadian-sim": {
+      "types": "./dist/circadian-sim.d.ts",
+      "import": "./dist/circadian-sim.js"
     },
     "./circadian": {
       "types": "./dist/circadian.d.ts",

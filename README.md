@@ -60,10 +60,10 @@ import { LightController, type Device } from 'amaran-light-cli/amaran-lights';
 
 The older `amaran-light-cli/device-control` submodule remains available as a compatibility alias.
 
-Circadian rhythm, sun simulation, weather, and schedule text/graph output utilities live in their own `circadianSim` submodule:
+Circadian rhythm, sun simulation, weather, and schedule text/graph output utilities live in their own `circadian-sim` submodule:
 
 ```ts
-import { calculateCCT, CurveType, graphSchedule, ScheduleMaker, textSchedule } from 'amaran-light-cli/circadianSim';
+import { calculateCCT, CurveType, graphSchedule, ScheduleMaker, textSchedule } from 'amaran-light-cli/circadian-sim';
 
 const current = calculateCCT(40.7128, -74.006, new Date(), undefined, CurveType.CIE_DAYLIGHT);
 
