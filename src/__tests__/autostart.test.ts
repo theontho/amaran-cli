@@ -5,6 +5,10 @@ import { handleAutostart, isAmaranAppRunning, startAmaranApp } from '../deviceCo
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
+function findExecCallback(args: unknown[]): ExecCallback {
+  return args.find((arg) => typeof arg === 'function') as ExecCallback;
+}
+
 // Mock the child_process module
 vi.mock('node:util', () => ({
   promisify: vi.fn((fn) => fn),
@@ -105,15 +109,16 @@ describe('autostart', () => {
 
   describe('startAmaranApp', () => {
     it('should start app successfully when autostart is enabled', async () => {
-      // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
-      mockExecFile.mockImplementation((command: string, commandArgs: string[], ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function');
-        if (command === 'open' && commandArgs[0] === '-a' && commandArgs[1] === 'amaran Desktop') {
-          callback(null, '', '');
+      mockExecFile.mockImplementation(
+        (command: string, commandArgs: readonly string[] | null | undefined, ...args: unknown[]) => {
+          const callback = findExecCallback(args);
+          if (command === 'open' && commandArgs?.[0] === '-a' && commandArgs[1] === 'amaran Desktop') {
+            callback(null, '', '');
+          }
+          // biome-ignore lint/suspicious/noExplicitAny: mock return
+          return {} as any;
         }
-        // biome-ignore lint/suspicious/noExplicitAny: mock return
-        return {} as any;
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({ autoStartApp: true }));
@@ -163,15 +168,16 @@ describe('autostart', () => {
     });
 
     it('should ignore invalid config and use default autostart behavior', async () => {
-      // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
-      mockExecFile.mockImplementation((command: string, commandArgs: string[], ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function');
-        if (command === 'open' && commandArgs[0] === '-a' && commandArgs[1] === 'amaran Desktop') {
-          callback(null, '', '');
+      mockExecFile.mockImplementation(
+        (command: string, commandArgs: readonly string[] | null | undefined, ...args: unknown[]) => {
+          const callback = findExecCallback(args);
+          if (command === 'open' && commandArgs?.[0] === '-a' && commandArgs[1] === 'amaran Desktop') {
+            callback(null, '', '');
+          }
+          // biome-ignore lint/suspicious/noExplicitAny: mock return
+          return {} as any;
         }
-        // biome-ignore lint/suspicious/noExplicitAny: mock return
-        return {} as any;
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue('{invalid-json');
@@ -196,19 +202,20 @@ describe('autostart', () => {
     });
 
     it('should return true when app is already running', async () => {
-      // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
-      mockExecFile.mockImplementation((command: string, commandArgs: string[], ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function');
-        if (command === 'ps' && commandArgs[0] === 'aux') {
-          callback(
-            null,
-            'amaran Desktop 12345 0.0  0.1  123456  1234 ??  10:30AM 0:00.01 /Applications/amaran Desktop.app/Contents/MacOS/amaran Desktop',
-            ''
-          );
+      mockExecFile.mockImplementation(
+        (command: string, commandArgs: readonly string[] | null | undefined, ...args: unknown[]) => {
+          const callback = findExecCallback(args);
+          if (command === 'ps' && commandArgs?.[0] === 'aux') {
+            callback(
+              null,
+              'amaran Desktop 12345 0.0  0.1  123456  1234 ??  10:30AM 0:00.01 /Applications/amaran Desktop.app/Contents/MacOS/amaran Desktop',
+              ''
+            );
+          }
+          // biome-ignore lint/suspicious/noExplicitAny: mock return
+          return {} as any;
         }
-        // biome-ignore lint/suspicious/noExplicitAny: mock return
-        return {} as any;
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({}));
@@ -219,17 +226,18 @@ describe('autostart', () => {
     });
 
     it('should attempt to start app when not running', async () => {
-      // biome-ignore lint/suspicious/noExplicitAny: mocking overloaded function
-      mockExecFile.mockImplementation((command: string, commandArgs: string[], ...args: any[]) => {
-        const callback = args.find((arg) => typeof arg === 'function');
-        if (command === 'ps' && commandArgs[0] === 'aux') {
-          callback(null, '', '');
-        } else if (command === 'open' && commandArgs[0] === '-a' && commandArgs[1] === 'amaran Desktop') {
-          callback(null, '', '');
+      mockExecFile.mockImplementation(
+        (command: string, commandArgs: readonly string[] | null | undefined, ...args: unknown[]) => {
+          const callback = findExecCallback(args);
+          if (command === 'ps' && commandArgs?.[0] === 'aux') {
+            callback(null, '', '');
+          } else if (command === 'open' && commandArgs?.[0] === '-a' && commandArgs[1] === 'amaran Desktop') {
+            callback(null, '', '');
+          }
+          // biome-ignore lint/suspicious/noExplicitAny: mock return
+          return {} as any;
         }
-        // biome-ignore lint/suspicious/noExplicitAny: mock return
-        return {} as any;
-      });
+      );
 
       mockFs.existsSync.mockReturnValue(true);
       mockFs.readFileSync.mockReturnValue(JSON.stringify({}));
