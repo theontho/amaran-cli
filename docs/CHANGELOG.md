@@ -1,3 +1,9 @@
+## [1.11.2] - 2026-07-25
+
+- **Fix**: Default command execution uses the WebSocket backend unless `--backend ble` is explicitly provided.
+- **Fix**: BLE HTTP connectivity failures now show a clear backend-unreachable error instead of raw `fetch failed`.
+- **Fix**: npm publish workflow no longer installs an incompatible `npm@latest` on Node 20.
+
 ## [1.11.1] - 2026-07-25
 
 - **Fix**: Default command execution now uses the WebSocket backend unless `--backend ble` is explicitly provided.
