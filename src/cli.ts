@@ -194,7 +194,7 @@ async function createController(
   backend?: LightBackend
 ): Promise<LightController | BleHttpController> {
   const config = loadConfig();
-  const selectedBackend = backend || config?.backend || 'websocket';
+  const selectedBackend = backend || 'websocket';
   if (selectedBackend === 'ble') {
     const url = wsUrl || config?.bleUrl || 'http://localhost:2708';
     if (debug) {

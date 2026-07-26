@@ -1,3 +1,9 @@
+## [1.11.1] - 2026-07-25
+
+- **Fix**: Default command execution now uses the WebSocket backend unless `--backend ble` is explicitly provided.
+- **Fix**: BLE HTTP connectivity failures now show a clear backend-unreachable error instead of raw `fetch failed`.
+- **Test**: Added regression coverage for default-backend behavior and BLE fetch-failure messaging.
+
 ## [1.11.0] - 2026-05-03
 
 - **Feature**: Added public library entrypoints for the root SDK, device control APIs, circadian scheduling utilities, command registration, and CLI embedding.

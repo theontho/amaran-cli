@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { Command } from 'commander';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLightDevices } from '../commands/cmdUtils.js';
 import registerAutoCct from '../commands/daylightSimulation/autoCct.js';
 import BleHttpController, { trimTrailingSlashes } from '../deviceControl/bleHttpControl.js';
@@ -37,7 +37,10 @@ describe('BleHttpController', () => {
         res.end(
           JSON.stringify({
             ok: true,
-            lights: [{ key: 'key', name: 'Key Light', mac: 'A4:C1:38:13:41:38', address: 2 }],
+            lights: [
+              { key: 'key', name: 'Key Light', mac: 'A4:C1:38:13:41:38', address: 2 },
+              { key: 'back', name: 'Back Light', mac: 'A4:C1:38:13:30:86', address: 4 },
+            ],
           })
         );
         return;
@@ -80,8 +83,15 @@ describe('BleHttpController', () => {
         device_type: 'ble-light',
         backend: 'ble',
       },
+      {
+        node_id: 'back',
+        id: 'back',
+        device_name: 'Back Light',
+        device_type: 'ble-light',
+        backend: 'ble',
+      },
     ]);
-    expect(getLightDevices(controller.getDevices())).toHaveLength(1);
+    expect(getLightDevices(controller.getDevices())).toHaveLength(2);
   });
 
   it('sends supported commands to the BLE HTTP API', async () => {
@@ -90,11 +100,17 @@ describe('BleHttpController', () => {
     await controller.setCCTAndIntensityForAllLights(5600, 750);
     controller.setIntensity('key', 250);
     controller.turnLightOff('key');
-    await waitForRequests(4);
+    await waitForRequests(5);
 
     expect(requests).toContainEqual({
       method: 'POST',
-      url: '/lights/all/cct',
+      url: '/lights/key/cct',
+      body: { kelvin: 5600, brightness: 75 },
+      authorization: 'Bearer test-key',
+    });
+    expect(requests).toContainEqual({
+      method: 'POST',
+      url: '/lights/back/cct',
       body: { kelvin: 5600, brightness: 75 },
       authorization: 'Bearer test-key',
     });
@@ -153,6 +169,22 @@ describe('BleHttpController', () => {
       body: { kelvin: expect.any(Number), brightness: expect.any(Number) },
       authorization: undefined,
     });
+  });
+
+  it('surfaces a friendly error when the BLE backend fetch fails', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+    const controller = new BleHttpController(baseUrl);
+
+    await new Promise<void>((resolve) => {
+      controller.getDeviceList((success, message) => {
+        expect(success).toBe(false);
+        expect(message).toContain('Unable to reach BLE backend');
+        expect(message).toContain('Make sure the BLE service is running');
+        resolve();
+      });
+    });
+
+    fetchSpy.mockRestore();
   });
 });
 

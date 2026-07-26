@@ -76,6 +76,24 @@ describe('CLI config integration', () => {
     expect(config.bleApiKey).toBe('test-key');
   });
 
+  it('defaults to websocket backend for commands without --backend', () => {
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        backend: 'ble',
+        wsUrl: 'ws://127.0.0.1:1',
+        bleUrl: 'http://localhost:2708',
+        autoStartApp: false,
+      })
+    );
+
+    const proc = runCli(['list'], configDir);
+    const output = `${proc.stdout}${proc.stderr}`;
+
+    expect(output).not.toContain('Unable to reach BLE backend at http://localhost:2708/');
+  });
+
   it('fails fast on invalid persisted configuration', () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(configPath, JSON.stringify({ latitude: 200 }));

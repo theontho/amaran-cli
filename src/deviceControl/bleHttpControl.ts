@@ -66,11 +66,11 @@ export default class BleHttpController {
   }
 
   public async turnOnAllLights(callback?: CommandCallback) {
-    await this.postAllCommand('on', callback);
+    await this.postEachLightCommand('on', {}, callback);
   }
 
   public async turnOffAllLights(callback?: CommandCallback) {
-    await this.postAllCommand('off', callback);
+    await this.postEachLightCommand('off', {}, callback);
   }
 
   public setIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
@@ -78,7 +78,7 @@ export default class BleHttpController {
   }
 
   public async setIntensityForAllLights(intensity: number, callback?: CommandCallback) {
-    await this.postLightCommand('all', 'brightness', { value: this.apiIntensityToPercent(intensity) }, callback);
+    await this.postEachLightCommand('brightness', { value: this.apiIntensityToPercent(intensity) }, callback);
   }
 
   public setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
@@ -86,7 +86,7 @@ export default class BleHttpController {
   }
 
   public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
-    await this.postLightCommand('all', 'cct', this.cctBody(cct, intensity), callback);
+    await this.postEachLightCommand('cct', this.cctBody(cct, intensity), callback);
   }
 
   public setHSI(
@@ -114,8 +114,7 @@ export default class BleHttpController {
     _gm?: number,
     callback?: CommandCallback
   ) {
-    await this.postLightCommand(
-      'all',
+    await this.postEachLightCommand(
       'hsi',
       { brightness: this.apiIntensityToPercent(intensity), hue, saturation: sat },
       callback
@@ -335,10 +334,6 @@ export default class BleHttpController {
     }));
   }
 
-  private async postAllCommand(command: 'on' | 'off', callback?: CommandCallback): Promise<void> {
-    await this.runCommand(`/lights/${command}`, {}, callback);
-  }
-
   private async postLightCommand(
     nodeId: string,
     command: 'on' | 'off' | 'brightness' | 'cct' | 'hsi',
@@ -348,19 +343,63 @@ export default class BleHttpController {
     await this.runCommand(`/lights/${encodeURIComponent(nodeId)}/${command}`, body ?? {}, callback);
   }
 
+  private async postEachLightCommand(
+    command: 'on' | 'off' | 'brightness' | 'cct' | 'hsi',
+    body: Record<string, unknown>,
+    callback?: CommandCallback
+  ): Promise<void> {
+    const targets = this.devices.flatMap((device) => {
+      const nodeId =
+        typeof device.node_id === 'string' ? device.node_id : typeof device.id === 'string' ? device.id : undefined;
+      if (!nodeId) return [];
+      return [
+        {
+          nodeId,
+          name: String(device.device_name || device.name || device.id || device.node_id || 'Unknown'),
+        },
+      ];
+    });
+
+    if (targets.length === 0) {
+      callback?.(false, 'No BLE lights available');
+      return;
+    }
+
+    const failures: string[] = [];
+    for (const target of targets) {
+      const result = await this.executeCommand(`/lights/${encodeURIComponent(target.nodeId)}/${command}`, body);
+      if (!result.success) {
+        failures.push(`${String(target.name)}: ${result.message}`);
+      }
+    }
+
+    if (failures.length > 0) {
+      callback?.(false, failures.join('; '));
+      return;
+    }
+    callback?.(true, 'OK');
+  }
+
   private async runCommand(path: string, body: Record<string, unknown>, callback?: CommandCallback): Promise<void> {
+    const result = await this.executeCommand(path, body);
+    callback?.(result.success, result.message, result.data);
+  }
+
+  private async executeCommand(
+    path: string,
+    body: Record<string, unknown>
+  ): Promise<{ success: boolean; message: string; data?: unknown }> {
     try {
       const response = await this.request<BleCommandResponse>(path, {
         method: 'POST',
         body: JSON.stringify(body),
       });
       if (response.ok === false) {
-        callback?.(false, response.error || 'BLE backend returned an error');
-        return;
+        return { success: false, message: response.error || 'BLE backend returned an error' };
       }
-      callback?.(true, 'OK', response.result);
+      return { success: true, message: 'OK', data: response.result };
     } catch (error) {
-      callback?.(false, (error as Error).message);
+      return { success: false, message: (error as Error).message };
     }
   }
 
@@ -379,7 +418,7 @@ export default class BleHttpController {
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw new Error(`BLE backend request timed out after ${REQUEST_TIMEOUT_MS}ms: ${url}`);
       }
-      throw error;
+      throw new Error(this.formatRequestError(url, error));
     } finally {
       clearTimeout(timeout);
     }
@@ -389,6 +428,16 @@ export default class BleHttpController {
       throw new Error(data.error || `BLE backend HTTP ${response.status}`);
     }
     return data;
+  }
+
+  private formatRequestError(url: string, error: unknown): string {
+    if (error instanceof Error) {
+      if (error instanceof TypeError && error.message === 'fetch failed') {
+        return `Unable to reach BLE backend at ${url}. Make sure the BLE service is running.`;
+      }
+      return `Unable to reach BLE backend at ${url}: ${error.message}`;
+    }
+    return `Unable to reach BLE backend at ${url}`;
   }
 
   private parseResponseBody<T>(raw: string, status: number, url: string): T & { error?: string } {
