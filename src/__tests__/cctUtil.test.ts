@@ -3,7 +3,7 @@ import SunCalc from 'suncalc';
 const { getTimes } = SunCalc;
 
 import { CurveType, calculateCCT } from '../daylightSimulation/cctUtil.js';
-import { CCT_DEFAULTS } from '../daylightSimulation/constants.js';
+import { CCT_DEFAULTS, DEFAULT_CURVE } from '../daylightSimulation/constants.js';
 
 describe('calculateCCT', () => {
   const NYC_LAT = 40.7128;
@@ -16,6 +16,15 @@ describe('calculateCCT', () => {
   const MAX_CCT = CCT_DEFAULTS.cctMaxK;
   const MIN_INTENSITY_API = MIN_INTENSITY_PCT * 10; // API format (50)
   const MAX_INTENSITY_API = MAX_INTENSITY_PCT * 10; // API format (1000)
+
+  it('uses CIE daylight when no curve is specified', () => {
+    const date = new Date('2024-06-21T14:00:00Z');
+
+    expect(calculateCCT(NYC_LAT, NYC_LON, date)).toEqual(
+      calculateCCT(NYC_LAT, NYC_LON, date, undefined, CurveType.CIE_DAYLIGHT)
+    );
+    expect(DEFAULT_CURVE).toBe(CurveType.CIE_DAYLIGHT);
+  });
 
   describe('NYC circadian lighting tests', () => {
     let testDate: Date;
@@ -63,7 +72,7 @@ describe('calculateCCT', () => {
       expect(result.intensity).toBe(MIN_INTENSITY_API);
     });
 
-    it('should return maximum CCT and intensity at solar noon', () => {
+    it('should return daytime CCT and maximum intensity at solar noon', () => {
       const atNoon = new Date(solarNoon.getTime());
       const result = calculateCCT(NYC_LAT, NYC_LON, atNoon, {
         intensityMinPct: MIN_INTENSITY_PCT,
@@ -72,8 +81,8 @@ describe('calculateCCT', () => {
         cctMaxK: MAX_CCT,
       });
 
-      // At solar noon (middle of the day), should be at maximum
-      expect(result.cct).toBe(MAX_CCT);
+      expect(result.cct).toBeGreaterThan(MIN_CCT);
+      expect(result.cct).toBeLessThanOrEqual(MAX_CCT);
       expect(result.intensity).toBe(MAX_INTENSITY_API);
     });
 

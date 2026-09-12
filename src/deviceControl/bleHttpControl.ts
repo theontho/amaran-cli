@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import { FanStateSchema, FanStatesSchema } from '../ble/fan.js';
+import { parseFanMode, validateFanRpm } from '../ble/telink.js';
 import type { CommandArgs, CommandCallback, Device } from './types.js';
 
 interface BleLight {
@@ -5,28 +8,34 @@ interface BleLight {
   name: string;
   mac?: string;
   address?: number;
+  model?: string;
+  capabilities?: Record<string, unknown>;
 }
 
 interface BleLightsResponse {
   ok?: boolean;
   lights?: BleLight[];
   error?: string;
+  features?: Record<string, boolean | undefined>;
+  groups?: { id: string; name: string; members: string[] }[];
 }
 
 interface BleCommandResponse {
   ok?: boolean;
+  verified?: boolean;
   result?: unknown;
   error?: string;
 }
 
 const DEFAULT_BLE_URL = 'http://localhost:2708';
-const REQUEST_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 const UNSUPPORTED_MESSAGE = 'Command is not supported by the BLE backend';
 
 export default class BleHttpController {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private devices: Device[] = [];
+  private features: NonNullable<BleLightsResponse['features']> = {};
 
   constructor(baseUrl = DEFAULT_BLE_URL, apiKey?: string) {
     this.baseUrl = trimTrailingSlashes(baseUrl);
@@ -58,11 +67,11 @@ export default class BleHttpController {
   }
 
   public turnLightOn(nodeId: string, callback?: CommandCallback) {
-    this.postLightCommand(nodeId, 'on', undefined, callback);
+    return this.postLightCommand(nodeId, 'on', undefined, callback);
   }
 
   public turnLightOff(nodeId: string, callback?: CommandCallback) {
-    this.postLightCommand(nodeId, 'off', undefined, callback);
+    return this.postLightCommand(nodeId, 'off', undefined, callback);
   }
 
   public async turnOnAllLights(callback?: CommandCallback) {
@@ -74,7 +83,7 @@ export default class BleHttpController {
   }
 
   public setIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
-    this.postLightCommand(nodeId, 'brightness', { value: this.apiIntensityToPercent(intensity) }, callback);
+    return this.postLightCommand(nodeId, 'brightness', { value: this.apiIntensityToPercent(intensity) }, callback);
   }
 
   public async setIntensityForAllLights(intensity: number, callback?: CommandCallback) {
@@ -82,7 +91,7 @@ export default class BleHttpController {
   }
 
   public setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
-    this.postLightCommand(nodeId, 'cct', this.cctBody(cct, intensity), callback);
+    return this.postLightCommand(nodeId, 'cct', this.cctBody(cct, intensity), callback);
   }
 
   public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
@@ -94,11 +103,15 @@ export default class BleHttpController {
     hue: number,
     sat: number,
     intensity: number,
-    _cct?: number,
-    _gm?: number,
+    cct?: number,
+    gm?: number,
     callback?: CommandCallback
   ) {
-    this.postLightCommand(
+    if (cct !== undefined || gm !== undefined) {
+      callback?.(false, 'The 150c supports basic HSI, not advanced HSI CCT/G/M adjustments');
+      return;
+    }
+    return this.postLightCommand(
       nodeId,
       'hsi',
       { brightness: this.apiIntensityToPercent(intensity), hue, saturation: sat },
@@ -110,10 +123,14 @@ export default class BleHttpController {
     hue: number,
     sat: number,
     intensity: number,
-    _cct?: number,
-    _gm?: number,
+    cct?: number,
+    gm?: number,
     callback?: CommandCallback
   ) {
+    if (cct !== undefined || gm !== undefined) {
+      callback?.(false, 'The 150c supports basic HSI, not advanced HSI CCT/G/M adjustments');
+      return;
+    }
     await this.postEachLightCommand(
       'hsi',
       { brightness: this.apiIntensityToPercent(intensity), hue, saturation: sat },
@@ -121,73 +138,88 @@ export default class BleHttpController {
     );
   }
 
-  public getNodeConfig(nodeId: string, callback?: CommandCallback) {
+  public async getNodeConfig(nodeId: string, callback?: CommandCallback) {
     const device = this.devices.find((entry) => entry.node_id === nodeId || entry.id === nodeId);
     if (!device) {
       callback?.(false, `Device "${nodeId}" not found`);
       return;
     }
-    callback?.(true, 'OK', {
-      data: {
-        ...device,
-        cct_support: true,
-        cct_min: 2500,
-        cct_max: 7500,
-        hsi_support: true,
-      },
-    });
+    const capabilities = typeof device.capabilities === 'object' && device.capabilities ? device.capabilities : {};
+    if (this.features.state) {
+      await this.readState(
+        nodeId,
+        (success, message, state) => {
+          callback?.(
+            success,
+            message,
+            success ? { data: { ...device, ...capabilities, ...z.record(z.unknown()).parse(state) } } : undefined
+          );
+        },
+        true
+      );
+    } else {
+      callback?.(true, 'OK', { data: { ...device, ...capabilities } });
+    }
   }
 
   public getSceneList(callback?: CommandCallback) {
-    callback?.(true, 'OK', { data: [] });
+    return this.libraryRequest('/library/scenes', 'GET', undefined, callback);
   }
 
-  public getLightSleepStatus(_nodeId: string, callback?: CommandCallback) {
-    callback?.(false, 'Power status is not available from the BLE HTTP backend');
+  public getLightSleepStatus(nodeId: string, callback?: CommandCallback) {
+    return this.readState(nodeId, callback);
   }
 
-  public getIntensity(_nodeId: string, callback?: CommandCallback) {
-    callback?.(false, 'Intensity status is not available from the BLE HTTP backend');
+  public getIntensity(nodeId: string, callback?: CommandCallback) {
+    return this.readState(nodeId, callback);
   }
 
-  public getCCT(_nodeId: string, callback?: CommandCallback) {
-    callback?.(false, 'CCT status is not available from the BLE HTTP backend');
+  public getCCT(nodeId: string, callback?: CommandCallback) {
+    return this.readState(nodeId, callback);
   }
 
-  public getHSI(_nodeId: string, callback?: CommandCallback) {
-    callback?.(false, 'HSI status is not available from the BLE HTTP backend');
+  public getHSI(nodeId: string, callback?: CommandCallback) {
+    return this.readState(nodeId, callback);
   }
 
   public async toggleAllLights(callback?: CommandCallback) {
-    this.unsupported(callback);
+    if (!this.features.toggle) {
+      this.unsupported(callback);
+      return;
+    }
+    await this.postEachLightCommand('toggle', {}, callback);
   }
 
-  public toggleLight(_nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public toggleLight(nodeId: string, callback?: CommandCallback) {
+    if (!this.features.toggle) {
+      this.unsupported(callback);
+      return;
+    }
+    return this.postLightCommand(nodeId, 'toggle', {}, callback);
   }
 
-  public incrementIntensity(_nodeId: string, _delta: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public incrementIntensity(nodeId: string, delta: number, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'increment-brightness', { delta: delta / 10 }, callback);
   }
 
-  public async incrementIntensityForAllLights(_delta: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public async incrementIntensityForAllLights(delta: number, callback?: CommandCallback) {
+    await this.postEachLightCommand('increment-brightness', { delta: delta / 10 }, callback);
   }
 
-  public incrementCCT(_nodeId: string, _delta: number, _intensity?: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public incrementCCT(nodeId: string, delta: number, intensity?: number, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'increment-cct', { delta, ...this.optionalBrightness(intensity) }, callback);
   }
 
-  public async incrementCCTForAllLights(_delta: number, _intensity?: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public async incrementCCTForAllLights(delta: number, intensity?: number, callback?: CommandCallback) {
+    await this.postEachLightCommand('increment-cct', { delta, ...this.optionalBrightness(intensity) }, callback);
   }
 
-  public setColor(_nodeId: string, _color: string, _intensity?: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setColor(nodeId: string, color: string, intensity?: number, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'color', { color, ...this.optionalBrightness(intensity) }, callback);
   }
 
-  public async setColorForAllLights(_color: string, _intensity?: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public async setColorForAllLights(color: string, intensity?: number, callback?: CommandCallback) {
+    await this.postEachLightCommand('color', { color, ...this.optionalBrightness(intensity) }, callback);
   }
 
   public getRGB(_nodeId: string, callback?: CommandCallback) {
@@ -206,108 +238,232 @@ export default class BleHttpController {
     this.unsupported(callback);
   }
 
-  public getSystemEffect(_nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public getSystemEffect(nodeId: string, callback?: CommandCallback) {
+    return this.readState(nodeId, callback);
   }
 
   public getSystemEffectList(callback?: CommandCallback) {
-    this.unsupported(callback);
+    return this.libraryRequest('/effects', 'GET', undefined, callback);
   }
 
-  public setSystemEffect(_nodeId: string, _effectType: string, _intensity?: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setSystemEffect(nodeId: string, effectType: string, intensity?: number, callback?: CommandCallback) {
+    return this.postLightCommand(
+      nodeId,
+      'effect',
+      { name: effectType, ...this.optionalBrightness(intensity) },
+      callback
+    );
   }
 
-  public async setSystemEffectForAllLights(_effectType: string, _intensity?: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public async setSystemEffectForAllLights(effectType: string, intensity?: number, callback?: CommandCallback) {
+    await this.postEachLightCommand('effect', { name: effectType, ...this.optionalBrightness(intensity) }, callback);
   }
 
-  public getEffect(_nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public getEffect(nodeId: string, callback?: CommandCallback) {
+    return this.readState(nodeId, callback);
   }
 
-  public setEffect(_nodeId: string, _effectName: string, _args?: CommandArgs, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setEffect(nodeId: string, effectName: string, args?: CommandArgs, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'effect', { ...args, name: effectName }, callback);
   }
 
-  public setEffectSpeed(_nodeId: string, _speed: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setEffectSpeed(nodeId: string, speed: number, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'effect-speed', { value: speed }, callback);
   }
 
-  public setEffectIntensity(_nodeId: string, _intensity: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setEffectIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
+    return this.postLightCommand(
+      nodeId,
+      'effect-intensity',
+      { value: this.apiIntensityToPercent(intensity) },
+      callback
+    );
   }
 
-  public getFanMode(_nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public getFanMode(nodeId: string, callback?: CommandCallback) {
+    return this.fanValue(nodeId, 'mode', callback);
   }
 
-  public setFanMode(_nodeId: string, _mode: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public async getFanInfo(nodeId: string, callback?: CommandCallback): Promise<void> {
+    if (nodeId.startsWith('group:')) return this.fanStates([nodeId], undefined, callback);
+    if (!this.features.fan) {
+      this.unsupported(callback);
+      return;
+    }
+    try {
+      const response = await this.request<BleCommandResponse>(`/lights/${encodeURIComponent(nodeId)}/fan`, {
+        method: 'GET',
+      });
+      if (response.ok !== true) throw new Error(response.error || 'BLE fan query failed');
+      const state = FanStateSchema.parse(response.result);
+      callback?.(true, 'OK', state);
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+    }
   }
 
-  public getFanSpeed(_nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setFanMode(nodeId: string, mode: number, callback?: CommandCallback) {
+    if (nodeId.startsWith('group:')) return this.fanStates([nodeId], mode, callback);
+    return this.postLightCommand(nodeId, 'fan', { mode }, callback);
   }
 
-  public setFanSpeed(_nodeId: string, _speed: number, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public async fanStates(
+    targets: 'all' | string[],
+    mode?: string | number,
+    callback?: CommandCallback,
+    rpm?: number
+  ): Promise<void> {
+    try {
+      if (mode === undefined && rpm !== undefined) throw new Error('RPM requires manual fan mode');
+      if (mode !== undefined) validateFanRpm(parseFanMode(mode), rpm);
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+      return;
+    }
+    if (rpm !== undefined && !this.features.fanManualRpm) {
+      callback?.(false, 'Manual RPM control requires the updated BLE daemon');
+      return;
+    }
+    if (!this.features.fanTargets) {
+      if (targets !== 'all' && targets.length === 1 && !targets[0].startsWith('group:')) {
+        const wrap: CommandCallback = (ok, message, state) => {
+          if (!ok) {
+            callback?.(false, message);
+            return;
+          }
+          const parsed = FanStateSchema.safeParse(state);
+          if (!parsed.success) {
+            callback?.(false, parsed.error.message);
+            return;
+          }
+          callback?.(true, message, { states: { [targets[0]]: parsed.data } });
+        };
+        if (mode !== undefined) {
+          await this.postLightCommand(targets[0], 'fan', { mode, ...(rpm === undefined ? {} : { rpm }) }, wrap);
+        } else {
+          await this.getFanInfo(targets[0], wrap);
+        }
+      } else callback?.(false, 'Fan group/all control requires the updated BLE daemon');
+      return;
+    }
+    const response = await this.executeCommand('/fans', {
+      targets,
+      ...(mode === undefined ? {} : { mode }),
+      ...(rpm === undefined ? {} : { rpm }),
+    });
+    if (!response.success) {
+      callback?.(false, response.message);
+      return;
+    }
+    const parsed = FanStatesSchema.safeParse(response.data);
+    if (!parsed.success) {
+      callback?.(false, parsed.error.message);
+      return;
+    }
+    callback?.(true, 'OK', parsed.data);
+  }
+
+  public getFanSpeed(nodeId: string, callback?: CommandCallback) {
+    return this.fanValue(nodeId, 'speed', callback);
+  }
+
+  public setFanSpeed(nodeId: string, speed: number, callback?: CommandCallback) {
+    return this.fanStates([nodeId], 'manual', callback, speed);
   }
 
   public getPresetList(callback?: CommandCallback) {
-    this.unsupported(callback);
+    return this.libraryRequest('/library/presets', 'GET', undefined, callback);
   }
 
-  public recallPreset(_nodeId: string, _presetId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public recallPreset(nodeId: string, presetId: string, callback?: CommandCallback) {
+    return this.runCommand(`/library/presets/${encodeURIComponent(presetId)}/recall`, { target: nodeId }, callback);
   }
 
-  public setPreset(_nodeId: string, _presetId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setPreset(nodeId: string, presetId: string, callback?: CommandCallback) {
+    return this.recallPreset(nodeId, presetId, callback);
   }
 
   public getQuickshotList(callback?: CommandCallback) {
-    this.unsupported(callback);
+    return this.libraryRequest('/library/quickshots', 'GET', undefined, callback);
   }
 
-  public setQuickshot(_quickshotId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public setQuickshot(quickshotId: string, callback?: CommandCallback) {
+    return this.runCommand(`/library/quickshots/${encodeURIComponent(quickshotId)}/recall`, {}, callback);
   }
 
-  public saveScene(_name: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public saveScene(name: string, callback?: CommandCallback) {
+    return this.libraryRequest('/library/scenes', 'POST', { name }, callback);
   }
 
-  public deleteScene(_sceneId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public deleteScene(sceneId: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/library/scenes/${encodeURIComponent(sceneId)}`, 'DELETE', undefined, callback);
   }
 
-  public recallScene(_sceneId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public recallScene(sceneId: string, callback?: CommandCallback) {
+    return this.runCommand(`/library/scenes/${encodeURIComponent(sceneId)}/recall`, {}, callback);
   }
 
-  public updateScene(_sceneId: string, _name?: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public updateScene(sceneId: string, name?: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/library/scenes/${encodeURIComponent(sceneId)}`, 'POST', { name }, callback);
   }
 
   public getGroupList(callback?: CommandCallback) {
-    this.unsupported(callback);
+    return this.libraryRequest('/groups', 'GET', undefined, callback);
   }
 
-  public createGroup(_name: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public createGroup(name: string, callback?: CommandCallback) {
+    return this.libraryRequest('/groups', 'POST', { name }, callback);
   }
 
-  public deleteGroup(_groupId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public deleteGroup(groupId: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/groups/${encodeURIComponent(groupId)}`, 'DELETE', undefined, callback);
   }
 
-  public addToGroup(_groupId: string, _nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public addToGroup(groupId: string, nodeId: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/groups/${encodeURIComponent(groupId)}/members`, 'POST', { member: nodeId }, callback);
   }
 
-  public removeFromGroup(_groupId: string, _nodeId: string, callback?: CommandCallback) {
-    this.unsupported(callback);
+  public removeFromGroup(groupId: string, nodeId: string, callback?: CommandCallback) {
+    return this.libraryRequest(
+      `/groups/${encodeURIComponent(groupId)}/members`,
+      'POST',
+      { member: nodeId, remove: true },
+      callback
+    );
+  }
+
+  public setGM(nodeId: string, value: number, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'gm', { value }, callback);
+  }
+
+  public stopEffect(nodeId: string, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'effect-stop', {}, callback);
+  }
+
+  public batch(
+    targets: string[] | 'all',
+    action: string,
+    args: Record<string, unknown>,
+    broadcast: boolean,
+    callback?: CommandCallback
+  ) {
+    return this.runCommand('/batch', { targets, action, args, broadcast }, callback);
+  }
+
+  public fade(targets: string[] | 'all', brightness: number, seconds: number, callback?: CommandCallback) {
+    return this.runCommand('/fade', { targets, brightness, seconds }, callback);
+  }
+
+  public savePreset(nodeId: string, name: string, callback?: CommandCallback) {
+    return this.libraryRequest('/library/presets', 'POST', { name, keys: [nodeId] }, callback);
+  }
+
+  public saveQuickshot(name: string, callback?: CommandCallback) {
+    return this.libraryRequest('/library/quickshots', 'POST', { name }, callback);
+  }
+
+  public deleteSaved(collection: 'presets' | 'quickshots', key: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/library/${collection}/${encodeURIComponent(key)}`, 'DELETE', undefined, callback);
   }
 
   public getDeviceInfo(nodeId: string, callback?: CommandCallback) {
@@ -320,10 +476,25 @@ export default class BleHttpController {
 
   private async refreshDevices(): Promise<void> {
     const response = await this.request<BleLightsResponse>('/', { method: 'GET' });
-    if (response.ok === false) {
+    if (response.ok !== true) {
       throw new Error(response.error || 'BLE backend returned an error');
     }
-    this.devices = (response.lights ?? []).map((light) => ({
+    const lights = z
+      .array(
+        z
+          .object({
+            key: z.string().min(1),
+            name: z.string().min(1),
+            mac: z.string().optional(),
+            address: z.number().optional(),
+            model: z.string().optional(),
+            capabilities: z.record(z.unknown()).optional(),
+          })
+          .passthrough()
+      )
+      .parse(response.lights);
+    this.features = z.record(z.boolean()).parse(response.features ?? {});
+    this.devices = lights.map((light) => ({
       ...light,
       id: light.key,
       node_id: light.key,
@@ -332,23 +503,48 @@ export default class BleHttpController {
       device_type: 'ble-light',
       backend: 'ble',
     }));
+    const groups = z
+      .array(z.object({ id: z.string(), name: z.string(), members: z.array(z.string()) }))
+      .parse(response.groups ?? []);
+    this.devices.push(
+      ...groups.map((group) => ({
+        ...group,
+        node_id: group.id,
+        device_name: group.name,
+        device_type: 'ble-group',
+        backend: 'ble',
+      }))
+    );
   }
 
   private async postLightCommand(
     nodeId: string,
-    command: 'on' | 'off' | 'brightness' | 'cct' | 'hsi',
+    command: string,
     body?: Record<string, unknown>,
     callback?: CommandCallback
   ): Promise<void> {
+    if (!this.supportsCommand(command)) {
+      this.unsupported(callback);
+      return;
+    }
     await this.runCommand(`/lights/${encodeURIComponent(nodeId)}/${command}`, body ?? {}, callback);
   }
 
   private async postEachLightCommand(
-    command: 'on' | 'off' | 'brightness' | 'cct' | 'hsi',
+    command: string,
     body: Record<string, unknown>,
     callback?: CommandCallback
   ): Promise<void> {
+    if (!this.supportsCommand(command)) {
+      this.unsupported(callback);
+      return;
+    }
+    if (this.features.batch && command !== 'toggle') {
+      await this.batch('all', command, body, false, callback);
+      return;
+    }
     const targets = this.devices.flatMap((device) => {
+      if (device.device_type === 'ble-group') return [];
       const nodeId =
         typeof device.node_id === 'string' ? device.node_id : typeof device.id === 'string' ? device.id : undefined;
       if (!nodeId) return [];
@@ -385,17 +581,74 @@ export default class BleHttpController {
     callback?.(result.success, result.message, result.data);
   }
 
+  private async libraryRequest(
+    path: string,
+    method: string,
+    body: Record<string, unknown> | undefined,
+    callback?: CommandCallback
+  ): Promise<void> {
+    if (!(path === '/effects' ? this.features.effects : this.features.library)) {
+      this.unsupported(callback);
+      return;
+    }
+    try {
+      const response = await this.request<BleCommandResponse>(path, {
+        method,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      if (response.ok !== true) throw new Error(response.error || 'BLE library operation failed');
+      callback?.(true, 'OK', { data: response.result });
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+    }
+  }
+
+  private async fanValue(nodeId: string, field: 'mode' | 'speed', callback?: CommandCallback): Promise<void> {
+    if (nodeId.startsWith('group:')) {
+      callback?.(false, 'A group has separate fan states; use fan info for per-fixture telemetry');
+      return;
+    }
+    if (!this.features.fan) {
+      this.unsupported(callback);
+      return;
+    }
+    try {
+      const response = await this.request<BleCommandResponse>(`/lights/${encodeURIComponent(nodeId)}/fan`, {
+        method: 'GET',
+      });
+      if (response.ok !== true) throw new Error(response.error || 'BLE fan query failed');
+      const state = FanStateSchema.parse(response.result);
+      callback?.(true, 'OK', state[field]);
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+    }
+  }
+
   private async executeCommand(
     path: string,
     body: Record<string, unknown>
   ): Promise<{ success: boolean; message: string; data?: unknown }> {
+    const feature =
+      path === '/batch'
+        ? 'batch'
+        : path === '/fade'
+          ? 'fade'
+          : path === '/fans'
+            ? 'fanTargets'
+            : path.startsWith('/library/')
+              ? 'library'
+              : undefined;
+    if (feature && !this.features[feature]) return { success: false, message: UNSUPPORTED_MESSAGE };
     try {
       const response = await this.request<BleCommandResponse>(path, {
         method: 'POST',
         body: JSON.stringify(body),
       });
-      if (response.ok === false) {
+      if (response.ok !== true) {
         return { success: false, message: response.error || 'BLE backend returned an error' };
+      }
+      if (this.features.verifiedCommands && response.verified !== true) {
+        return { success: false, message: 'BLE daemon did not verify this command' };
       }
       return { success: true, message: 'OK', data: response.result };
     } catch (error) {
@@ -411,23 +664,25 @@ export default class BleHttpController {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    let response: Response;
     try {
-      response = await fetch(url, { ...init, headers, signal: controller.signal });
+      const response = await fetch(url, { ...init, headers, signal: controller.signal });
+      const raw = await response.text();
+      const data = this.parseResponseBody<T>(
+        response.status === 204 && !raw ? '{"ok":true}' : raw,
+        response.status,
+        url
+      );
+      if (!response.ok) throw new Error(data.error || `BLE backend HTTP ${response.status}`);
+      return data;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw new Error(`BLE backend request timed out after ${REQUEST_TIMEOUT_MS}ms: ${url}`);
       }
-      throw new Error(this.formatRequestError(url, error));
+      if (error instanceof TypeError) throw new Error(this.formatRequestError(url, error));
+      throw error;
     } finally {
       clearTimeout(timeout);
     }
-    const raw = await response.text();
-    const data = this.parseResponseBody<T>(raw, response.status, url);
-    if (!response.ok) {
-      throw new Error(data.error || `BLE backend HTTP ${response.status}`);
-    }
-    return data;
   }
 
   private formatRequestError(url: string, error: unknown): string {
@@ -442,7 +697,7 @@ export default class BleHttpController {
 
   private parseResponseBody<T>(raw: string, status: number, url: string): T & { error?: string } {
     if (!raw) {
-      return {} as T & { error?: string };
+      throw new Error(`Empty JSON response from BLE backend (${status}) at ${url}`);
     }
     try {
       return JSON.parse(raw) as T & { error?: string };
@@ -458,8 +713,79 @@ export default class BleHttpController {
     };
   }
 
+  private optionalBrightness(intensity?: number): Record<string, number> {
+    return intensity === undefined ? {} : { brightness: this.apiIntensityToPercent(intensity) };
+  }
+
+  private supportsCommand(command: string): boolean {
+    const feature: Record<string, string> = {
+      gm: 'gm',
+      fan: 'fan',
+      color: 'color',
+      effect: 'effects',
+      'effect-speed': 'effects',
+      'effect-intensity': 'effects',
+      'effect-stop': 'effects',
+      'increment-cct': 'relative',
+      'increment-brightness': 'relative',
+    };
+    return !Object.hasOwn(feature, command) || this.features[feature[command]] === true;
+  }
+
   private apiIntensityToPercent(intensity: number): number {
-    return Math.max(0, Math.min(100, intensity / 10));
+    if (!Number.isFinite(intensity) || intensity < 0 || intensity > 1000)
+      throw new Error('Intensity must be between 0 and 1000');
+    return intensity / 10;
+  }
+
+  private stateRecord(value: unknown): Record<string, unknown> {
+    const state = z
+      .object({
+        sleep: z.boolean(),
+        intensity: z.number().min(0).max(1000),
+        mode: z.enum(['cct', 'hsi', 'effect']),
+        cct: z.number().optional(),
+        gm: z.number().optional(),
+        hue: z.number().optional(),
+        sat: z.number().optional(),
+        effect: z.string().optional(),
+        frequency: z.number().optional(),
+        speed: z.number().optional(),
+        palette: z.number().optional(),
+        observedAt: z.string(),
+      })
+      .parse(value);
+    return { ...state, work_mode: state.mode, effect_type: state.effect, effect_name: state.effect };
+  }
+
+  private async readState(nodeId: string, callback?: CommandCallback, allowGroup = false): Promise<void> {
+    if (!this.features.state) {
+      callback?.(false, 'State readback is not available from this BLE daemon');
+      return;
+    }
+    const group = this.devices.find((device) => device.node_id === nodeId)?.device_type === 'ble-group';
+    if (group && !allowGroup) {
+      callback?.(false, 'A group has separate fixture states; use status <group> to inspect its members');
+      return;
+    }
+    try {
+      const response = await this.request<BleCommandResponse>(`/lights/${encodeURIComponent(nodeId)}/state`, {
+        method: 'GET',
+      });
+      if (response.ok !== true) throw new Error(response.error || 'BLE state query failed');
+      if (group) {
+        const members = Object.fromEntries(
+          Object.entries(z.record(z.unknown()).parse(response.result)).map(([key, value]) => {
+            const device = this.devices.find((entry) => entry.node_id === key);
+            const caps = z.record(z.unknown()).parse(device?.capabilities ?? {});
+            return [key, { ...caps, ...this.stateRecord(value) }];
+          })
+        );
+        callback?.(true, 'OK', { work_mode: 'group', member_states: members });
+      } else callback?.(true, 'OK', this.stateRecord(response.result));
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+    }
   }
 
   private unsupported(callback?: CommandCallback) {

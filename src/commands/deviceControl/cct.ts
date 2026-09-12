@@ -2,7 +2,13 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import { VALIDATION_RANGES } from '../../deviceControl/constants.js';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, commandCallbackPromise, getLightDevices, runDeviceAction } from '../cmdUtils.js';
+import {
+  addStandardOptions,
+  commandCallbackPromise,
+  getAppliedNumber,
+  getLightDevices,
+  runDeviceAction,
+} from '../cmdUtils.js';
 
 export function registerCct(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -20,6 +26,7 @@ export function registerCct(program: Command, deps: CommandDeps) {
       `Also set intensity (${VALIDATION_RANGES.intensity.min}-${VALIDATION_RANGES.intensity.max})`
     )
     .option('-g, --get', 'Get current CCT and intensity instead of setting')
+    .option('--relative', 'Apply a signed Kelvin change within each fixture range (requires CCT mode)')
     .action(asyncCommand(handleCct(deps)));
 }
 
@@ -127,14 +134,18 @@ function handleCct(deps: CommandDeps) {
       process.exit(1);
     }
 
-    const temperature = parseInt(tempStr, 10);
+    const temperature = Number(tempStr);
     if (
-      Number.isNaN(temperature) ||
-      temperature < VALIDATION_RANGES.cct.min ||
-      temperature > VALIDATION_RANGES.cct.max
+      !Number.isFinite(temperature) ||
+      temperature < (options.relative ? -7500 : VALIDATION_RANGES.cct.min) ||
+      temperature > (options.relative ? 7500 : VALIDATION_RANGES.cct.max)
     ) {
       console.error(
-        chalk.red(`Temperature must be between ${VALIDATION_RANGES.cct.min}K and ${VALIDATION_RANGES.cct.max}K`)
+        chalk.red(
+          options.relative
+            ? 'Relative CCT must be between -7500K and 7500K'
+            : `Temperature must be between ${VALIDATION_RANGES.cct.min}K and ${VALIDATION_RANGES.cct.max}K`
+        )
       );
       process.exit(1);
     }
@@ -157,6 +168,9 @@ function handleCct(deps: CommandDeps) {
       intensity = intensity * 10;
     }
 
+    let appliedTemperature = temperature;
+    let appliedIntensity = intensity;
+    let observedTemperature = false;
     return runDeviceAction(
       {
         deps,
@@ -165,21 +179,43 @@ function handleCct(deps: CommandDeps) {
         actionName: 'set temperature',
         onSuccess: (device: Device) => {
           const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
-          let msg = `✓ ${displayName} temperature set to ${temperature}K`;
+          let msg = options.relative
+            ? `✓ ${displayName} temperature adjusted${observedTemperature ? ` to ${appliedTemperature}K` : ''} (relative request ${temperature}K)`
+            : `✓ ${displayName} temperature set to ${appliedTemperature}K`;
+          if (!options.relative && appliedTemperature !== temperature) msg += ` (rounded from ${temperature}K)`;
           if (intensity !== undefined) {
-            msg += ` at ${intensity / 10}% intensity`;
+            msg += ` at ${(appliedIntensity ?? intensity) / 10}% intensity`;
           }
           return msg;
         },
       },
       (device, controller) => {
-        return commandCallbackPromise((callback) =>
-          controller.setCCT(device.node_id as string, temperature, intensity, callback)
-        );
+        return commandCallbackPromise((callback) => {
+          const apply = options.relative
+            ? controller.incrementCCT.bind(controller)
+            : controller.setCCT.bind(controller);
+          apply(device.node_id as string, temperature, intensity, (success, message, data) => {
+            if (success && device.backend === 'ble' && data && typeof data === 'object') {
+              const cct = getAppliedNumber(data, 'cct');
+              if (cct !== undefined) {
+                appliedTemperature = cct;
+                observedTemperature = true;
+              }
+              appliedIntensity = getAppliedNumber(data, 'intensity') ?? appliedIntensity;
+            }
+            callback(success, message, data);
+          });
+        });
       },
       async (controller) => {
-        await controller.setCCTAndIntensityForAllLights(temperature, intensity, (success, message) => {
-          if (!success) console.error(`✗ Failed to set temperature: ${message}`);
+        const apply = options.relative
+          ? controller.incrementCCTForAllLights.bind(controller)
+          : controller.setCCTAndIntensityForAllLights.bind(controller);
+        await apply(temperature, intensity, (success, message) => {
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to set temperature: ${message}`);
+          }
         });
       }
     );

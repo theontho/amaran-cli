@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
+import { CURVE_HELP_TEXT, DEFAULT_CURVE } from '../../daylightSimulation/constants.js';
 import { ScheduleMaker } from '../../daylightSimulation/scheduleMaker.js';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
 import { commandCallbackPromise, getLightDevices } from '../cmdUtils.js';
@@ -18,7 +18,7 @@ export function registerSimulateSchedule(program: Command, deps: CommandDeps) {
     .option('-d, --debug', 'Enable debug mode')
     .option('--lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('--lon <longitude>', 'Manual longitude (-180 to 180)')
-    .option('-C, --curve <curve>', CURVE_HELP_TEXT, 'hann')
+    .option('-C, --curve <curve>', CURVE_HELP_TEXT, DEFAULT_CURVE)
     .option('-L, --max-lux <value>', 'Simulation peak in lux (scales the whole day)')
     .option('--duration <seconds>', 'Simulation duration to compress full day (default: 10 seconds)', '10')
     .option('--cloud-cover <value>', 'Cloud cover (0-1)')

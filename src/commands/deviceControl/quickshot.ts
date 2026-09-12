@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
-import { addStandardOptions } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackResult, requireBleController } from '../cmdUtils.js';
 
 export function registerQuickshot(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -14,6 +14,24 @@ export function registerQuickshot(program: Command, deps: CommandDeps) {
   addStandardOptions(quickshot.command('set <id>').description('Apply a quickshot')).action(
     asyncCommand(handleQuickshotSet(deps))
   );
+  for (const action of ['save', 'delete'] as const) {
+    addStandardOptions(
+      quickshot.command(`${action} <name-or-id>`).description(`${action} a local BLE quickshot`)
+    ).action(
+      asyncCommand(async (value: string, options: CommandOptions) => {
+        const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+        try {
+          const ble = requireBleController(controller);
+          const result = await commandCallbackResult((callback) =>
+            action === 'save' ? ble.saveQuickshot(value, callback) : ble.deleteSaved('quickshots', value, callback)
+          );
+          console.log(JSON.stringify(result, null, 2));
+        } finally {
+          await controller.disconnect();
+        }
+      })
+    );
+  }
 }
 
 function handleQuickshotList(deps: CommandDeps) {
@@ -35,6 +53,7 @@ function handleQuickshotList(deps: CommandDeps) {
           });
         }
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error getting quickshot list: ${message}`));
       }
       controller.disconnect();
@@ -51,6 +70,7 @@ function handleQuickshotSet(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Quickshot ${id} applied successfully`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error applying quickshot: ${message}`));
       }
       controller.disconnect();

@@ -1,4 +1,4 @@
-import { ALL_CURVE_TYPES_ORDERED, SPECIAL_TIME_CONFIG } from './constants.js';
+import { ALL_CURVE_TYPES_ORDERED, DEFAULT_CURVE_TYPE, SPECIAL_TIME_CONFIG } from './constants.js';
 import { parseCloudCover } from './parseUtils.js';
 import type { CCTResult, CircadianConfig } from './types.js';
 
@@ -92,7 +92,7 @@ export class ScheduleMaker {
 
     // Resolve Curves
 
-    let curveTypes: (keyof typeof CurveType)[] = ['HANN'];
+    let curveTypes: (keyof typeof CurveType)[] = [DEFAULT_CURVE_TYPE];
     const curveOption = options.curves?.toLowerCase() || '';
 
     if (curveOption === 'all') {
@@ -115,13 +115,13 @@ export class ScheduleMaker {
         try {
           curveTypes = [parseCurveType(config.defaultCurve)];
         } catch (_) {
-          curveTypes = [...ALL_CURVE_TYPES_ORDERED];
+          curveTypes = [DEFAULT_CURVE_TYPE];
         }
       } else {
-        curveTypes = [...ALL_CURVE_TYPES_ORDERED];
+        curveTypes = [DEFAULT_CURVE_TYPE];
       }
     } else {
-      curveTypes = [...ALL_CURVE_TYPES_ORDERED];
+      curveTypes = [DEFAULT_CURVE_TYPE];
     }
 
     const times = getTimes(date, lat, lon);

@@ -10,6 +10,9 @@ export const CCT_DEFAULTS = {
   maxLux: 110000, // Approximate clear sky zenith lux
 };
 
+export const DEFAULT_CURVE = CurveType.CIE_DAYLIGHT;
+export const DEFAULT_CURVE_TYPE: keyof typeof CurveType = 'CIE_DAYLIGHT';
+
 // Curve metadata for consistent naming and ordering
 export const CURVE_METADATA: Record<keyof typeof CurveType, { shortName: string; fullName: string }> = {
   HANN: { shortName: 'HANN', fullName: 'Hann Window' },

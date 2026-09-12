@@ -138,7 +138,10 @@ function handleOn(deps: CommandDeps) {
       },
       async (controller) => {
         await controller.turnOnAllLights((success, message) => {
-          if (!success) console.error(`✗ Failed to turn on light: ${message}`);
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to turn on light: ${message}`);
+          }
         });
       }
     );
@@ -164,7 +167,10 @@ function handleOff(deps: CommandDeps) {
       },
       async (controller) => {
         await controller.turnOffAllLights((success, message) => {
-          if (!success) console.error(`✗ Failed to turn off light: ${message}`);
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to turn off light: ${message}`);
+          }
         });
       }
     );
@@ -187,7 +193,10 @@ function handleToggle(deps: CommandDeps) {
       },
       async (controller) => {
         await controller.toggleAllLights((success, message) => {
-          if (!success) console.error(`✗ Failed to toggle light: ${message}`);
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to toggle light: ${message}`);
+          }
         });
       }
     );

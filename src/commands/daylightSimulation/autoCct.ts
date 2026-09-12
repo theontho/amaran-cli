@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { CURVE_HELP_TEXT } from '../../daylightSimulation/constants.js';
+import { CURVE_HELP_TEXT, DEFAULT_CURVE } from '../../daylightSimulation/constants.js';
 import { calculateCurrentCCT } from '../../daylightSimulation/currentCct.js';
 import { formatLocation } from '../../daylightSimulation/privacyUtil.js';
 import type { WeatherOptions } from '../../daylightSimulation/types.js';
@@ -24,7 +24,7 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .option('-y, --lat <latitude>', 'Manual latitude (-90 to 90)')
     .option('-x, --lon <longitude>', 'Manual longitude (-180 to 180)')
     .option('-t, --time <time>', 'Manual time (ISO 8601 format, e.g., 2025-10-26T14:30:00)')
-    .option('-C, --curve <curve>', CURVE_HELP_TEXT, 'hann')
+    .option('-C, --curve <curve>', CURVE_HELP_TEXT, DEFAULT_CURVE)
     .option('-L, --max-lux <value>', 'Max lux output for scaling intensity')
     .option('--cloud-cover <value>', 'Cloud cover (0-1), e.g. 0.5 for 50% clouds')
     .option('--precipitation <type>', 'Precipitation type: none, rain, snow, drizzle')

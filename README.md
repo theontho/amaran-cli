@@ -1,6 +1,6 @@
 # Amaran Light CLI
 
-A command line tool for controlling Aputure Amaran lights via WebSocket connection to the Amaran Desktop application, or via the optional BLE HTTP daemon from [wesbos/amaran-BLE-control](https://github.com/wesbos/amaran-BLE-control).  Not an official Amaran command line tool.
+A command line tool for controlling Aputure Amaran lights via WebSocket connection to the Amaran Desktop application, or directly over Bluetooth Mesh using the included local BLE daemon. The legacy HTTP daemon from [wesbos/amaran-BLE-control](https://github.com/wesbos/amaran-BLE-control) is also supported. Not an official Amaran command line tool.
 
 Also has a circadian lighting command called `auto-cct` that will set the CCT & intensity according to the time of day it is currently at your location, and a service that will run the command every minute to automate it.
 
@@ -34,7 +34,7 @@ It's not as obvious, but this repo is published on npm too: https://www.npmjs.co
 ## Prerequisites
 
 - Default WebSocket backend: Aputure Amaran Desktop application must be running and the WebSocket server should be accessible (default: ws://localhost:60124)
-- Optional BLE backend: run the `amaran-BLE-control` setup and daemon so its HTTP API is available (default: http://localhost:2708)
+- Direct BLE backend: macOS with Bluetooth permission for Node and a private mesh configuration imported from the previous BLE project. The included daemon listens on `http://127.0.0.1:2708`; Amaran Desktop is not required at runtime.
 
 ## Library Usage
 
@@ -121,7 +121,40 @@ amaran-cli cct 5600 -i 80 --backend ble
 
 When `--url` is used with `--backend`, it overrides the endpoint for that backend: a WebSocket URL for `websocket`, or an HTTP base URL for `ble`.
 
-The WebSocket backend remains the default. The BLE backend currently maps the daemon REST API for listing lights, on/off, intensity, CCT, and HSI commands; WebSocket-only features such as scenes, groups, effects, presets, fan controls, firmware updates, and state reads will report that they are unsupported.
+The WebSocket backend remains the default; explicitly pass `--backend ble` to use direct control. The included daemon supports power, brightness, CCT, 150c G/M and HSI, native effects, safe fan profiles, named/hex colors through HSI, relative adjustments, local groups/scenes/presets/quickshots, and host-paced fades. Hardware commands require matching authenticated readback; saved-library operations confirm local persistence instead. Normal all-light commands use prevalidated batched delivery, with explicit whole-mesh broadcast available through `ble batch`.
+
+Neither model has native RGB/XY or advanced HSI CCT/G/M. The BLE stack implements all eight native fan modes, including explicit manual RPM control, for individual fixtures, groups and all lights. Every mode requires advertised device support: the tested 150c and 200x S fixtures currently advertise only Smart and Medium. Mode changes are verified by readback; zero reported RPM is not treated as a fault. Active thermal protection blocks changes without restarting the fixture, and stopped-cooling requests require LEDs off or at zero brightness. Provisioning, firmware updates, native mesh subscription management, and unverified dimming-curve controls are not implemented.
+
+### Direct Bluetooth setup
+
+```bash
+npm ci
+npm run build
+
+# One-time import; mesh keys remain in the private platform config directory.
+node dist/cli.js ble import ../amaran-BLE-control/lights.json
+
+# Quit Amaran Desktop and pause other lighting automation before initial testing.
+node dist/cli.js ble serve
+
+# Alternatively, install a persistent macOS user service.
+node dist/cli.js ble service install
+node dist/cli.js ble service status
+
+node dist/cli.js status --backend ble
+node dist/cli.js cct 3200 desk -i 5 --backend ble
+node dist/cli.js hsi 240 100 5 back --backend ble
+node dist/cli.js ble gm back 20
+node dist/cli.js intensity 5 all --backend ble
+node dist/cli.js ble batch brightness --args '{"value":5}' --broadcast
+node dist/cli.js scene save Evening --backend ble
+node dist/cli.js fan info all --backend ble
+node dist/cli.js off --backend ble
+```
+
+These fixtures use whole-percent brightness, 100-K CCT steps, and (150c only) G/M steps of 10. Requests are rounded and verified against the applied values. Omitting CCT brightness or tint preserves the fixture's actual setting, never an 80% brightness default or full-magenta tint. CCT/HSI commands wake the fixture, matching its native behavior; use `off` to put it back to sleep.
+
+See [Direct BLE operation and verification](docs/DIRECT_BLE.md) for restart behavior, permissions, protocol findings, webcam checks, and limitations.
 
 ## Discovery
 
@@ -480,7 +513,7 @@ amaran-cli schedule print --date 2025-12-21
 # Change time interval (default: 30 minutes)
 amaran-cli schedule print --interval 15
 
-# Specify which curves to show (default: "all")
+# Specify which curves to show (default: "cie-daylight")
 amaran-cli schedule print --curve "hann, cie-daylight"
 
 # Output as CSV
@@ -521,7 +554,7 @@ amaran-cli schedule graph -W 1920 -H 1080
 amaran-cli schedule graph --curve cie-daylight
 amaran-cli schedule graph --curve "perez-daylight, sun-altitude"
 
-# View all available curves on one graph (default)
+# View all available curves on one graph
 amaran-cli schedule graph --curve all
 
 # Preview for a specific date and location

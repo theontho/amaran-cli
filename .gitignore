@@ -54,3 +54,6 @@ Desktop.ini
 
 # Configuration (user-specific)
 .amaran-cli.json
+
+# Local hardware captures and reports (may contain private images)
+/artifacts/

@@ -42,8 +42,12 @@ function handleColor(deps: CommandDeps) {
         },
         async (device, controller) => {
           // We use getNodeConfig initially
-          return new Promise((resolve) => {
+          return new Promise((resolve, reject) => {
             controller.getNodeConfig(device.node_id as string, async (_success, _messagee, data) => {
+              if (!_success && device.backend === 'ble') {
+                reject(new Error(_messagee));
+                return;
+              }
               const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
 
               const config =
@@ -136,8 +140,12 @@ function handleColor(deps: CommandDeps) {
 
           for (const device of lightDevices) {
             if (device.node_id) {
-              await new Promise<void>((resolve) => {
+              await new Promise<void>((resolve, reject) => {
                 controller.getNodeConfig(device.node_id as string, async (_success, _messagee, data) => {
+                  if (!_success && device.backend === 'ble') {
+                    reject(new Error(_messagee));
+                    return;
+                  }
                   const displayName = device.device_name || device.name || device.id || device.node_id || 'Unknown';
 
                   const config =
@@ -248,7 +256,10 @@ function handleColor(deps: CommandDeps) {
       },
       async (controller) => {
         await controller.setColorForAllLights(color, intensity, (success, message) => {
-          if (!success) console.error(`✗ Failed to set color: ${message}`);
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to set color: ${message}`);
+          }
         });
       }
     );

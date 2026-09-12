@@ -1,5 +1,5 @@
 import { CurveType, calculateCCT, parseCurveType } from './cctUtil.js';
-import { CCT_DEFAULTS, VALIDATION_RANGES } from './constants.js';
+import { CCT_DEFAULTS, DEFAULT_CURVE, DEFAULT_CURVE_TYPE, VALIDATION_RANGES } from './constants.js';
 import { getLocationFromIP, type Location } from './geoipUtil.js';
 import { interpolateMaxLux, parseMaxLuxMap } from './mathUtil.js';
 import { parseCloudCover, parseStrictNumber } from './parseUtils.js';
@@ -175,11 +175,13 @@ function resolveCurveType(
     try {
       return parseCurveType(config.defaultCurve);
     } catch (_) {
-      warnings.push(`Warning: Invalid default curve in config: ${config.defaultCurve}. Using 'hann' as fallback.`);
+      warnings.push(
+        `Warning: Invalid default curve in config: ${config.defaultCurve}. Using '${DEFAULT_CURVE}' as fallback.`
+      );
     }
   }
 
-  return 'HANN';
+  return DEFAULT_CURVE_TYPE;
 }
 
 async function resolveWeather(

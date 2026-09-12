@@ -2,7 +2,7 @@ import SunCalc from 'suncalc';
 
 const { getPosition, getTimes } = SunCalc;
 
-import { CCT_DEFAULTS } from './constants.js';
+import { CCT_DEFAULTS, DEFAULT_CURVE } from './constants.js';
 import {
   CURVE_FUNCTIONS,
   calculateRealisticBlackbodyDaylight,
@@ -243,7 +243,7 @@ export function calculateCCT(
   lon: number,
   date: Date = new Date(),
   opts?: CCTOptions,
-  curveType: CurveType = CurveType.HANN
+  curveType: CurveType = DEFAULT_CURVE
 ): CCTResult {
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const cctMinK = clamp(opts?.cctMinK ?? CCT_DEFAULTS.cctMinK, 1000, 20000);

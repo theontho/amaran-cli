@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { calculateCurrentCCT } from '../daylightSimulation/currentCct.js';
 
 describe('calculateCurrentCCT', () => {
+  it('uses CIE daylight when neither the command nor config specifies a curve', async () => {
+    const result = await calculateCurrentCCT({
+      lat: 40.7128,
+      lon: -74.006,
+      time: new Date('2025-06-21T12:00:00-04:00'),
+    });
+
+    expect(result.curveType).toBe('CIE_DAYLIGHT');
+  });
+
   it('falls back without weather adjustments when auto weather lookup fails', async () => {
     const result = await calculateCurrentCCT(
       {

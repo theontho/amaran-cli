@@ -1,7 +1,13 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, commandCallbackPromise, getLightDevices, runDeviceAction } from '../cmdUtils.js';
+import {
+  addStandardOptions,
+  commandCallbackPromise,
+  getAppliedNumber,
+  getLightDevices,
+  runDeviceAction,
+} from '../cmdUtils.js';
 
 export function registerIntensity(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -12,6 +18,7 @@ export function registerIntensity(program: Command, deps: CommandDeps) {
       .description('Set or get light intensity (0-100). Omit device or use "all" for all lights.')
   )
     .option('-g, --get', 'Get current intensity instead of setting')
+    .option('--relative', 'Apply a signed brightness change in percentage points, clamped to 0-100')
     .action(asyncCommand(handleIntensity(deps)));
 }
 
@@ -115,14 +122,21 @@ function handleIntensity(deps: CommandDeps) {
       process.exit(1);
     }
 
-    const intensity = parseInt(intensityStr, 10);
-    if (Number.isNaN(intensity) || intensity < 0 || intensity > 100) {
-      console.error(chalk.red('Intensity must be a number between 0 and 100'));
+    const intensity = Number(intensityStr);
+    if (!Number.isFinite(intensity) || intensity < (options.relative ? -100 : 0) || intensity > 100) {
+      console.error(
+        chalk.red(
+          options.relative
+            ? 'Relative intensity must be between -100 and 100'
+            : 'Intensity must be a number between 0 and 100'
+        )
+      );
       process.exit(1);
     }
 
     // Convert 0-100 user input to 0-1000 API range
     const apiIntensity = intensity * 10;
+    let appliedIntensity: number | undefined;
 
     return runDeviceAction(
       {
@@ -130,17 +144,34 @@ function handleIntensity(deps: CommandDeps) {
         options,
         deviceQuery,
         actionName: 'set intensity',
-        onSuccess: (device: Device) =>
-          `✓ ${device.device_name || device.name || device.id || device.node_id || 'Unknown'} intensity set to ${intensity}%`,
+        onSuccess: (device: Device) => {
+          const name = device.device_name || device.name || device.id || device.node_id || 'Unknown';
+          return options.relative
+            ? `✓ ${name} intensity adjusted${appliedIntensity === undefined ? '' : ` to ${appliedIntensity}%`} (relative request ${intensity}%)`
+            : `✓ ${name} intensity set to ${appliedIntensity ?? intensity}%`;
+        },
       },
       (device, controller) => {
-        return commandCallbackPromise((callback) =>
-          controller.setIntensity(device.node_id as string, apiIntensity, callback)
-        );
+        return commandCallbackPromise((callback) => {
+          const apply = options.relative
+            ? controller.incrementIntensity.bind(controller)
+            : controller.setIntensity.bind(controller);
+          apply(device.node_id as string, apiIntensity, (success, message, data) => {
+            const observed = success ? getAppliedNumber(data, 'intensity') : undefined;
+            if (observed !== undefined) appliedIntensity = observed / 10;
+            callback(success, message, data);
+          });
+        });
       },
       async (controller) => {
-        await controller.setIntensityForAllLights(apiIntensity, (success, message) => {
-          if (!success) console.error(`✗ Failed to set intensity: ${message}`);
+        const apply = options.relative
+          ? controller.incrementIntensityForAllLights.bind(controller)
+          : controller.setIntensityForAllLights.bind(controller);
+        await apply(apiIntensity, (success, message) => {
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to set intensity: ${message}`);
+          }
         });
       }
     );

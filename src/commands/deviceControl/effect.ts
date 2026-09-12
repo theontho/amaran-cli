@@ -1,211 +1,123 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import type { CommandDeps, CommandOptions, Device } from '../../deviceControl/types.js';
-import { addStandardOptions, runDeviceAction } from '../cmdUtils.js';
+import { z } from 'zod';
+import { numberInRange } from '../../ble/packets.js';
+import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
+import {
+  addStandardOptions,
+  commandCallbackResult,
+  getLightDevices,
+  requireBleController,
+  runDeviceAction,
+} from '../cmdUtils.js';
 
 export function registerEffect(program: Command, deps: CommandDeps) {
-  const { asyncCommand } = deps;
-  const effect = program.command('effect').description('Control effects');
-
-  addStandardOptions(effect.command('list').description('List available system effects')).action(
-    asyncCommand(handleEffectList(deps))
-  );
-
-  addStandardOptions(
-    effect
-      .command('set <device> <effect_type>')
-      .option('-i, --intensity <percent>', 'Intensity percentage')
-      .description('Set a system effect')
-  ).action(asyncCommand(handleEffectSet(deps)));
-
-  addStandardOptions(effect.command('custom <device> <effect_name>').description('Set a custom effect by name')).action(
-    asyncCommand(handleEffectCustom(deps))
-  );
-
-  addStandardOptions(effect.command('speed <device> <speed>').description('Set effect speed')).action(
-    asyncCommand(handleEffectSpeed(deps))
-  );
-
-  addStandardOptions(effect.command('intensity <device> <intensity>').description('Set effect intensity')).action(
-    asyncCommand(handleEffectIntensity(deps))
-  );
-}
-
-function handleEffectList(deps: CommandDeps) {
-  const { createController } = deps;
-  return async (options: CommandOptions) => {
-    const controller = await createController(options.url, options.clientId, options.debug, options.backend);
-
-    controller.getSystemEffectList((success, message, data) => {
-      if (success) {
-        const effects = (data as { data: string[] }).data;
-        console.log(chalk.blue('System Effects:'));
-        effects.forEach((eff) => {
-          console.log(`  - ${eff}`);
-        });
-      } else {
-        console.error(chalk.red(`Error getting effect list: ${message}`));
-      }
-      controller.disconnect();
-    });
-  };
-}
-
-function handleEffectSet(deps: CommandDeps) {
-  return async (deviceQuery: string, effectType: string, options: CommandOptions & { intensity?: string }) => {
-    let intensity: number | undefined;
-    if (options.intensity) {
-      const p = parseFloat(options.intensity);
-      if (!Number.isNaN(p)) {
-        intensity = p * 10; // Convert to API scale
-      }
-    }
-
-    // Special handling for "all" devices
-    if (deviceQuery.toLowerCase() === 'all') {
-      const { createController } = deps;
-      const controller = await createController(options.url, options.clientId, options.debug, options.backend);
+  const effect = program
+    .command('effect')
+    .description('Native lighting effects (flashing effects should be used cautiously)');
+  addStandardOptions(effect.command('list').description('List native effects; availability varies by fixture')).action(
+    deps.asyncCommand(async (options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
       try {
-        await controller.setSystemEffectForAllLights(effectType, intensity, (success, message) => {
-          if (!success) {
-            console.error(chalk.red(`Error setting effect for all lights: ${message}`));
-          }
-        });
-        console.log(chalk.green(`Effect ${effectType} set for all lights`));
+        console.log(
+          JSON.stringify(await commandCallbackResult((callback) => controller.getSystemEffectList(callback)), null, 2)
+        );
       } finally {
         await controller.disconnect();
       }
-      return;
-    }
-
-    return runDeviceAction(
-      {
-        deps,
-        options,
-        deviceQuery,
-        actionName: `set effect ${effectType}`,
-      },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          controller.setSystemEffect(device.node_id as string, effectType, intensity, (success, message) => {
-            if (success) {
-              console.log(chalk.green(`✓ Effect ${effectType} set on ${device.device_name || 'device'}`));
-            } else {
-              console.error(chalk.red(`✗ Failed to set effect: ${message}`));
-            }
-            resolve();
-          });
-        });
-      },
-      () => {
-        console.log(chalk.yellow('Bulk effect set not supported.'));
-        return Promise.resolve();
-      }
-    );
-  };
-}
-
-function handleEffectCustom(deps: CommandDeps) {
-  return async (deviceQuery: string, effectName: string, options: CommandOptions) => {
-    return runDeviceAction(
-      {
-        deps,
-        options,
-        deviceQuery,
-        actionName: `set custom effect ${effectName}`,
-      },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          controller.setEffect(device.node_id as string, effectName, {}, (success, message) => {
-            if (success) {
-              console.log(chalk.green(`✓ Custom effect ${effectName} set on ${device.device_name || 'device'}`));
-            } else {
-              console.error(chalk.red(`✗ Failed to set custom effect: ${message}`));
-            }
-            resolve();
-          });
-        });
-      },
-      () => {
-        console.log(chalk.yellow('Bulk custom effect not supported.'));
-        return Promise.resolve();
-      }
-    );
-  };
-}
-
-function handleEffectSpeed(deps: CommandDeps) {
-  return async (deviceQuery: string, speedStr: string, options: CommandOptions) => {
-    const speed = parseInt(speedStr, 10);
-    if (Number.isNaN(speed)) {
-      console.error(chalk.red('Speed must be a number'));
-      return;
-    }
-
-    return runDeviceAction(
-      {
-        deps,
-        options,
-        deviceQuery,
-        actionName: `set effect speed to ${speed}`,
-      },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          controller.setEffectSpeed(device.node_id as string, speed, (success, message) => {
-            if (success) {
-              console.log(chalk.green(`✓ Effect speed set to ${speed} on ${device.device_name || 'device'}`));
-            } else {
-              console.error(chalk.red(`✗ Failed to set effect speed: ${message}`));
-            }
-            resolve();
-          });
-        });
-      },
-      () => {
-        console.log(chalk.yellow('Bulk effect speed not supported.'));
-        return Promise.resolve();
-      }
-    );
-  };
-}
-
-function handleEffectIntensity(deps: CommandDeps) {
-  return async (deviceQuery: string, valueStr: string, options: CommandOptions) => {
-    const value = parseInt(valueStr, 10);
-    if (Number.isNaN(value)) {
-      console.error(chalk.red('Intensity must be a number'));
-      return;
-    }
-
-    // Note: The API usually expects 0-1000 range or similar. Check constants.
-    // Assuming user inputs API value directly for this low-level command,
-    // or we could map from percent. Let's assume input matches API expectation for now.
-
-    return runDeviceAction(
-      {
-        deps,
-        options,
-        deviceQuery,
-        actionName: `set effect intensity to ${value}`,
-      },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          controller.setEffectIntensity(device.node_id as string, value, (success, message) => {
-            if (success) {
-              console.log(chalk.green(`✓ Effect intensity set to ${value} on ${device.device_name || 'device'}`));
-            } else {
-              console.error(chalk.red(`✗ Failed to set effect intensity: ${message}`));
-            }
-            resolve();
-          });
-        });
-      },
-      () => {
-        console.log(chalk.yellow('Bulk effect intensity not supported.'));
-        return Promise.resolve();
-      }
-    );
-  };
+    })
+  );
+  addStandardOptions(
+    effect
+      .command('set <device> <effect_type>')
+      .option('-i, --intensity <percent>', 'Brightness 0-100; omitted preserves current output')
+  ).action(
+    deps.asyncCommand(async (deviceQuery: string, name: string, options: CommandOptions) => {
+      const intensity =
+        options.intensity === undefined
+          ? undefined
+          : numberInRange(Number(options.intensity), 'brightness', 0, 100) * 10;
+      await runDeviceAction(
+        { deps, options, deviceQuery, actionName: `set ${name}` },
+        async (device, controller) => {
+          await commandCallbackResult((callback) =>
+            controller.setSystemEffect(device.node_id as string, name, intensity, callback)
+          );
+        },
+        async (controller) => {
+          await commandCallbackResult((callback) => controller.setSystemEffectForAllLights(name, intensity, callback));
+        }
+      );
+      console.log(chalk.green(`Effect ${name} set on ${deviceQuery}`));
+    })
+  );
+  addStandardOptions(
+    effect
+      .command('custom <device> <effect_name>')
+      .option(
+        '--params <json>',
+        'Effect parameters: brightness (percent), frequency, kelvin, gm, palette, hue, saturation',
+        '{}'
+      )
+  ).action(
+    deps.asyncCommand(async (deviceQuery: string, name: string, options: CommandOptions) => {
+      const args = z.record(z.unknown()).parse(JSON.parse(String(options.params)));
+      await runDeviceAction(
+        { deps, options, deviceQuery, actionName: `set ${name}` },
+        async (device, controller) => {
+          await commandCallbackResult((callback) =>
+            controller.setEffect(device.node_id as string, name, args, callback)
+          );
+        },
+        async (controller) => {
+          await commandCallbackResult((callback) =>
+            requireBleController(controller).batch('all', 'effect', { ...args, name }, false, callback)
+          );
+        }
+      );
+      console.log(chalk.green(`Effect ${name} applied to ${deviceQuery}`));
+    })
+  );
+  for (const control of ['speed', 'intensity', 'stop'] as const) {
+    const command = effect
+      .command(control === 'stop' ? 'stop <device>' : `${control} <device> <value>`)
+      .description(
+        control === 'stop'
+          ? 'Restore pre-effect CCT/HSI, brightness and power (BLE)'
+          : control === 'speed'
+            ? 'Set native effect frequency (1-10)'
+            : 'Set effect intensity (legacy API units 0-1000)'
+      );
+    const run = async (deviceQuery: string, value: string | undefined, options: CommandOptions) => {
+      const number =
+        control === 'stop'
+          ? 0
+          : numberInRange(Number(value), control, control === 'speed' ? 1 : 0, control === 'speed' ? 10 : 1000);
+      const apply = async (id: string, controller: Parameters<typeof requireBleController>[0]) => {
+        await commandCallbackResult((callback) =>
+          control === 'stop'
+            ? requireBleController(controller).stopEffect(id, callback)
+            : control === 'speed'
+              ? controller.setEffectSpeed(id, number, callback)
+              : controller.setEffectIntensity(id, number, callback)
+        );
+      };
+      await runDeviceAction(
+        { deps, options, deviceQuery, actionName: `effect ${control}` },
+        (device, controller) => apply(device.node_id as string, controller),
+        async (controller) => {
+          for (const light of getLightDevices(controller.getDevices()))
+            await apply(light.node_id as string, controller);
+        }
+      );
+      console.log(chalk.green(`Effect ${control} applied to ${deviceQuery}`));
+    };
+    if (control === 'stop')
+      addStandardOptions(command).action(
+        deps.asyncCommand((device: string, options: CommandOptions) => run(device, undefined, options))
+      );
+    else addStandardOptions(command).action(deps.asyncCommand(run));
+  }
 }
 
 export default registerEffect;

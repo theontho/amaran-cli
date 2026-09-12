@@ -1,10 +1,12 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import BleHttpController from '../deviceControl/bleHttpControl.js';
 import type { CommandCallback, CommandDeps, CommandOptions, Device, LightController } from '../deviceControl/types.js';
 
 const LIGHT_NODE_PATTERN = /^[A-Z0-9]+-[A-Z0-9]+$/i;
 
 export function isLightDevice(device: Device): boolean {
+  if (device.device_type === 'ble-group') return false;
   return (
     (typeof device.node_id === 'string' && LIGHT_NODE_PATTERN.test(device.node_id)) ||
     device.backend === 'ble' ||
@@ -17,15 +19,32 @@ export function getLightDevices(devices: Device[]): Device[] {
 }
 
 export function commandCallbackPromise(register: (callback: CommandCallback) => void): Promise<void> {
+  return commandCallbackResult(register).then(() => undefined);
+}
+
+export function commandCallbackResult(register: (callback: CommandCallback) => void | Promise<void>): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    register((success, message) => {
-      if (!success) {
-        reject(new Error(message));
-        return;
-      }
-      resolve();
-    });
+    const pending = register((success, message, data) => (success ? resolve(data) : reject(new Error(message))));
+    pending?.catch(reject);
   });
+}
+
+export function requireBleController(controller: LightController): BleHttpController {
+  if (!(controller instanceof BleHttpController)) throw new Error('This operation requires --backend ble');
+  return controller;
+}
+
+export function getAppliedNumber(data: unknown, field: 'cct' | 'intensity'): number | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const states =
+    'states' in data && data.states && typeof data.states === 'object' ? Object.values(data.states) : [data];
+  const values = states.map((state) =>
+    state && typeof state === 'object' ? (state as Record<string, unknown>)[field] : undefined
+  );
+  const first = values[0];
+  return typeof first === 'number' && Number.isFinite(first) && values.every((value) => value === first)
+    ? first
+    : undefined;
 }
 
 /**

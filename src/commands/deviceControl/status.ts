@@ -19,6 +19,12 @@ function printDeviceStatus(device: Device, config: NodeConfig | undefined) {
     console.log(chalk.yellow('  No configuration data available.'));
     return;
   }
+  if (config.member_states && typeof config.member_states === 'object') {
+    for (const [key, value] of Object.entries(config.member_states)) {
+      if (value && typeof value === 'object') printDeviceStatus({ node_id: key, name: key }, value as NodeConfig);
+    }
+    return;
+  }
 
   // Basic State
   const sleep = config.sleep as boolean | undefined;
@@ -42,6 +48,9 @@ function printDeviceStatus(device: Device, config: NodeConfig | undefined) {
   // CCT
   if (config.cct !== undefined) {
     console.log(`  Temperature: ${config.cct}K`);
+  }
+  if (config.gm_support && typeof config.gm === 'number') {
+    console.log(`  G/M: ${config.gm > 0 ? '+' : ''}${config.gm}`);
   }
 
   // HSI
@@ -71,7 +80,7 @@ function printDeviceStatus(device: Device, config: NodeConfig | undefined) {
   if (config.effect_type) {
     console.log(`  System Effect: ${config.effect_type}`);
   }
-  if (config.effect_name) {
+  if (config.effect_name && config.effect_name !== config.effect_type) {
     console.log(`  Custom Effect: ${config.effect_name}`);
   }
 }
@@ -86,9 +95,13 @@ function handleStatus(deps: CommandDeps) {
         actionName: 'get status',
       },
       (device: Device, controller) => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           const nodeId = device.node_id as string;
           controller.getNodeConfig(nodeId, async (success: boolean, _message: string, data?: unknown) => {
+            if (!success && device.backend === 'ble') {
+              reject(new Error(_message));
+              return;
+            }
             let config: Record<string, unknown> = {};
 
             if (success) {
@@ -100,6 +113,11 @@ function handleStatus(deps: CommandDeps) {
               // If getNodeConfig fails, we start with empty and try to fill it
               if (options.debug)
                 console.log(chalk.gray(`getNodeConfig failed/incomplete for ${nodeId}, trying individual getters...`));
+            }
+            if (device.device_type === 'ble-group') {
+              printDeviceStatus(device, config);
+              resolve();
+              return;
             }
 
             // Fallback: Fetch specific states if missing from config
@@ -181,8 +199,12 @@ function handleStatus(deps: CommandDeps) {
         for (const device of lightDevices) {
           const nodeId = device.node_id;
           if (!nodeId) continue;
-          await new Promise<void>((resolve) => {
+          await new Promise<void>((resolve, reject) => {
             controller.getNodeConfig(nodeId, async (success, _message, data?: unknown) => {
+              if (!success && device.backend === 'ble') {
+                reject(new Error(_message));
+                return;
+              }
               let config: Record<string, unknown> = {};
               if (success) {
                 config =

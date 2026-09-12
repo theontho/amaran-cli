@@ -4,6 +4,7 @@ import registerAutoCct from './commands/daylightSimulation/autoCct.js';
 import registerSchedule from './commands/daylightSimulation/schedule.js';
 import registerService from './commands/daylightSimulation/service.js';
 import registerWeather from './commands/daylightSimulation/weather.js';
+import registerBle from './commands/deviceControl/ble.js';
 import registerCct from './commands/deviceControl/cct.js';
 import registerColor from './commands/deviceControl/color.js';
 import registerConfig from './commands/deviceControl/config.js';
@@ -26,6 +27,7 @@ import type { CommandDeps } from './deviceControl/types.js';
 export function registerCommands(program: Command, deps: CommandDeps) {
   // Register config command first
   registerConfig(program, deps);
+  registerBle(program, deps);
 
   // Register all other commands
   registerAutoCct(program, deps);

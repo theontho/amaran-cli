@@ -209,7 +209,10 @@ function handleHsi(deps: CommandDeps) {
       },
       async (controller) => {
         await controller.setHSIForAllLights(hue, saturation, apiIntensity, undefined, undefined, (success, message) => {
-          if (!success) console.error(`✗ Failed to set HSI color: ${message}`);
+          if (!success) {
+            process.exitCode = 1;
+            console.error(`✗ Failed to set HSI color: ${message}`);
+          }
         });
       }
     );

@@ -49,6 +49,7 @@ function handleSceneList(deps: CommandDeps) {
           });
         }
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error getting scene list: ${message}`));
       }
       controller.disconnect();
@@ -66,6 +67,7 @@ function handleSceneSave(deps: CommandDeps) {
         console.log(chalk.green(`Scene "${name}" saved successfully`));
         if (data) console.log('Data:', data);
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error saving scene: ${message}`));
       }
       controller.disconnect();
@@ -82,6 +84,7 @@ function handleSceneRecall(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Scene ${id} recalled successfully`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error recalling scene: ${message}`));
       }
       controller.disconnect();
@@ -98,6 +101,7 @@ function handleSceneDelete(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Scene ${id} deleted successfully`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error deleting scene: ${message}`));
       }
       controller.disconnect();
@@ -114,6 +118,7 @@ function handleSceneUpdate(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Scene ${id} updated successfully`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error updating scene: ${message}`));
       }
       controller.disconnect();

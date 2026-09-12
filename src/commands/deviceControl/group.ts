@@ -47,6 +47,7 @@ function handleGroupList(deps: CommandDeps) {
           });
         }
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error getting group list: ${message}`));
       }
       controller.disconnect();
@@ -64,6 +65,7 @@ function handleGroupCreate(deps: CommandDeps) {
         console.log(chalk.green(`Group "${name}" created successfully`));
         if (data) console.log('Data:', data);
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error creating group: ${message}`));
       }
       controller.disconnect();
@@ -80,6 +82,7 @@ function handleGroupDelete(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Group ${id} deleted successfully`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error deleting group: ${message}`));
       }
       controller.disconnect();
@@ -96,6 +99,7 @@ function handleGroupAdd(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Device ${nodeId} added to group ${groupId}`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error adding device to group: ${message}`));
       }
       controller.disconnect();
@@ -112,6 +116,7 @@ function handleGroupRemove(deps: CommandDeps) {
       if (success) {
         console.log(chalk.green(`Device ${nodeId} removed from group ${groupId}`));
       } else {
+        process.exitCode = 1;
         console.error(chalk.red(`Error removing device from group: ${message}`));
       }
       controller.disconnect();
