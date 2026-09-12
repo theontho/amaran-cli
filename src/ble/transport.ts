@@ -1,25 +1,16 @@
 import { EventEmitter } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Characteristic, Peripheral } from '@abandonware/noble';
+import { deadline } from './async.js';
 import { MeshCrypto, type NetworkMessage } from './crypto.js';
 import { packet } from './packets.js';
+import { discoverUnprovisioned, type UnprovisionedDevice } from './provisioning.js';
+
+export { deadline } from './async.js';
+
 import { decodeProductInfo, type ProductInfo } from './settings.js';
 import type { MeshConfig, SequenceStore } from './storage.js';
 import { decodeFan, decodeState, type FanState, type FixtureState, readFanPacket, readStatePacket } from './telink.js';
-
-export async function deadline<T>(operation: Promise<T>, milliseconds: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 export class ProxyAssembler {
   private partial?: { type: number; chunks: Buffer[]; length: number; started: number };
@@ -63,6 +54,7 @@ interface AccessMessage {
   source: number;
   sequence: number;
   data: Buffer;
+  deviceKey?: boolean;
 }
 interface Segments {
   chunks: Map<number, Buffer>;
@@ -106,9 +98,13 @@ export class MeshTransport {
         this.events.removeListener('lost', lost);
       };
       const handler = (value: T) => {
-        if (accept(value)) {
+        try {
+          if (!accept(value)) return;
           cleanup();
           resolve(value);
+        } catch (error) {
+          cleanup();
+          reject(error instanceof Error ? error : new Error(String(error)));
         }
       };
       const lost = () => {
@@ -278,12 +274,16 @@ export class MeshTransport {
   async readProductInfo(address: number): Promise<ProductInfo> {
     return this.readPacket(address, packet(0), decodeProductInfo);
   }
+  async discoverUnprovisioned(): Promise<UnprovisionedDevice[]> {
+    return discoverUnprovisioned();
+  }
 
   async readPacket<T>(address: number, query: Buffer, decode: (payload: Buffer) => T | undefined): Promise<T> {
     let state: T | undefined;
     const response = this.wait<AccessMessage>(
       'access',
       (message) => {
+        if (message.deviceKey) return false;
         if (message.source !== address) return false;
         // The command response is authenticated by the application key before reaching this point.
         if (message.data[0] !== 0x26 && message.data[0] !== 0x27) return false;
@@ -295,6 +295,27 @@ export class MeshTransport {
     await Promise.all([response, this.send(address, query)]);
     if (state === undefined) throw new Error('No decodable fixture state');
     return state;
+  }
+
+  async configuration(address: number, request: Buffer, accept: (data: Buffer) => boolean): Promise<Buffer> {
+    if (!this.ready) await this.connect();
+    if (!this.ready || this.iv === undefined) throw new Error('BLE proxy is not ready');
+    const key = this.config.lights.find((light) => light.address === address)?.deviceKey;
+    if (!key) throw new Error('Device Key is unavailable; import matching Desktop keys first');
+    const sequence = this.sequences.take();
+    const payload = this.crypto.deviceAccess(key, request, sequence, this.config.source, address, this.iv);
+    const response = this.wait<AccessMessage>(
+      'access',
+      (message) => {
+        if (message.deviceKey !== true || message.source !== address) return false;
+        if (this.debug && message.data[0] === 0x80 && [0x1f, 0x2a, 0x2c].includes(message.data[1]))
+          console.error(`Configuration status ${address}: ${message.data.toString('hex')}`);
+        return accept(message.data);
+      },
+      5000
+    );
+    const [result] = await Promise.all([response, this.sendNetwork(address, payload, false, false, sequence)]);
+    return result.data;
   }
 
   private readonly notify = (fragment: Buffer): void => {
@@ -319,23 +340,31 @@ export class MeshTransport {
       if (message.control || ![this.config.source, 1].includes(message.destination)) return;
       if (!this.config.lights.some((light) => light.address === message.source)) return;
       const lower = message.transport;
-      if ((lower[0] & 127) !== (0x40 | this.crypto.aid)) return;
+      const deviceKey = !(lower[0] & 0x40);
+      const key = deviceKey
+        ? this.config.lights.find((light) => light.address === message.source)?.deviceKey
+        : undefined;
+      if (deviceKey ? (lower[0] & 63) !== 0 || !key : (lower[0] & 127) !== (0x40 | this.crypto.aid)) return;
+      const decode = (data: Buffer, sequence = message.sequence, mic = false) =>
+        key
+          ? this.crypto.readDeviceAccess(key, data, message, sequence, mic)
+          : this.crypto.readAccess(data, message, sequence, mic);
       if (!(lower[0] & 128)) {
-        this.emitAccess(message, this.crypto.readAccess(lower.subarray(1), message), message.sequence);
+        this.emitAccess(message, decode(lower.subarray(1)), message.sequence, deviceKey);
         return;
       }
       if (lower.length < 5) throw new Error('Truncated segmented transport');
       const zero = ((lower[1] & 127) << 6) | (lower[2] >> 2);
       const index = ((lower[2] & 3) << 3) | (lower[3] >> 5);
       const count = (lower[3] & 31) + 1;
-      const key = `${message.source}:${message.iv}:${zero}`;
+      const segmentKey = `${message.source}:${message.iv}:${zero}:${deviceKey ? 'device' : 'app'}`;
       for (const [id, entry] of this.segments) if (Date.now() - entry.started > 10_000) this.segments.delete(id);
-      let segments = this.segments.get(key);
+      let segments = this.segments.get(segmentKey);
       if (!segments) {
         let sequence = (message.sequence & ~8191) | zero;
         if (sequence > message.sequence) sequence -= 8192;
         segments = { chunks: new Map(), count, sequence, mic: Boolean(lower[1] & 128), started: Date.now() };
-        this.segments.set(key, segments);
+        this.segments.set(segmentKey, segments);
       }
       if (index >= count || count !== segments.count) throw new Error('Inconsistent segmented transport');
       segments.chunks.set(index, lower.subarray(4));
@@ -343,27 +372,27 @@ export class MeshTransport {
       const encrypted = Buffer.concat(
         Array.from({ length: count }, (_, i) => segments.chunks.get(i) ?? Buffer.alloc(0))
       );
-      const decoded = this.crypto.readAccess(encrypted, message, segments.sequence, segments.mic);
+      const decoded = decode(encrypted, segments.sequence, segments.mic);
       const ack = Buffer.alloc(7);
       ack.writeUInt16BE(zero << 2, 1);
       ack.writeUInt32BE(count === 32 ? 0xffffffff : 2 ** count - 1, 3);
       void this.sendNetwork(message.source, ack, true).catch((error) =>
         console.error(`Segment acknowledgement failed: ${(error as Error).message}`)
       );
-      this.segments.delete(key);
-      this.emitAccess(message, decoded, segments.sequence);
+      this.segments.delete(segmentKey);
+      this.emitAccess(message, decoded, segments.sequence, deviceKey);
     } catch (error) {
       console.error(`Rejected BLE notification: ${(error as Error).message}`);
     }
   };
 
-  private emitAccess(message: NetworkMessage, data: Buffer, sequence: number): void {
+  private emitAccess(message: NetworkMessage, data: Buffer, sequence: number, deviceKey = false): void {
     const last = this.received.get(message.source);
     if (last && (message.iv < last.iv || (message.iv === last.iv && sequence <= last.sequence))) return;
     this.received.set(message.source, { iv: message.iv, sequence });
-    if (this.debug)
+    if (this.debug && !deviceKey)
       console.error(`Mesh RX source=${message.source} sequence=${sequence} access=${data.toString('hex')}`);
-    this.events.emit('access', { source: message.source, sequence, data } satisfies AccessMessage);
+    this.events.emit('access', { source: message.source, sequence, data, deviceKey } satisfies AccessMessage);
   }
 
   async disconnect(): Promise<void> {

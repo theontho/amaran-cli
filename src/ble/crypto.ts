@@ -192,4 +192,29 @@ export class MeshCrypto {
       largeMic ? 8 : 4
     );
   }
+
+  deviceAccess(key: string, data: Buffer, sequence: number, source: number, destination: number, iv: number): Buffer {
+    if (!/^[0-9a-f]{32}$/i.test(key)) throw new Error('Invalid Device Key');
+    if (data.length > 11) throw new Error('Configuration message needs segmented transmission');
+    return Buffer.concat([
+      Buffer.from([0]),
+      encrypt(Buffer.from(key, 'hex'), nonce(2, 0, sequence, source, destination, iv), data),
+    ]);
+  }
+
+  readDeviceAccess(
+    key: string,
+    data: Buffer,
+    message: NetworkMessage,
+    sequence = message.sequence,
+    largeMic = false
+  ): Buffer {
+    if (!/^[0-9a-f]{32}$/i.test(key)) throw new Error('Invalid Device Key');
+    return decrypt(
+      Buffer.from(key, 'hex'),
+      nonce(2, largeMic ? 128 : 0, sequence, message.source, message.destination, message.iv),
+      data,
+      largeMic ? 8 : 4
+    );
+  }
 }

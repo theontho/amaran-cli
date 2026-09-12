@@ -1,8 +1,9 @@
+import path from 'node:path';
 import { VerifiedController } from './controller.js';
 import { MeshCrypto } from './crypto.js';
 import { LocalLibrary } from './library.js';
 import { createBleServer } from './server.js';
-import { loadMeshConfig, meshDirectory, SequenceStore } from './storage.js';
+import { atomicJson, loadMeshConfig, meshDirectory, SequenceStore } from './storage.js';
 import { MeshTransport } from './transport.js';
 
 export async function serveBle(port = 2708, debug = false): Promise<void> {
@@ -12,11 +13,14 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
   const link = new MeshTransport(config, sequence, debug);
   const library = new LocalLibrary(meshDirectory());
   const controller = new VerifiedController(config, link, library);
-  const server = createBleServer(controller, library);
+  const server = createBleServer(controller, library, {
+    persistMesh: (value) => atomicJson(path.join(meshDirectory(), 'mesh.json'), value),
+  });
   let stopping = false;
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    await server.stopPrograms();
     server.close();
     server.closeIdleConnections();
     await controller.stop();
@@ -38,6 +42,7 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
   } catch (error) {
     process.removeListener('SIGINT', stop);
     process.removeListener('SIGTERM', stop);
+    await server.stopPrograms();
     await controller.stop();
     sequence.close();
     throw error;

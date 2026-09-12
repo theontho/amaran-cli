@@ -1,5 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { colorToHSI } from './colors.js';
+import { readComposition } from './configuration.js';
+import { desktopDeviceKeys } from './desktop.js';
 import {
   COLOR_EFFECTS,
   type EffectOptions,
@@ -9,7 +11,9 @@ import {
   WHITE_EFFECTS,
 } from './effects.js';
 import { describeFan, FanSettingSchema, FanStateSchema } from './fan.js';
-import type { SteadyHistory } from './library.js';
+import type { LocalLibrary, SteadyHistory } from './library.js';
+import { NativeGroups } from './nativeGroups.js';
+import type { UnprovisionedDevice } from './provisioning.js';
 import type { ProductInfo } from './settings.js';
 import type { MeshConfig, MeshLight } from './storage.js';
 import {
@@ -36,6 +40,8 @@ export interface MeshLink {
   readState(address: number): Promise<FixtureState>;
   readFan?(address: number): Promise<FanState>;
   readProductInfo?(address: number): Promise<ProductInfo>;
+  configuration?(address: number, request: Buffer, accept: (data: Buffer) => boolean): Promise<Buffer>;
+  discoverUnprovisioned?(): Promise<UnprovisionedDevice[]>;
 }
 
 export function capabilities(light: MeshLight) {
@@ -129,7 +135,7 @@ interface Prepared {
   expected: Partial<FixtureState>;
 }
 export interface BatchResult {
-  delivery: 'mesh-broadcast' | 'batched-unicast';
+  delivery: 'mesh-broadcast' | 'native-group' | 'batched-unicast';
   states: Record<string, FixtureState>;
   triggerRequest?: { sent: true; eventConfirmed: false };
 }
@@ -158,16 +164,63 @@ export class VerifiedController {
     private readonly history?: SteadyHistory
   ) {}
 
+  async importDeviceKeys(database: string, persist: (config: MeshConfig) => void): Promise<number> {
+    return this.serialize(async () => {
+      if (!this.link.configuration) throw new Error('Native configuration transport is unavailable');
+      const candidate = desktopDeviceKeys(database, this.config);
+      const previous = this.config.lights;
+      this.config.lights = candidate.lights;
+      try {
+        const configuration = this.link.configuration.bind(this.link);
+        for (const light of candidate.lights) await readComposition({ configuration }, light.address);
+        persist(this.config);
+      } catch (error) {
+        this.config.lights = previous;
+        throw error;
+      }
+      return candidate.lights.length;
+    });
+  }
+
+  async nativeGroup(
+    library: LocalLibrary,
+    key: string | undefined,
+    action: 'inspect' | 'enable' | 'sync' | 'disable' | 'add' | 'remove',
+    value?: number | string
+  ) {
+    return this.serialize(async () => {
+      if (!this.link.configuration) throw new Error('Native configuration transport is unavailable');
+      const groups = new NativeGroups(this.config, { configuration: this.link.configuration.bind(this.link) }, library);
+      if (action === 'inspect') return groups.inspect();
+      if (!key) throw new Error('Native group ID is required');
+      if (action === 'enable') return groups.enable(key, typeof value === 'number' ? value : undefined);
+      if (action === 'disable') return groups.disable(key);
+      if (action === 'add' || action === 'remove') {
+        if (typeof value !== 'string') throw new Error('Member key is required');
+        return groups.member(key, value, action === 'remove');
+      }
+      return groups.sync(key);
+    });
+  }
+
+  async discoverUnprovisioned(): Promise<UnprovisionedDevice[]> {
+    if (!this.link.discoverUnprovisioned) throw new Error('Provisioning discovery is unavailable');
+    const scan = this.link.discoverUnprovisioned.bind(this.link);
+    return this.serialize(scan);
+  }
+
   private light(key: string): MeshLight {
     const light = this.config.lights.find((entry) => entry.key === key);
     if (!light) throw new Error(`Unknown fixture: ${key}`);
     return light;
   }
-  private hold(keys: string[], minutes = 30): void {
+  private hold(keys: string[], minutes = 30, replace = false): void {
     const until = minutes === 0 ? 0 : Date.now() + minutes * 60_000;
     for (const key of keys) {
-      this.manualOverrides.set(key, until);
-      this.history?.setOverride?.(key, until);
+      const current = this.history?.getOverride?.(key) ?? this.manualOverrides.get(key) ?? 0;
+      const expires = replace ? until : Math.max(until, current);
+      this.manualOverrides.set(key, expires);
+      this.history?.setOverride?.(key, expires);
     }
   }
   overrideStatus(keys: string[]): Record<string, number> {
@@ -184,8 +237,16 @@ export class VerifiedController {
     for (const key of keys) this.light(key);
     numberInRange(minutes, 'override minutes', 0, 1440);
     return this.serialize(async () => {
-      this.hold(keys, minutes);
+      this.hold(keys, minutes, true);
       return this.overrideStatus(keys);
+    }, signal);
+  }
+  async reserveControl(keys: string[], minutes: number, signal?: AbortSignal): Promise<void> {
+    if (!keys.length) throw new Error('Control reservation requires targets');
+    for (const key of keys) this.light(key);
+    numberInRange(minutes, 'control reservation minutes', 1, 1440);
+    await this.serialize(async () => {
+      this.hold(keys, minutes);
     }, signal);
   }
   async automaticCct(key: string, body: Record<string, unknown>, signal?: AbortSignal) {
@@ -271,7 +332,8 @@ export class VerifiedController {
     action: string,
     body: Record<string, unknown>,
     broadcast = false,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    groupAddress?: number
   ): Promise<BatchResult> {
     if (!keys.length || new Set(keys).size !== keys.length)
       throw new Error('Batch requires unique, nonempty fixture targets');
@@ -296,8 +358,15 @@ export class VerifiedController {
       }
       signal?.throwIfAborted();
       this.hold(keys);
+      const native = groupAddress !== undefined && prepared.every((item) => item.payload.equals(prepared[0].payload));
+      if (
+        groupAddress !== undefined &&
+        (!Number.isInteger(groupAddress) || groupAddress < 0xc000 || groupAddress > 0xfeff)
+      )
+        throw new Error('Invalid native group address');
       try {
         if (broadcast) await this.link.send(0xffff, prepared[0].payload);
+        else if (native) await this.link.send(groupAddress, prepared[0].payload);
         else
           for (const item of prepared) {
             signal?.throwIfAborted();
@@ -324,7 +393,7 @@ export class VerifiedController {
       if (failures.length)
         throw new Error(`Partial batch failure (other lights may have changed): ${failures.join('; ')}`);
       return {
-        delivery: broadcast ? 'mesh-broadcast' : 'batched-unicast',
+        delivery: broadcast ? 'mesh-broadcast' : native ? 'native-group' : 'batched-unicast',
         states,
         ...(action === 'effect-trigger'
           ? { triggerRequest: { sent: true as const, eventConfirmed: false as const } }

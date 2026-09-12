@@ -35,7 +35,19 @@ export const SavedStateSchema = z
   });
 const Name = z.string().trim().min(1).max(80);
 const Entry = z.object({ id: z.string(), name: Name, states: z.record(SavedStateSchema) });
-const Group = z.object({ id: z.string(), name: Name, members: z.array(z.string()).max(128) });
+const Group = z.object({
+  id: z.string(),
+  name: Name,
+  members: z.array(z.string()).max(128),
+  native: z
+    .object({
+      address: z.number().int().min(0xc000).max(0xfeff),
+      status: z.enum(['pending', 'ready']),
+      managed: z.array(z.string()).min(1),
+    })
+    .optional(),
+});
+export type LightingGroup = z.infer<typeof Group>;
 const Schema = z.object({
   version: z.literal(1),
   scenes: z.array(Entry).max(128),
@@ -47,6 +59,10 @@ const Schema = z.object({
 });
 export type LibraryCollection = 'scenes' | 'presets' | 'quickshots';
 export type LibraryEntry = z.infer<typeof Entry>;
+export interface LibraryImport {
+  groups: { id: string; name: string; members: string[] }[];
+  entries: { collection: LibraryCollection; entry: LibraryEntry }[];
+}
 export interface SteadyHistory {
   getSteady(key: string): FixtureState | undefined;
   saveSteady(key: string, state: FixtureState): void;
@@ -128,6 +144,7 @@ export class LocalLibrary implements SteadyHistory {
   }
   deleteGroup(key: string): void {
     const group = this.group(key);
+    if (group.native) throw new Error('Disable native subscriptions before deleting the group');
     this.commit({ ...this.data, groups: this.data.groups.filter((item) => item.id !== group.id) });
   }
   renameGroup(key: string, name: unknown): z.infer<typeof Group> {
@@ -141,9 +158,45 @@ export class LocalLibrary implements SteadyHistory {
   }
   updateGroup(key: string, member: string, remove: boolean): void {
     const group = this.group(key);
+    if (group.native?.status === 'ready')
+      throw new Error('Native membership changes must be synchronized with the fixtures');
     if (remove && !group.members.includes(member)) throw new Error(`${member} is not in ${group.name}`);
     group.members = remove ? group.members.filter((item) => item !== member) : [...new Set([...group.members, member])];
     this.commit({ ...this.data, groups: this.data.groups.map((item) => (item.id === group.id ? group : item)) });
+  }
+  setNativeGroup(key: string, native: LightingGroup['native']): LightingGroup {
+    const group = this.group(key);
+    group.native = native;
+    this.commit({ ...this.data, groups: this.data.groups.map((item) => (item.id === group.id ? group : item)) });
+    return group;
+  }
+  importLibrary(plan: LibraryImport, apply: boolean, replace = false) {
+    const next = structuredClone(this.data);
+    let created = 0,
+      updated = 0,
+      unchanged = 0;
+    const merge = <T extends { id: string; name: string }>(items: T[], incoming: T): T[] => {
+      const existing = items.find((item) => item.id === incoming.id);
+      if (items.some((item) => item.id !== incoming.id && item.name.toLowerCase() === incoming.name.toLowerCase()))
+        throw new Error(`Import name conflicts with a local item: ${incoming.name}`);
+      if (existing && JSON.stringify(existing) === JSON.stringify(incoming)) {
+        unchanged++;
+        return items;
+      }
+      if (existing && !replace) throw new Error(`Import would update ${incoming.name}; explicitly enable replacement`);
+      if (existing) updated++;
+      else created++;
+      return [...items.filter((item) => item.id !== incoming.id), incoming];
+    };
+    for (const incoming of plan.groups) {
+      if (next.groups.find((item) => item.id === incoming.id)?.native)
+        throw new Error(`Disable native subscriptions before replacing imported group ${incoming.name}`);
+      next.groups = merge(next.groups, Group.parse(incoming));
+    }
+    for (const { collection, entry } of plan.entries) next[collection] = merge(next[collection], Entry.parse(entry));
+    Schema.parse(next);
+    if (apply) this.commit(next);
+    return { applied: apply, created, updated, unchanged };
   }
   getSteady(key: string): FixtureState | undefined {
     return this.data.steady[key] ? structuredClone(this.data.steady[key]) : undefined;

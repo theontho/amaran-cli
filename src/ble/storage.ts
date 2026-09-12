@@ -26,6 +26,10 @@ export const MeshConfigSchema = z
           mac: z.string(),
           address: z.number().int().min(2).max(0x7fff),
           model: z.enum(['200x', '200x-s', '150c']),
+          deviceKey: z
+            .string()
+            .regex(/^[0-9a-f]{32}$/i)
+            .optional(),
         })
       )
       .min(1),

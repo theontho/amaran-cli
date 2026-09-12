@@ -13,7 +13,7 @@ On, off and toggle are supported for each fixture or all configured lights. Zero
 
 Additional controls include relative brightness/CCT, named or hex colors converted to HSI, native effects and trigger requests, fan profiles, batched control, CCT/HSI/scene transitions, persistent local groups/scenes/presets/quickshots with fan profiles, and manual overrides for circadian control.
 
-Neither fixture advertises native RGB/XY; the 150c does not advertise advanced HSI CCT/G/M. The direct backend does not implement provisioning, mesh key refresh, extended CCT, firmware updates, native mesh subscription changes, or unverified dimming-curve controls. Music/audio-reactive, camera-picker and programmable timeline features from the desktop application are not implemented. Unsupported operations fail explicitly. Hardware validation uses two 200x S fixtures and one 150c; an original non-S 200x was not available.
+Neither fixture advertises native RGB/XY; the 150c does not advertise advanced HSI CCT/G/M. Native mesh subscriptions, Desktop quickshot/workspace import, and host-driven timeline/audio/camera programs are implemented. Provisioning discovery and key-refresh phase inspection are read-only; joining/re-keying a mesh is not implemented. OTA/firmware updates are intentionally excluded. Extended CCT and unverified dimming-curve writes remain unavailable. Hardware validation uses two 200x S fixtures and one 150c; an original non-S 200x was not available.
 
 ### Tint, colors and relative adjustments
 
@@ -106,7 +106,7 @@ amaran-cli quickshot set Workday --backend ble
 
 Normal bulk commands prevalidate and read all targets before sending a burst of unicast packets, then verify every member. Explicit broadcast sends one mesh packet and verifies each member, repairing mismatches individually. It requires the complete configured target set and identical encoded settings. **Broadcast reaches every provisioned node on that mesh**, including any nodes absent from the configuration; it is not a subset-group operation. Neither method promises atomic or hard-real-time synchronization.
 
-Groups are local logical membership lists, not native mesh subscriptions or desktop groups. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint, effect parameters and native fan profiles. Manual fan setpoints cannot be inferred from measured RPM, so snapshots refuse an active Manual fan profile. Old saved entries without fan settings remain compatible. These records are local, not imported desktop-library entries. Retargeting a preset validates the receiving model before changing it.
+Groups start as local logical membership lists and can optionally be enabled as verified native subscriptions. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint, effect parameters and native fan profiles. Manual fan setpoints cannot be inferred from measured RPM, so snapshots refuse an active Manual fan profile. Old saved entries without fan settings remain compatible. These records are local, not imported desktop-library entries. Retargeting a preset validates the receiving model before changing it.
 
 `group rename ID NAME` preserves identity/membership. `preset update ID --name NAME` and `quickshot update ID --name NAME` replace their saved states from the original fixture targets, optionally renaming them. Add `--backend ble` to these commands.
 
@@ -122,6 +122,63 @@ CCT transitions interpolate Kelvin/tint; HSI transitions take the shortest hue a
 
 ## Manual control and testing
 
+### Native groups and read-only mesh discovery
+
+```sh
+# Private, same-mesh credentials only; keys are never returned by the HTTP API.
+amaran-cli ble mesh import-keys /path/to/amaran.db
+amaran-cli ble mesh inspect
+amaran-cli ble mesh discover
+amaran-cli group native Work enable --backend ble
+amaran-cli intensity 5 Work --backend ble
+amaran-cli group native Work sync --backend ble
+amaran-cli group native Work disable --backend ble
+```
+
+Device Key import verifies matching network/application keys, fixture MACs/addresses, and authenticated composition responses before persisting keys under the private mesh config directory. Mesh inspection reads actual device composition, existing application bindings, subscriptions and key-refresh phase. It does not trust Desktop's cached composition, which differed from the live 150c during verification.
+
+Native group setup uses the already-bound primary Generic OnOff model (`0x1000`), verified to route these fixtures' native lighting commands. It allocates an unused `0xc000-0xfeff` address and never replaces other subscriptions. A persistent pending record is written before changes; interrupted operations can be resumed with `sync` or removed with `disable`. Native membership updates are verified, and deleting a native group first removes its owned subscriptions. No reset, application-key rebind or key rotation is performed.
+
+Ready native groups use one group-addressed lighting packet when members need identical encoded settings; otherwise delivery falls back to explicit unicast and reports that choice. Pending groups do not use their native address. `ble mesh discover` lists provisioning-service advertisements only: it does not identify ownership, pair devices, or reset/re-provision existing fixtures. Full provisioning/key refresh remain separate, unimplemented operations; inspection confirms phase but does not change it.
+
+### Desktop library import
+
+```sh
+amaran-cli ble import-desktop /path/to/amaran.db
+amaran-cli ble import-desktop /path/to/amaran.db --apply
+```
+
+The default is a preview with errors/warnings. Import reads SQLite in read-only mode and maps fixture IDs by MAC. Desktop quickshots become local quickshots; Desktop scenes are workspaces and become local groups, not invented lighting snapshots. CCT/HSI parameters are validated, Desktop 150c tint is converted from its stored 0-200 range to signed G/M, and asleep snapshots preserve remembered brightness without emitting it. Import never applies lighting or changes native subscriptions/fan modes.
+
+Stable source IDs make repeat imports idempotent. Changed imports require `--replace`; unrelated local-name collisions and imported groups with native subscriptions are protected. Unmapped/unsupported records stop an apply unless `--allow-partial` explicitly permits the valid subset. Desktop preset formats without a verified schema are reported rather than guessed; the tested database contained no preset rows. The implementation successfully mapped its four quickshots and two explicit workspace/groups. An implicit All group without explicit membership is reported and skipped.
+
+### Timeline and media control
+
+```sh
+amaran-cli ble program timeline.json --targets all
+amaran-cli ble audio /path/to/music.wav --targets all --seconds 30 --max 5
+amaran-cli ble picker --image /path/to/image.png --targets back --seconds 10 --max 1
+amaran-cli ble picker --camera 0 --targets back --region 0,0,1280,720 --seconds 10 --max 1
+# Microphone capture is explicit, local, and requires macOS permission.
+amaran-cli ble microphone 0 --targets all --seconds 30 --max 5
+amaran-cli ble jobs list
+amaran-cli ble jobs stop JOB_ID
+```
+
+Timeline JSON contains `duration` (1-1200 seconds), optional `restore`, and `steps` with `at`, `action`, and `args`. For example:
+
+```json
+{"duration":3,"steps":[{"at":0,"action":"brightness","args":{"value":1}},{"at":1,"action":"cct","args":{"kelvin":3200,"brightness":2}}]}
+```
+
+These are bounded host-driven programs, not on-fixture timelines. Cues must be ordered at least 0.5 seconds apart. Media uses local `ffmpeg`: audio RMS drives brightness with smoothing; image/camera averages drive HSI. RGB is converted to the fixture's HSI controls, not a native RGB mode. Picker targets must support HSI; media starts require awake fixtures in steady CCT/HSI mode. Default output cap is 5%, maximum duration is 20 minutes, and data is not uploaded. Files must be local; media subprocesses cannot fetch network URLs. Camera and microphone capture currently require macOS.
+
+Live camera/microphone capture runs in the foreground CLI, which has the terminal's OS permissions; only validated RGB averages/RMS numbers are sent to the loopback daemon. It does not bypass or modify macOS privacy settings. Live capture cannot use `--background`; local files and timelines can. `ffmpeg` is resolved from standard installation locations or `AMARAN_FFMPEG_PATH`, so a LaunchAgent's minimal PATH does not hide Homebrew installations. Media duration starts with the first usable sample; startup has a separate 10-second deadline.
+
+The daemon owns each job, exposes preparing/running/restoring/terminal status, and keeps only bounded history. `--background` returns its ID; otherwise the CLI waits and Ctrl-C stops it. Input frames use a latest-value slot rather than an unbounded backlog. Default completion/explicit stop restores the original lighting/fan settings and prior override expiry; `--no-restore` keeps the final state. Manual lighting commands cancel overlapping jobs without restoring over the user's new command. A new program supersedes older overlapping programs. Daemon shutdown cancels jobs and does not restart them on boot. Errors and restoration failures are reported explicitly; they are not successful completions.
+
+### Circadian overrides
+
 Manual lighting mutations create a **30-minute per-fixture override**, persisted across daemon restart. This also protects potentially partial/failed manual operations from being overwritten by the next automatic update. `auto-cct --backend ble` uses a separate daemon action that checks overrides inside the same serialized queue as manual commands. It also skips sleeping fixtures, reported thermal protection, and reported stopped-cooling modes. Fan-only changes and read-only queries do not create lighting overrides.
 
 ```sh
@@ -133,7 +190,7 @@ amaran-cli ble info all
 
 Override status reports remaining milliseconds per fixture. Resume clears the hold; the next circadian update takes over. Changes made outside this daemon are not automatically assigned a hold, so explicitly hold before using the desktop app or physical controls for comparisons.
 
-`ble info` reads native product/firmware/protocol identifiers and reported feature bits. Version fields are raw SDK codes, not invented semantic version strings. Read-only dimming-curve queries were attempted on all three fixtures and produced no response; curve writes remain disabled. No provisioning, key refresh, native subscription mutation or firmware-flashing path is provided without a verified maintenance protocol.
+`ble info` reads native product/firmware/protocol identifiers and reported feature bits. Version fields are raw SDK codes, not invented semantic version strings. Read-only dimming-curve queries were attempted on all three fixtures and produced no response; curve writes remain disabled. Provisioning/key rotation are not implemented, and OTA/firmware updates are intentionally excluded.
 
 ## Setup and services
 
@@ -194,6 +251,8 @@ curl -X POST http://127.0.0.1:2708/lights/desk/cct \
 Light actions are `state`, `on`, `off`, `toggle`, `brightness` (`value` in percent), `cct` (`kelvin`, optional `brightness`/`gm`), `gm` (`value`), `hsi` (`hue`, `saturation`, optional `brightness`), `color`, `increment-brightness`, `increment-cct`, `effect`, `effect-speed`, `effect-intensity`, `effect-stop` and `effect-trigger`. Fan GET/POST uses `/lights/KEY/fan` with optional `mode` and manual `rpm`; a group key returns keyed `states`. `GET /fans` reads all fans. `POST /fans` accepts `{targets:"all"|["desk","group:ID"], mode?, rpm?}`; omitting both mode and RPM is read-only. RPM requires manual mode, and manual mode requires RPM. Group expansion deduplicates members, and all fan bulk results have shape `{states:{fixtureKey:FanState}}`. Feature flags `fanTargets` and `fanManualRpm` identify endpoint/manual-setpoint support separately from each fixture's capability flags.
 
 `POST /transition` takes `{targets, action:"cct"|"hsi"|"brightness", args, seconds}`; saved-state recall accepts optional `seconds` for a scene transition. `POST /overrides` takes `{targets, minutes?}`: omit minutes to inspect, use zero to resume. `POST /lights/KEY/auto-cct` returns either verified applied state or `{skipped:true, reason}` without claiming a hardware write. `GET /lights/KEY/info` reads native product information. Group renaming uses `POST /groups/ID/rename`.
+
+`POST /programs` starts a validated asynchronous job; `GET /programs[/ID]` reports status and `DELETE /programs/ID` stops it. Acceptance is not completion. Foreground capture uses source `{kind:"samples",media:"image"|"audio"}` and `POST /programs/ID/sample` with `{rgb:[r,g,b]}` or `{rms:0..1}`; this endpoint accepts numeric samples, not image/audio uploads. `POST /desktop/import` previews/applies library metadata. `POST /mesh/keys` imports matching private Device Keys; `GET /mesh/inspect` and `/mesh/discover` are read-only. `POST /groups/ID/native` accepts `enable`, `sync`, or `disable`; regular group membership/deletion routes maintain native subscriptions when enabled. No Device Keys appear in metadata responses.
 
 `POST /batch` takes `{targets:"all"|["desk","front"], action, args, broadcast?:boolean}`. `POST /fade` takes `{targets, brightness, seconds}`. `GET /effects` lists the union of supported effect names; per-fixture capabilities remain authoritative. `/groups` provides local membership CRUD. `/library/scenes`, `/library/presets` and `/library/quickshots` provide list/save, ID-or-name update/delete and `/:id/recall`; preset recall may include a `target` fixture key.
 

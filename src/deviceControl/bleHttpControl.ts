@@ -143,6 +143,47 @@ export default class BleHttpController {
   public renameGroup(groupId: string, name: string, callback?: CommandCallback) {
     return this.libraryRequest(`/groups/${encodeURIComponent(groupId)}/rename`, 'POST', { name }, callback);
   }
+  public nativeGroup(
+    groupId: string,
+    action: 'enable' | 'sync' | 'disable',
+    address: number | undefined,
+    callback?: CommandCallback
+  ) {
+    return this.libraryRequest(
+      `/groups/${encodeURIComponent(groupId)}/native`,
+      'POST',
+      { action, ...(address === undefined ? {} : { address }) },
+      callback
+    );
+  }
+  public inspectMesh(callback?: CommandCallback) {
+    return this.libraryRequest('/mesh/inspect', 'GET', undefined, callback);
+  }
+  public discoverUnprovisioned(callback?: CommandCallback) {
+    return this.libraryRequest('/mesh/discover', 'GET', undefined, callback);
+  }
+  public importDeviceKeys(database: string, callback?: CommandCallback) {
+    return this.libraryRequest('/mesh/keys', 'POST', { database }, callback);
+  }
+  public importDesktop(
+    database: string,
+    options: { apply: boolean; replace: boolean; allowPartial: boolean; prefix: string },
+    callback?: CommandCallback
+  ) {
+    return this.libraryRequest('/desktop/import', 'POST', { database, ...options }, callback);
+  }
+  public startProgram(program: Record<string, unknown>, callback?: CommandCallback) {
+    return this.libraryRequest('/programs', 'POST', program, callback);
+  }
+  public getPrograms(id: string | undefined, callback?: CommandCallback) {
+    return this.libraryRequest(id ? `/programs/${encodeURIComponent(id)}` : '/programs', 'GET', undefined, callback);
+  }
+  public stopProgram(id: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/programs/${encodeURIComponent(id)}`, 'DELETE', undefined, callback);
+  }
+  public programSample(id: string, sample: Record<string, unknown>, callback?: CommandCallback) {
+    return this.libraryRequest(`/programs/${encodeURIComponent(id)}/sample`, 'POST', sample, callback);
+  }
   public updateSaved(
     collection: 'presets' | 'quickshots',
     key: string,
@@ -665,14 +706,19 @@ export default class BleHttpController {
     body: Record<string, unknown> | undefined,
     callback?: CommandCallback
   ): Promise<void> {
-    const feature =
-      path === '/effects'
-        ? 'effects'
-        : path === '/overrides'
-          ? 'automaticCct'
-          : path.startsWith('/lights/') && path.endsWith('/info')
-            ? 'productInfo'
-            : 'library';
+    const feature = path.startsWith('/programs')
+      ? 'programs'
+      : path === '/desktop/import'
+        ? 'desktopImport'
+        : path.startsWith('/mesh/')
+          ? 'meshConfig'
+          : path === '/effects'
+            ? 'effects'
+            : path === '/overrides'
+              ? 'automaticCct'
+              : path.startsWith('/lights/') && path.endsWith('/info')
+                ? 'productInfo'
+                : 'library';
     if (!this.features[feature]) {
       this.unsupported(callback);
       return;

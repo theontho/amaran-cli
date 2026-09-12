@@ -6,6 +6,35 @@ import { addStandardOptions, commandCallbackResult, requireBleController } from 
 export function registerGroup(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
   const group = program.command('group').description('Manage device groups');
+  addStandardOptions(
+    group
+      .command('native <id> <action>')
+      .description('Enable, sync or disable verified native mesh subscriptions')
+      .option('--address <address>', 'Unused mesh group address (decimal or 0xhex); otherwise allocated')
+  ).action(
+    asyncCommand(async (id: string, action: string, options: CommandOptions) => {
+      if (!['enable', 'sync', 'disable'].includes(action)) throw new Error('Use enable, sync or disable');
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) =>
+              requireBleController(controller).nativeGroup(
+                id,
+                action as 'enable' | 'sync' | 'disable',
+                options.address === undefined ? undefined : Number(options.address),
+                cb
+              )
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
 
   addStandardOptions(group.command('list').description('List all groups')).action(asyncCommand(handleGroupList(deps)));
   addStandardOptions(

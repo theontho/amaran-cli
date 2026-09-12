@@ -1,11 +1,106 @@
+import { realpathSync } from 'node:fs';
 import type { Command } from 'commander';
 import { z } from 'zod';
 import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
 import { addStandardOptions, commandCallbackResult, requireBleController, runDeviceAction } from '../cmdUtils.js';
+import { registerPrograms } from './program.js';
 
 export default function registerBle(program: Command, deps: CommandDeps): void {
   const { asyncCommand } = deps;
   const ble = program.command('ble').description('Direct Bluetooth Mesh setup and verified local daemon');
+  registerPrograms(ble, deps);
+  addStandardOptions(
+    ble
+      .command('import-desktop <database>')
+      .description('Preview or import local Desktop quickshots/workspace groups; never applies lighting')
+      .option('--apply', 'Apply the validated import plan')
+      .option('--replace', 'Allow replacement of previously imported records')
+      .option('--allow-partial', 'Explicitly import valid entries despite reported unsupported records')
+      .option('--prefix <prefix>', 'Imported record name prefix', 'Desktop')
+  ).action(
+    asyncCommand(async (database: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, 'ble');
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) =>
+              requireBleController(controller).importDesktop(
+                realpathSync(database),
+                {
+                  apply: options.apply === true,
+                  replace: options.replace === true,
+                  allowPartial: options.allowPartial === true,
+                  prefix: String(options.prefix),
+                },
+                cb
+              )
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
+  const mesh = ble.command('mesh').description('Native mesh configuration (no OTA or key rotation)');
+  addStandardOptions(
+    mesh
+      .command('discover')
+      .description('Read-only scan for unprovisioned Mesh devices; does not pair or reset anything')
+  ).action(
+    asyncCommand(async (options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, 'ble');
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) => requireBleController(controller).discoverUnprovisioned(cb)),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
+  addStandardOptions(
+    mesh.command('inspect').description('Read live composition, app bindings, subscriptions and key-refresh phase')
+  ).action(
+    asyncCommand(async (options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, 'ble');
+      try {
+        console.log(
+          JSON.stringify(await commandCallbackResult((cb) => requireBleController(controller).inspectMesh(cb)), null, 2)
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
+  addStandardOptions(
+    mesh
+      .command('import-keys <database>')
+      .description('Import matching Device Keys privately after authenticated read-only verification')
+  ).action(
+    asyncCommand(async (database: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, 'ble');
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) =>
+              requireBleController(controller).importDeviceKeys(realpathSync(database), cb)
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
   addStandardOptions(
     ble
       .command('transition <action> <seconds>')
