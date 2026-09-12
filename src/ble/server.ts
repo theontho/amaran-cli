@@ -53,6 +53,10 @@ export function createBleServer(controller: VerifiedController, library = new Lo
             fan: true,
             fanTargets: true,
             fanManualRpm: true,
+            automaticCct: true,
+            productInfo: true,
+            transitions: true,
+            effectTrigger: true,
             effects: true,
             color: true,
             relative: true,
@@ -69,6 +73,73 @@ export function createBleServer(controller: VerifiedController, library = new Lo
         reply(200, {
           ok: true,
           result: [...new Set(controller.config.lights.flatMap((light) => capabilities(light).effects))],
+        });
+        return;
+      }
+      if (route === '/overrides' && request.method === 'POST') {
+        const body = z
+          .object({
+            targets: z.union([z.literal('all'), z.array(z.string()).min(1)]),
+            minutes: z.number().min(0).max(1440).optional(),
+          })
+          .strict()
+          .parse(await bodyOf(request));
+        const keys = fanTargets(body.targets);
+        const result =
+          body.minutes === undefined
+            ? controller.overrideStatus(keys)
+            : await controller.override(keys, body.minutes, cancellation.signal);
+        reply(200, { ok: true, result });
+        return;
+      }
+      if (route === '/transition' && request.method === 'POST') {
+        const body = z
+          .object({
+            targets: z.union([z.literal('all'), z.array(z.string()).min(1)]),
+            action: z.enum(['cct', 'hsi', 'brightness']),
+            args: z.record(z.unknown()),
+            seconds: z.number(),
+          })
+          .strict()
+          .parse(await bodyOf(request));
+        reply(200, {
+          ok: true,
+          verified: true,
+          result: await controller.transition(
+            fanTargets(body.targets),
+            body.action,
+            body.args,
+            body.seconds,
+            cancellation.signal
+          ),
+        });
+        return;
+      }
+      const automatic = /^\/lights\/([^/]+)\/auto-cct$/.exec(route);
+      if (automatic && request.method === 'POST') {
+        const result = await controller.automaticCct(
+          decodeURIComponent(automatic[1]),
+          await bodyOf(request),
+          cancellation.signal
+        );
+        reply(200, { ok: true, verified: !result.skipped, result });
+        return;
+      }
+      const information = /^\/lights\/([^/]+)\/info$/.exec(route);
+      if (information && request.method === 'GET') {
+        const key = decodeURIComponent(information[1]);
+        if (key.startsWith('group:')) {
+          const keys = fanTargets([key]);
+          if (!keys.length) throw new Error('Group has no fixtures');
+          const result: Record<string, unknown> = {};
+          for (const member of keys) result[member] = await controller.productInfo(member);
+          reply(200, { ok: true, verified: true, result });
+          return;
+        }
+        reply(200, {
+          ok: true,
+          verified: true,
+          result: await controller.productInfo(decodeURIComponent(information[1])),
         });
         return;
       }
@@ -141,14 +212,17 @@ export function createBleServer(controller: VerifiedController, library = new Lo
         if (request.method === 'POST') {
           if (key && libraryRoute[3] === 'recall') {
             const body = z
-              .object({ target: z.string().optional() })
+              .object({ target: z.string().optional(), seconds: z.number().optional() })
               .strict()
               .parse(await bodyOf(request));
             const saved = library.find(collection, key);
             if (body.target && (collection !== 'presets' || Object.keys(saved.states).length !== 1))
               throw new Error('Only a single-fixture preset can be retargeted');
             const states = body.target ? { [body.target]: Object.values(saved.states)[0] } : saved.states;
-            const result = await controller.restore(states, cancellation.signal);
+            const result =
+              body.seconds === undefined
+                ? await controller.restore(states, cancellation.signal)
+                : await controller.transitionScene(states, body.seconds, cancellation.signal);
             reply(200, { ok: true, verified: true, result });
             return;
           }
@@ -164,7 +238,7 @@ export function createBleServer(controller: VerifiedController, library = new Lo
           return;
         }
       }
-      const groupRoute = /^\/groups(?:\/([^/]+)(?:\/(members))?)?$/.exec(route);
+      const groupRoute = /^\/groups(?:\/([^/]+)(?:\/(members|rename))?)?$/.exec(route);
       if (groupRoute) {
         const key = groupRoute[1] ? decodeURIComponent(groupRoute[1]) : undefined;
         if (request.method === 'GET') {
@@ -199,7 +273,13 @@ export function createBleServer(controller: VerifiedController, library = new Lo
             ) {
               throw new Error('Group names must be distinct from all and physical fixture names/keys');
             }
-            reply(200, { ok: true, result: library.createGroup(body.name) });
+            reply(200, {
+              ok: true,
+              result:
+                key && groupRoute[2] === 'rename'
+                  ? library.renameGroup(key, body.name)
+                  : library.createGroup(body.name),
+            });
           }
           return;
         }
@@ -225,7 +305,7 @@ export function createBleServer(controller: VerifiedController, library = new Lo
           : await controller.fan(key, args.mode, cancellation.signal, args.rpm);
       } else if (key.startsWith('group:')) {
         const group = library.group(key);
-        if (match[2] === 'state') result = await controller.snapshot(group.members);
+        if (match[2] === 'state') result = await controller.snapshot(group.members, false);
         else result = await controller.batch(group.members, match[2], body, false, cancellation.signal);
       } else result = await controller.execute(key, match[2], body, cancellation.signal);
       reply(200, { ok: true, verified: true, result });

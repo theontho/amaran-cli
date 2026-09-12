@@ -312,7 +312,14 @@ function handleAutoCct(deps: CommandDeps) {
               : device.node_id;
 
       console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`);
-      await commandCallbackPromise((callback) => controller.setCCT(device.node_id, result.cct, percent * 10, callback));
+      const set = controller.setAutomaticCCT?.bind(controller) ?? controller.setCCT.bind(controller);
+      await commandCallbackPromise((callback) =>
+        set(device.node_id, result.cct, percent * 10, (ok, message, data) => {
+          if (ok && data && typeof data === 'object' && 'skipped' in data && data.skipped === true)
+            console.log(chalk.gray(`  ${displayName}: ${message}`));
+          callback(ok, message, data);
+        })
+      );
       if (i < activeDevices.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       }

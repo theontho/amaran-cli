@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Characteristic, Peripheral } from '@abandonware/noble';
 import { MeshCrypto, type NetworkMessage } from './crypto.js';
+import { packet } from './packets.js';
+import { decodeProductInfo, type ProductInfo } from './settings.js';
 import type { MeshConfig, SequenceStore } from './storage.js';
 import { decodeFan, decodeState, type FanState, type FixtureState, readFanPacket, readStatePacket } from './telink.js';
 
@@ -273,8 +275,11 @@ export class MeshTransport {
   async readFan(address: number): Promise<FanState> {
     return this.readPacket(address, readFanPacket(), decodeFan);
   }
+  async readProductInfo(address: number): Promise<ProductInfo> {
+    return this.readPacket(address, packet(0), decodeProductInfo);
+  }
 
-  private async readPacket<T>(address: number, query: Buffer, decode: (payload: Buffer) => T | undefined): Promise<T> {
+  async readPacket<T>(address: number, query: Buffer, decode: (payload: Buffer) => T | undefined): Promise<T> {
     let state: T | undefined;
     const response = this.wait<AccessMessage>(
       'access',

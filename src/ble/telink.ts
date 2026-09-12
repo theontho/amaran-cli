@@ -16,6 +16,7 @@ export interface FixtureState {
   speed?: number;
   palette?: number;
   observedAt: string;
+  fan?: { mode: FanMode; rpm?: number };
 }
 
 function intensityBits(intensity: number): bigint {

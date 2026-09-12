@@ -6,6 +6,34 @@ import { addStandardOptions, commandCallbackResult, requireBleController } from 
 export function registerQuickshot(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
   const quickshot = program.command('quickshot').description('Manage quickshots');
+  addStandardOptions(
+    quickshot
+      .command('update <id>')
+      .option('--name <name>', 'New name')
+      .description('Replace a local quickshot with current fixture states')
+  ).action(
+    asyncCommand(async (id: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) =>
+              requireBleController(controller).updateSaved(
+                'quickshots',
+                id,
+                typeof options.name === 'string' ? options.name : undefined,
+                cb
+              )
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
 
   addStandardOptions(quickshot.command('list').description('List all available quickshots')).action(
     asyncCommand(handleQuickshotList(deps))

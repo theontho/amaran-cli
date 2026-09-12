@@ -172,6 +172,7 @@ export interface CommandOptions {
 }
 
 export interface LightController {
+  setAutomaticCCT?(nodeId: string, cct: number, intensity: number, callback?: CommandCallback): void | Promise<void>;
   disconnect(): Promise<void>;
   getDevices(): Device[];
   getWebSocket?: () => unknown;

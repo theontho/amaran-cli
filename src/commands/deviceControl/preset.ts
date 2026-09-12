@@ -6,6 +6,34 @@ import { addStandardOptions, commandCallbackResult, requireBleController, runDev
 export function registerPreset(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
   const preset = program.command('preset').description('Manage and recall presets');
+  addStandardOptions(
+    preset
+      .command('update <id>')
+      .option('--name <name>', 'New name')
+      .description('Replace a local preset with its fixture current state')
+  ).action(
+    asyncCommand(async (id: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) =>
+              requireBleController(controller).updateSaved(
+                'presets',
+                id,
+                typeof options.name === 'string' ? options.name : undefined,
+                cb
+              )
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
 
   addStandardOptions(preset.command('list').description('List all available presets')).action(
     asyncCommand(handlePresetList(deps))

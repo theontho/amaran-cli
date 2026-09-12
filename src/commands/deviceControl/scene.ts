@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
-import { addStandardOptions } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackResult, requireBleController } from '../cmdUtils.js';
 
 export function registerScene(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
@@ -15,9 +15,12 @@ export function registerScene(program: Command, deps: CommandDeps) {
     asyncCommand(handleSceneSave(deps))
   );
 
-  addStandardOptions(scene.command('recall <id>').description('Recall a saved scene')).action(
-    asyncCommand(handleSceneRecall(deps))
-  );
+  addStandardOptions(
+    scene
+      .command('recall <id>')
+      .option('--fade <seconds>', 'Crossfade to a steady local BLE scene')
+      .description('Recall a saved scene')
+  ).action(asyncCommand(handleSceneRecall(deps)));
 
   addStandardOptions(scene.command('delete <id>').description('Delete a scene')).action(
     asyncCommand(handleSceneDelete(deps))
@@ -79,6 +82,17 @@ function handleSceneRecall(deps: CommandDeps) {
   const { createController } = deps;
   return async (id: string, options: CommandOptions) => {
     const controller = await createController(options.url, options.clientId, options.debug, options.backend);
+    if (options.fade !== undefined) {
+      try {
+        await commandCallbackResult((cb) =>
+          requireBleController(controller).transitionScene(id, Number(options.fade), cb)
+        );
+        console.log(chalk.green(`Scene ${id} transition complete`));
+      } finally {
+        await controller.disconnect();
+      }
+      return;
+    }
 
     controller.recallScene(id, (success, message) => {
       if (success) {

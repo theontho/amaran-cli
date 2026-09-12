@@ -93,6 +93,81 @@ export default class BleHttpController {
   public setCCT(nodeId: string, cct: number, intensity?: number, callback?: CommandCallback) {
     return this.postLightCommand(nodeId, 'cct', this.cctBody(cct, intensity), callback);
   }
+  public async setAutomaticCCT(
+    nodeId: string,
+    cct: number,
+    intensity: number,
+    callback?: CommandCallback
+  ): Promise<void> {
+    if (!this.features.automaticCct) {
+      await this.setCCT(nodeId, cct, intensity, callback);
+      return;
+    }
+    try {
+      const response = await this.request<BleCommandResponse>(`/lights/${encodeURIComponent(nodeId)}/auto-cct`, {
+        method: 'POST',
+        body: JSON.stringify(this.cctBody(cct, intensity)),
+      });
+      if (response.ok !== true) throw new Error(response.error || 'Automatic CCT failed');
+      const result = z
+        .discriminatedUnion('skipped', [
+          z.object({
+            skipped: z.literal(true),
+            reason: z.enum(['manual-override', 'light-off', 'thermal-protection', 'stopped-cooling']),
+          }),
+          z.object({ skipped: z.literal(false), state: z.unknown() }),
+        ])
+        .parse(response.result);
+      if (!result.skipped && response.verified !== true) throw new Error('Automatic CCT was not verified');
+      if (!result.skipped) {
+        const state = this.stateRecord(result.state);
+        if (state.mode !== 'cct' || typeof state.cct !== 'number')
+          throw new Error('Automatic CCT returned invalid state');
+      }
+      callback?.(true, result.skipped ? `Skipped: ${result.reason}` : 'OK', result);
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+    }
+  }
+  public overrides(targets: 'all' | string[], minutes: number | undefined, callback?: CommandCallback) {
+    return this.libraryRequest(
+      '/overrides',
+      'POST',
+      { targets, ...(minutes === undefined ? {} : { minutes }) },
+      callback
+    );
+  }
+  public getProductInfo(nodeId: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/lights/${encodeURIComponent(nodeId)}/info`, 'GET', undefined, callback);
+  }
+  public renameGroup(groupId: string, name: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/groups/${encodeURIComponent(groupId)}/rename`, 'POST', { name }, callback);
+  }
+  public updateSaved(
+    collection: 'presets' | 'quickshots',
+    key: string,
+    name: string | undefined,
+    callback?: CommandCallback
+  ) {
+    return this.libraryRequest(
+      `/library/${collection}/${encodeURIComponent(key)}`,
+      'POST',
+      { ...(name === undefined ? {} : { name }) },
+      callback
+    );
+  }
+  public transition(
+    targets: 'all' | string[],
+    action: string,
+    args: Record<string, unknown>,
+    seconds: number,
+    callback?: CommandCallback
+  ) {
+    return this.runCommand('/transition', { targets, action, args, seconds }, callback);
+  }
+  public transitionScene(key: string, seconds: number, callback?: CommandCallback) {
+    return this.runCommand(`/library/scenes/${encodeURIComponent(key)}/recall`, { seconds }, callback);
+  }
 
   public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
     await this.postEachLightCommand('cct', this.cctBody(cct, intensity), callback);
@@ -439,6 +514,9 @@ export default class BleHttpController {
   public stopEffect(nodeId: string, callback?: CommandCallback) {
     return this.postLightCommand(nodeId, 'effect-stop', {}, callback);
   }
+  public triggerEffect(nodeId: string, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'effect-trigger', {}, callback);
+  }
 
   public batch(
     targets: string[] | 'all',
@@ -587,7 +665,15 @@ export default class BleHttpController {
     body: Record<string, unknown> | undefined,
     callback?: CommandCallback
   ): Promise<void> {
-    if (!(path === '/effects' ? this.features.effects : this.features.library)) {
+    const feature =
+      path === '/effects'
+        ? 'effects'
+        : path === '/overrides'
+          ? 'automaticCct'
+          : path.startsWith('/lights/') && path.endsWith('/info')
+            ? 'productInfo'
+            : 'library';
+    if (!this.features[feature]) {
       this.unsupported(callback);
       return;
     }
@@ -629,15 +715,17 @@ export default class BleHttpController {
     body: Record<string, unknown>
   ): Promise<{ success: boolean; message: string; data?: unknown }> {
     const feature =
-      path === '/batch'
-        ? 'batch'
-        : path === '/fade'
-          ? 'fade'
-          : path === '/fans'
-            ? 'fanTargets'
-            : path.startsWith('/library/')
-              ? 'library'
-              : undefined;
+      path === '/transition'
+        ? 'transitions'
+        : path === '/batch'
+          ? 'batch'
+          : path === '/fade'
+            ? 'fade'
+            : path === '/fans'
+              ? 'fanTargets'
+              : path.startsWith('/library/')
+                ? 'library'
+                : undefined;
     if (feature && !this.features[feature]) return { success: false, message: UNSUPPORTED_MESSAGE };
     try {
       const response = await this.request<BleCommandResponse>(path, {
@@ -726,6 +814,7 @@ export default class BleHttpController {
       'effect-speed': 'effects',
       'effect-intensity': 'effects',
       'effect-stop': 'effects',
+      'effect-trigger': 'effectTrigger',
       'increment-cct': 'relative',
       'increment-brightness': 'relative',
     };

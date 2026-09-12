@@ -5,6 +5,16 @@ const ProfileSchema = z.custom<FanMode>(
   (value) => typeof value === 'string' && Object.hasOwn(FAN_MODES, value),
   'Unknown fan mode'
 );
+export const FanSettingSchema = z
+  .object({
+    mode: ProfileSchema,
+    rpm: z.number().int().min(0).max(65535).optional(),
+  })
+  .strict()
+  .superRefine((setting, context) => {
+    if ((setting.mode === 'manual') !== (setting.rpm !== undefined))
+      context.addIssue({ code: 'custom', message: 'Only manual fan mode requires an explicit RPM setpoint' });
+  });
 export const FanStateSchema = z.object({
   mode: z.number().int().min(0).max(255),
   speed: z.number().int().min(0).max(65535),

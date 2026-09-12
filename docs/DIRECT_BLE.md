@@ -11,7 +11,7 @@ The included macOS BLE Mesh daemon controls already-provisioned amaran 200x / 20
 
 On, off and toggle are supported for each fixture or all configured lights. Zero brightness is not sleep: the fixture can report awake with its LEDs dark. CCT and HSI wake the fixture. Requests are rounded to the fixture resolution before transmission and verified against those applied values. A CCT request without brightness first reads and preserves actual brightness.
 
-Additional controls include relative brightness/CCT, named or hex colors converted to HSI, native effects, safe fan profiles, batched control, host-paced brightness fades, and persistent local groups/scenes/presets/quickshots.
+Additional controls include relative brightness/CCT, named or hex colors converted to HSI, native effects and trigger requests, fan profiles, batched control, CCT/HSI/scene transitions, persistent local groups/scenes/presets/quickshots with fan profiles, and manual overrides for circadian control.
 
 Neither fixture advertises native RGB/XY; the 150c does not advertise advanced HSI CCT/G/M. The direct backend does not implement provisioning, mesh key refresh, extended CCT, firmware updates, native mesh subscription changes, or unverified dimming-curve controls. Music/audio-reactive, camera-picker and programmable timeline features from the desktop application are not implemented. Unsupported operations fail explicitly. Hardware validation uses two 200x S fixtures and one 150c; an original non-S 200x was not available.
 
@@ -43,6 +43,8 @@ amaran-cli effect stop all --backend ble
 `frequency` is 1-10. These first-generation fixtures returned zero for the SDK's separate effect-speed field even when sent a nonzero setting, so that unverified parameter is not exposed. CCT-capable effects accept `kelvin` and 150c `gm`; HSI variants instead accept `hue` and `saturation`. TV/fire/fireworks/cop-car use native `palette` indices (0-2), not Kelvin. Party-lights accepts saturation. Parameters that do not apply to an effect are rejected, not ignored. `effect speed` changes frequency; the legacy `effect intensity` command uses 0-1000 API units, whereas `--params` brightness and `effect set -i` use percent.
 
 Starting an effect saves its preceding steady state persistently. `effect stop` restores that CCT/HSI setting, brightness and power, including after daemon restart. An effect started by another controller without saved history needs an explicit CCT/HSI setting to stop. Avoid strobe and other rapid flashing around photosensitive people; hardware diagnostics deliberately exclude rapid flashing.
+
+`effect stop GROUP` now restores each member independently after validating the complete group. `effect trigger DEVICE` (alias `retrigger`) sends one manual trigger request for an awake lightning, faulty-bulb, pulsing, strobe or explosion effect; groups and `all` are supported. Trigger requests are not retried or repaired, to avoid firing twice after a lost acknowledgement. The response verifies persistent effect settings but explicitly returns `triggerRequest.eventConfirmed:false`: the firmware does not provide a distinct acknowledgement that a transient event fired. This is not an optical trigger guarantee.
 
 ### Cooling safety
 
@@ -104,9 +106,34 @@ amaran-cli quickshot set Workday --backend ble
 
 Normal bulk commands prevalidate and read all targets before sending a burst of unicast packets, then verify every member. Explicit broadcast sends one mesh packet and verifies each member, repairing mismatches individually. It requires the complete configured target set and identical encoded settings. **Broadcast reaches every provisioned node on that mesh**, including any nodes absent from the configuration; it is not a subset-group operation. Neither method promises atomic or hard-real-time synchronization.
 
-Groups are local logical membership lists, not native mesh subscriptions or desktop groups. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint and effect parameters. These records are local, not imported desktop-library entries. Retargeting a preset validates the receiving model before changing it.
+Groups are local logical membership lists, not native mesh subscriptions or desktop groups. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint, effect parameters and native fan profiles. Manual fan setpoints cannot be inferred from measured RPM, so snapshots refuse an active Manual fan profile. Old saved entries without fan settings remain compatible. These records are local, not imported desktop-library entries. Retargeting a preset validates the receiving model before changing it.
+
+`group rename ID NAME` preserves identity/membership. `preset update ID --name NAME` and `quickshot update ID --name NAME` replace their saved states from the original fixture targets, optionally renaming them. Add `--backend ble` to these commands.
 
 `ble fade` provides a host-paced brightness transition over 0.5-20 seconds, at up to two updates per second with whole-percent steps. It preserves power state, rejects active native effects, and verifies final brightness on every target. Interrupting it stops subsequent writes and may leave intermediate brightness. Saved-state recall is serialized, not atomic; failures can leave some fixtures changed.
+
+```sh
+amaran-cli ble transition cct 2 --targets all --args '{"kelvin":4500,"brightness":5}'
+amaran-cli ble transition hsi 2 --targets back --args '{"hue":120,"saturation":100,"brightness":1}'
+amaran-cli scene recall Evening --fade 3 --backend ble
+```
+
+CCT transitions interpolate Kelvin/tint; HSI transitions take the shortest hue arc. CCT/HSI mode changes fade through zero output and require at least one second. These are host-paced 0.5-20 second transitions at up to two updates/second, not native timed/atomic fades. Active effects must be stopped first. Final color, brightness, power and saved fan settings are verified; cancellation leaves intermediate settings. Sleeping scene entries are restored with zero emitted output before their remembered brightness is reinstated, avoiding an on/off flash.
+
+## Manual control and testing
+
+Manual lighting mutations create a **30-minute per-fixture override**, persisted across daemon restart. This also protects potentially partial/failed manual operations from being overwritten by the next automatic update. `auto-cct --backend ble` uses a separate daemon action that checks overrides inside the same serialized queue as manual commands. It also skips sleeping fixtures, reported thermal protection, and reported stopped-cooling modes. Fan-only changes and read-only queries do not create lighting overrides.
+
+```sh
+amaran-cli ble override status --targets all
+amaran-cli ble override hold --targets desk,back --minutes 60
+amaran-cli ble override resume --targets all
+amaran-cli ble info all
+```
+
+Override status reports remaining milliseconds per fixture. Resume clears the hold; the next circadian update takes over. Changes made outside this daemon are not automatically assigned a hold, so explicitly hold before using the desktop app or physical controls for comparisons.
+
+`ble info` reads native product/firmware/protocol identifiers and reported feature bits. Version fields are raw SDK codes, not invented semantic version strings. Read-only dimming-curve queries were attempted on all three fixtures and produced no response; curve writes remain disabled. No provisioning, key refresh, native subscription mutation or firmware-flashing path is provided without a verified maintenance protocol.
 
 ## Setup and services
 
@@ -164,7 +191,9 @@ curl -X POST http://127.0.0.1:2708/lights/desk/cct \
   -d '{"kelvin":3200,"brightness":1}'
 ```
 
-Light actions are `state`, `on`, `off`, `toggle`, `brightness` (`value` in percent), `cct` (`kelvin`, optional `brightness`/`gm`), `gm` (`value`), `hsi` (`hue`, `saturation`, optional `brightness`), `color`, `increment-brightness`, `increment-cct`, `effect`, `effect-speed`, `effect-intensity` and `effect-stop`. Fan GET/POST uses `/lights/KEY/fan` with optional `mode` and manual `rpm`; a group key returns keyed `states`. `GET /fans` reads all fans. `POST /fans` accepts `{targets:"all"|["desk","group:ID"], mode?, rpm?}`; omitting both mode and RPM is read-only. RPM requires manual mode, and manual mode requires RPM. Group expansion deduplicates members, and all fan bulk results have shape `{states:{fixtureKey:FanState}}`. Feature flags `fanTargets` and `fanManualRpm` identify endpoint/manual-setpoint support separately from each fixture's capability flags.
+Light actions are `state`, `on`, `off`, `toggle`, `brightness` (`value` in percent), `cct` (`kelvin`, optional `brightness`/`gm`), `gm` (`value`), `hsi` (`hue`, `saturation`, optional `brightness`), `color`, `increment-brightness`, `increment-cct`, `effect`, `effect-speed`, `effect-intensity`, `effect-stop` and `effect-trigger`. Fan GET/POST uses `/lights/KEY/fan` with optional `mode` and manual `rpm`; a group key returns keyed `states`. `GET /fans` reads all fans. `POST /fans` accepts `{targets:"all"|["desk","group:ID"], mode?, rpm?}`; omitting both mode and RPM is read-only. RPM requires manual mode, and manual mode requires RPM. Group expansion deduplicates members, and all fan bulk results have shape `{states:{fixtureKey:FanState}}`. Feature flags `fanTargets` and `fanManualRpm` identify endpoint/manual-setpoint support separately from each fixture's capability flags.
+
+`POST /transition` takes `{targets, action:"cct"|"hsi"|"brightness", args, seconds}`; saved-state recall accepts optional `seconds` for a scene transition. `POST /overrides` takes `{targets, minutes?}`: omit minutes to inspect, use zero to resume. `POST /lights/KEY/auto-cct` returns either verified applied state or `{skipped:true, reason}` without claiming a hardware write. `GET /lights/KEY/info` reads native product information. Group renaming uses `POST /groups/ID/rename`.
 
 `POST /batch` takes `{targets:"all"|["desk","front"], action, args, broadcast?:boolean}`. `POST /fade` takes `{targets, brightness, seconds}`. `GET /effects` lists the union of supported effect names; per-fixture capabilities remain authoritative. `/groups` provides local membership CRUD. `/library/scenes`, `/library/presets` and `/library/quickshots` provide list/save, ID-or-name update/delete and `/:id/recall`; preset recall may include a `target` fixture key.
 
@@ -201,6 +230,7 @@ npx tsx scripts/ble-hardware-check.ts
 npx tsx scripts/ble-live-extended-check.ts
 npx tsx scripts/ble-effects-check.ts
 npx tsx scripts/ble-fan-check.ts --restart-service
+npx tsx scripts/ble-followup-check.ts
 ```
 
 Captures and JSON reports stay in the project's gitignored `artifacts/` directory. No images are uploaded. Pixel format `nv12` avoids the corrupted packed-pixel frames observed with the default camera format.
@@ -214,5 +244,7 @@ The dedicated effects check verifies every advertised effect, frequency changes 
 `npx tsx scripts/ble-cli-check.ts prepare` exercises the real CLI and creates temporary library records, then deliberately leaves a prepared lighting state. Restart the daemon and run `npx tsx scripts/ble-cli-check.ts verify <printed-manifest-path>` to verify persistence, restore initial lighting and remove those temporary records. Keep competing automation paused across both phases.
 
 The fan check requires brightness at 5% or less and never changes LED settings. It verifies individual and grouped Smart/Medium selection, zero-RPM reporting, unsupported-mode rejection, and restoration of the original fan profiles. Its optional `--restart-service` flag checks that profiles survive a restart of the installed BLE LaunchAgent. Keep automation paused during that restart. All eight mode codes and manual setpoint encoding/readback are covered by SDK-derived vectors and simulated advertised capabilities. Thermal trips, missing telemetry and recovery failures are simulated, never induced by overheating real fixtures. Diagnostics refuse an initial Manual profile because its original setpoint cannot be inferred safely from current RPM.
+
+The follow-up check covers product reads, CCT/HSI transitions with camera color feedback, automatic-update suppression, group rename/effect stop, zero-output trigger requests, saved-state updates and scene/fan restoration. It preserves prior override expiry times on success; on failure, protective holds remain in place for investigation. Older lighting diagnostics also generate manual holds; explicitly resume selected fixtures when their checks/restoration are complete.
 
 Automatic exposure, white balance and clipped highlights mean camera values are **not calibrated lux or CCT measurements**. Physical checks establish on/off, color and representative effect response; authenticated telemetry verifies exact applied digital settings. These are low-output checks, not high-output thermal certification or long-duration endurance testing.

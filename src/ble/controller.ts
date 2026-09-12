@@ -1,8 +1,16 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { colorToHSI } from './colors.js';
-import { COLOR_EFFECTS, type EffectOptions, effectName, effectPacket, WHITE_EFFECTS } from './effects.js';
-import { describeFan, FanStateSchema } from './fan.js';
+import {
+  COLOR_EFFECTS,
+  type EffectOptions,
+  effectName,
+  effectPacket,
+  TRIGGER_EFFECTS,
+  WHITE_EFFECTS,
+} from './effects.js';
+import { describeFan, FanSettingSchema, FanStateSchema } from './fan.js';
 import type { SteadyHistory } from './library.js';
+import type { ProductInfo } from './settings.js';
 import type { MeshConfig, MeshLight } from './storage.js';
 import {
   brightnessPacket,
@@ -18,6 +26,7 @@ import {
   powerPacket,
   validateFanRpm,
 } from './telink.js';
+import { interpolateState } from './transitions.js';
 
 export interface MeshLink {
   readonly ready: boolean;
@@ -26,6 +35,7 @@ export interface MeshLink {
   send(address: number, payload: Buffer): Promise<void>;
   readState(address: number): Promise<FixtureState>;
   readFan?(address: number): Promise<FanState>;
+  readProductInfo?(address: number): Promise<ProductInfo>;
 }
 
 export function capabilities(light: MeshLight) {
@@ -64,6 +74,7 @@ const ARGUMENTS: Record<string, string[]> = {
   'effect-speed': ['value'],
   'effect-intensity': ['value'],
   'effect-stop': [],
+  'effect-trigger': [],
 };
 
 export function validateAction(light: MeshLight, action: string, body: Record<string, unknown>): void {
@@ -120,6 +131,10 @@ interface Prepared {
 export interface BatchResult {
   delivery: 'mesh-broadcast' | 'batched-unicast';
   states: Record<string, FixtureState>;
+  triggerRequest?: { sent: true; eventConfirmed: false };
+}
+export interface CommandState extends FixtureState {
+  triggerRequest?: { sent: true; eventConfirmed: false };
 }
 
 class FanThermalError extends Error {
@@ -135,6 +150,7 @@ export class VerifiedController {
   private queued = 0;
   private stopping = false;
   private readonly steadyStates = new Map<string, FixtureState>();
+  private readonly manualOverrides = new Map<string, number>();
 
   constructor(
     readonly config: MeshConfig,
@@ -146,6 +162,51 @@ export class VerifiedController {
     const light = this.config.lights.find((entry) => entry.key === key);
     if (!light) throw new Error(`Unknown fixture: ${key}`);
     return light;
+  }
+  private hold(keys: string[], minutes = 30): void {
+    const until = minutes === 0 ? 0 : Date.now() + minutes * 60_000;
+    for (const key of keys) {
+      this.manualOverrides.set(key, until);
+      this.history?.setOverride?.(key, until);
+    }
+  }
+  overrideStatus(keys: string[]): Record<string, number> {
+    for (const key of keys) this.light(key);
+    return Object.fromEntries(
+      keys.map((key) => [
+        key,
+        Math.max(0, (this.history?.getOverride?.(key) ?? this.manualOverrides.get(key) ?? 0) - Date.now()),
+      ])
+    );
+  }
+  async override(keys: string[], minutes: number, signal?: AbortSignal): Promise<Record<string, number>> {
+    if (!keys.length) throw new Error('Override requires targets');
+    for (const key of keys) this.light(key);
+    numberInRange(minutes, 'override minutes', 0, 1440);
+    return this.serialize(async () => {
+      this.hold(keys, minutes);
+      return this.overrideStatus(keys);
+    }, signal);
+  }
+  async automaticCct(key: string, body: Record<string, unknown>, signal?: AbortSignal) {
+    const light = this.light(key);
+    validateAction(light, 'cct', body);
+    return this.serialize(async () => {
+      if (this.overrideStatus([key])[key] > 0) return { skipped: true as const, reason: 'manual-override' };
+      const state = await this.readWithReconnect(light.address, signal);
+      if (state.sleep) return { skipped: true as const, reason: 'light-off' };
+      const fan = await this.readFanWithReconnect(light.address, signal);
+      if (fan.highTemperature) return { skipped: true as const, reason: 'thermal-protection' };
+      if (fan.mode === FAN_MODES.off || (fan.mode === FAN_MODES.manual && fan.speed === 0))
+        return { skipped: true as const, reason: 'stopped-cooling' };
+      return { skipped: false as const, state: await this.apply(this.prepare(light, 'cct', body, state), signal) };
+    }, signal);
+  }
+  async productInfo(key: string): Promise<ProductInfo> {
+    const light = this.light(key);
+    if (!this.link.readProductInfo) throw new Error('Product information readback is unavailable');
+    const read = this.link.readProductInfo.bind(this.link);
+    return this.serialize(() => this.telemetryWithReconnect(() => read(light.address)));
   }
 
   private serialize<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -174,7 +235,7 @@ export class VerifiedController {
     action: string,
     body: Record<string, unknown>,
     signal?: AbortSignal
-  ): Promise<FixtureState> {
+  ): Promise<CommandState> {
     const light = this.light(key);
     validateAction(light, action, body);
     return this.serialize(async () => {
@@ -182,6 +243,20 @@ export class VerifiedController {
       if (action === 'state') return previous;
       if (action === 'effect-stop' && previous.mode !== 'effect') return previous;
       const prepared = this.prepare(light, action, body, previous);
+      this.hold([key]);
+      if (action === 'effect-trigger') {
+        signal?.throwIfAborted();
+        await this.link.send(light.address, prepared.payload);
+        try {
+          const observed = await this.readWithReconnect(light.address, signal);
+          if (!this.matches(observed, prepared.expected)) throw new Error('Effect settings readback mismatch');
+          return { ...observed, triggerRequest: { sent: true, eventConfirmed: false } };
+        } catch (error) {
+          throw new Error(`Trigger may have been delivered; not retried: ${(error as Error).message}`, {
+            cause: error,
+          });
+        }
+      }
       const state = await this.apply(prepared, signal);
       const steady = this.steadyStates.get(key) ?? this.history?.getSteady(key);
       if (action === 'effect-stop' && steady?.sleep && !state.sleep) {
@@ -202,7 +277,12 @@ export class VerifiedController {
       throw new Error('Batch requires unique, nonempty fixture targets');
     const lights = keys.map((key) => this.light(key));
     for (const light of lights) validateAction(light, action, body);
-    if (['state', 'effect-stop'].includes(action)) throw new Error(`${action} is not a shared batch action`);
+    if (action === 'state') throw new Error('Use a snapshot for grouped state reads');
+    if (action === 'effect-stop') {
+      if (broadcast) throw new Error('Effect restoration cannot use one broadcast payload');
+      const states = await this.stopEffects(keys, signal);
+      return { delivery: 'batched-unicast', states };
+    }
     if (broadcast && lights.length !== this.config.lights.length)
       throw new Error('Broadcast addresses the whole mesh, not a subset group');
     return this.serialize(async () => {
@@ -215,6 +295,7 @@ export class VerifiedController {
         );
       }
       signal?.throwIfAborted();
+      this.hold(keys);
       try {
         if (broadcast) await this.link.send(0xffff, prepared[0].payload);
         else
@@ -233,6 +314,8 @@ export class VerifiedController {
       for (const item of prepared) {
         try {
           const observed = await this.readWithReconnect(item.light.address, signal);
+          if (action === 'effect-trigger' && !this.matches(observed, item.expected))
+            throw new Error('Trigger settings mismatch; event not retried');
           states[item.light.key] = this.matches(observed, item.expected) ? observed : await this.apply(item, signal);
         } catch (error) {
           failures.push(`${item.light.name}: ${(error as Error).message}`);
@@ -240,11 +323,20 @@ export class VerifiedController {
       }
       if (failures.length)
         throw new Error(`Partial batch failure (other lights may have changed): ${failures.join('; ')}`);
-      return { delivery: broadcast ? 'mesh-broadcast' : 'batched-unicast', states };
+      return {
+        delivery: broadcast ? 'mesh-broadcast' : 'batched-unicast',
+        states,
+        ...(action === 'effect-trigger'
+          ? { triggerRequest: { sent: true as const, eventConfirmed: false as const } }
+          : {}),
+      };
     }, signal);
   }
 
-  async snapshot(keys = this.config.lights.map((light) => light.key)): Promise<Record<string, FixtureState>> {
+  async snapshot(
+    keys = this.config.lights.map((light) => light.key),
+    includeFans = true
+  ): Promise<Record<string, FixtureState>> {
     if (!keys.length || new Set(keys).size !== keys.length)
       throw new Error('Snapshot requires unique, nonempty targets');
     const lights = keys.map((key) => this.light(key));
@@ -253,17 +345,58 @@ export class VerifiedController {
       for (const light of lights) {
         const state = await this.readWithReconnect(light.address);
         if (!capabilities(light).gm_support) state.gm = undefined;
+        if (includeFans) {
+          const fan = await this.readFanWithReconnect(light.address);
+          const mode = parseFanMode(fan.mode);
+          if (mode === 'manual') throw new Error(`${light.name}: cannot infer a manual fan setpoint from current RPM`);
+          state.fan = { mode };
+        }
         result[light.key] = state;
       }
       return result;
     });
   }
 
+  async stopEffects(keys: string[], signal?: AbortSignal): Promise<Record<string, FixtureState>> {
+    if (!keys.length || new Set(keys).size !== keys.length) throw new Error('Effect stop requires unique targets');
+    const lights = keys.map((key) => this.light(key));
+    return this.serialize(async () => {
+      const states: Record<string, FixtureState> = {};
+      const restore: Record<string, FixtureState> = {};
+      for (const light of lights) {
+        const state = await this.readWithReconnect(light.address, signal);
+        states[light.key] = state;
+        if (state.mode !== 'effect') continue;
+        const prior = this.steadyStates.get(light.key) ?? this.history?.getSteady(light.key);
+        if (!prior) throw new Error(`${light.key}: no pre-effect state; explicitly select CCT or HSI`);
+        restore[light.key] = prior;
+      }
+      return Object.keys(restore).length ? { ...states, ...(await this.restoreNow(restore, signal)) } : states;
+    }, signal);
+  }
+
   async restore(states: Record<string, FixtureState>, signal?: AbortSignal): Promise<Record<string, FixtureState>> {
+    return this.serialize(() => this.restoreNow(states, signal), signal);
+  }
+
+  private async restoreNow(
+    states: Record<string, FixtureState>,
+    signal?: AbortSignal
+  ): Promise<Record<string, FixtureState>> {
     const entries = Object.entries(states);
     if (!entries.length) throw new Error('Saved lighting state is empty');
     const actions = entries.map(([key, state]) => {
       const light = this.light(key);
+      if (state.fan) {
+        FanSettingSchema.parse(state.fan);
+        validateFanRpm(state.fan.mode, state.fan.rpm);
+        if (
+          (state.fan.mode === 'off' || (state.fan.mode === 'manual' && state.fan.rpm === 0)) &&
+          !state.sleep &&
+          state.intensity > 0
+        )
+          throw new Error(`${light.name}: saved stopped cooling is incompatible with emitting LEDs`);
+      }
       if (state.mode === 'effect' && state.speed !== undefined && state.speed !== 0)
         throw new Error(
           'These first-generation effects do not expose a separately verified speed parameter; use frequency'
@@ -289,25 +422,47 @@ export class VerifiedController {
       validateAction(light, action, body);
       return { light, action, body, state };
     });
-    return this.serialize(async () => {
-      const result: Record<string, FixtureState> = {};
-      for (const { light, action, body, state } of actions) {
-        const before = await this.readWithReconnect(light.address, signal);
-        const applied = await this.apply(this.prepare(light, action, body, before), signal);
-        result[light.key] =
-          applied.sleep === state.sleep
-            ? applied
-            : await this.apply(
-                {
-                  light,
-                  payload: powerPacket(!state.sleep),
-                  expected: { sleep: state.sleep },
-                },
-                signal
-              );
-      }
-      return result;
-    }, signal);
+    const result: Record<string, FixtureState> = {};
+    for (const { light, state } of actions) {
+      if (!state.fan) continue;
+      const fan = await this.readFanWithReconnect(light.address, signal);
+      if (fan.highTemperature) throw new FanThermalError(light);
+      if (!fan.supported[state.fan.mode])
+        throw new Error(`${light.name} does not advertise ${state.fan.mode} fan mode`);
+    }
+    this.hold(entries.map(([key]) => key));
+    for (const { light, action, body, state } of actions) {
+      const stoppedFan = state.fan?.mode === 'off' || (state.fan?.mode === 'manual' && state.fan.rpm === 0);
+      if (state.fan && !stoppedFan) await this.applyFan(light, state.fan.mode, state.fan.rpm, signal);
+      const before = await this.readWithReconnect(light.address, signal);
+      const applied = await this.apply(
+        this.prepare(light, action, state.sleep ? { ...body, brightness: 0 } : body, before),
+        signal
+      );
+      result[light.key] =
+        applied.sleep === state.sleep
+          ? applied
+          : await this.apply(
+              {
+                light,
+                payload: powerPacket(!state.sleep),
+                expected: { sleep: state.sleep },
+              },
+              signal
+            );
+      if (state.sleep && state.intensity !== 0)
+        result[light.key] = await this.apply(
+          {
+            light,
+            payload: brightnessPacket(state.intensity),
+            expected: { sleep: true, intensity: state.intensity },
+          },
+          signal
+        );
+      if (state.fan && stoppedFan) await this.applyFan(light, state.fan.mode, state.fan.rpm, signal);
+      if (state.fan) result[light.key].fan = state.fan;
+    }
+    return result;
   }
 
   async fade(keys: string[], brightness: unknown, seconds: unknown, signal?: AbortSignal): Promise<BatchResult> {
@@ -323,6 +478,7 @@ export class VerifiedController {
         starts.push({ light, state });
       }
       const steps = Math.ceil(duration / 500);
+      this.hold(keys);
       const start = Date.now();
       const states: Record<string, FixtureState> = {};
       try {
@@ -348,6 +504,114 @@ export class VerifiedController {
       }
       return { delivery: 'batched-unicast', states };
     }, signal);
+  }
+
+  async transition(
+    keys: string[],
+    action: string,
+    body: Record<string, unknown>,
+    seconds: number,
+    signal?: AbortSignal
+  ): Promise<BatchResult> {
+    if (!['cct', 'hsi', 'brightness'].includes(action)) throw new Error('Transitions support cct, hsi or brightness');
+    if (!keys.length || new Set(keys).size !== keys.length) throw new Error('Transition requires unique targets');
+    const lights = keys.map((key) => this.light(key));
+    for (const light of lights) validateAction(light, action, body);
+    return this.serialize(async () => {
+      const starts: Record<string, FixtureState> = {};
+      const targets: Record<string, FixtureState> = {};
+      for (const light of lights) {
+        const state = await this.readWithReconnect(light.address, signal);
+        starts[light.key] = state;
+        targets[light.key] = { ...state, ...this.prepare(light, action, body, state).expected, sleep: state.sleep };
+        if (!capabilities(light).gm_support) targets[light.key].gm = undefined;
+      }
+      return this.transitionNow(starts, targets, seconds, signal);
+    }, signal);
+  }
+
+  async transitionScene(
+    targets: Record<string, FixtureState>,
+    seconds: number,
+    signal?: AbortSignal
+  ): Promise<BatchResult> {
+    const lights = Object.keys(targets).map((key) => this.light(key));
+    if (!lights.length) throw new Error('Scene transition requires targets');
+    return this.serialize(async () => {
+      const starts: Record<string, FixtureState> = {};
+      for (const light of lights) starts[light.key] = await this.readWithReconnect(light.address, signal);
+      return this.transitionNow(starts, targets, seconds, signal);
+    }, signal);
+  }
+
+  private steadyBody(light: MeshLight, state: FixtureState): Record<string, unknown> {
+    if (state.mode === 'effect') throw new Error('Stop native effects before a transition');
+    return state.mode === 'hsi'
+      ? { hue: state.hue, saturation: state.sat, brightness: state.intensity / 10 }
+      : {
+          kelvin: state.cct,
+          brightness: state.intensity / 10,
+          ...(capabilities(light).gm_support ? { gm: state.gm ?? 0 } : {}),
+        };
+  }
+
+  private async transitionNow(
+    starts: Record<string, FixtureState>,
+    targets: Record<string, FixtureState>,
+    seconds: number,
+    signal?: AbortSignal
+  ): Promise<BatchResult> {
+    const duration = numberInRange(seconds, 'transition seconds', 0.5, 20) * 1000;
+    const lights = Object.keys(targets).map((key) => this.light(key));
+    for (const light of lights) {
+      const from = starts[light.key],
+        to = targets[light.key];
+      validateAction(light, to.mode, this.steadyBody(light, to));
+      this.steadyBody(light, from);
+      if (from.mode !== to.mode && duration < 1000)
+        throw new Error('Cross-mode transitions require at least one second');
+      if (!capabilities(light).gm_support && to.gm !== undefined && to.gm !== 0)
+        throw new Error('Target fixture does not support G/M');
+      const fan = await this.readFanWithReconnect(light.address, signal);
+      if (fan.highTemperature) throw new FanThermalError(light);
+      if (to.fan) {
+        FanSettingSchema.parse(to.fan);
+        if (!fan.supported[to.fan.mode]) throw new Error(`${light.name} does not advertise ${to.fan.mode} fan mode`);
+        if ((to.fan.mode === 'off' || (to.fan.mode === 'manual' && to.fan.rpm === 0)) && !to.sleep && to.intensity > 0)
+          throw new Error('Stopped fan cannot accompany an emitting scene');
+      }
+      if (
+        (fan.mode === FAN_MODES.off || (fan.mode === FAN_MODES.manual && fan.speed === 0)) &&
+        ((!from.sleep && from.intensity > 0) || (!to.sleep && to.intensity > 0)) &&
+        (!to.fan || to.fan.mode === 'off' || (to.fan.mode === 'manual' && to.fan.rpm === 0))
+      )
+        throw new Error(`${light.name}: select a cooling profile before increasing output`);
+    }
+    signal?.throwIfAborted();
+    this.hold(lights.map((light) => light.key));
+    for (const light of lights) {
+      const fan = targets[light.key].fan;
+      if (fan && fan.mode !== 'off' && !(fan.mode === 'manual' && fan.rpm === 0))
+        await this.applyFan(light, fan.mode, fan.rpm, signal);
+    }
+    const steps = Math.ceil(duration / 500),
+      start = Date.now();
+    try {
+      for (let step = 1; step <= steps; step++) {
+        await delay(Math.max(0, start + (duration * step) / steps - Date.now()), undefined, { signal });
+        for (const light of lights) {
+          signal?.throwIfAborted();
+          const frame = interpolateState(starts[light.key], targets[light.key], step / steps);
+          const payload = this.prepare(light, frame.mode, this.steadyBody(light, frame), starts[light.key]).payload;
+          await this.link.send(light.address, payload);
+        }
+      }
+      return { delivery: 'batched-unicast', states: await this.restoreNow(targets, signal) };
+    } catch (error) {
+      throw new Error(`Transition interrupted; fixtures may be at intermediate settings: ${(error as Error).message}`, {
+        cause: error,
+      });
+    }
   }
 
   async fan(key: string, mode?: unknown, signal?: AbortSignal, rpm?: unknown): Promise<FanState> {
@@ -509,8 +773,10 @@ export class VerifiedController {
         { ...colorToHSI(body.color), ...(body.brightness === undefined ? {} : { brightness: body.brightness }) },
         previous
       );
-    if (['effect-speed', 'effect-intensity'].includes(action)) {
+    if (['effect-speed', 'effect-intensity', 'effect-trigger'].includes(action)) {
       if (previous.mode !== 'effect' || !previous.effect) throw new Error('No native effect is active');
+      if (action === 'effect-trigger' && (previous.sleep || !TRIGGER_EFFECTS.includes(previous.effect)))
+        throw new Error('Trigger requires an awake lightning, faulty-bulb, pulsing, strobe or explosion effect');
       return this.prepare(
         light,
         'effect',
@@ -522,6 +788,7 @@ export class VerifiedController {
           ...(previous.palette === undefined ? {} : { palette: previous.palette }),
           ...(previous.hue === undefined ? {} : { hue: previous.hue }),
           ...(previous.sat === undefined ? {} : { saturation: previous.sat }),
+          ...(action === 'effect-trigger' ? { _trigger: true } : {}),
         },
         previous
       );
@@ -560,6 +827,7 @@ export class VerifiedController {
           intensity: expected.intensity,
           frequency: Math.round(numberInRange(body.frequency ?? previous.frequency ?? 1, 'frequency', 1, 10)),
           speed: 0,
+          ...(body._trigger === true ? { trigger: 1 as const } : {}),
           cct:
             Math.round(numberInRange(body.kelvin ?? previous.cct ?? 3200, 'CCT', caps.cct_min, caps.cct_max) / 100) *
             100,

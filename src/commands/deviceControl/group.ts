@@ -1,13 +1,31 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import type { CommandDeps, CommandOptions } from '../../deviceControl/types.js';
-import { addStandardOptions } from '../cmdUtils.js';
+import { addStandardOptions, commandCallbackResult, requireBleController } from '../cmdUtils.js';
 
 export function registerGroup(program: Command, deps: CommandDeps) {
   const { asyncCommand } = deps;
   const group = program.command('group').description('Manage device groups');
 
   addStandardOptions(group.command('list').description('List all groups')).action(asyncCommand(handleGroupList(deps)));
+  addStandardOptions(
+    group.command('rename <id> <name>').description('Rename a local BLE group without changing membership')
+  ).action(
+    asyncCommand(async (id: string, name: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) => requireBleController(controller).renameGroup(id, name, cb)),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
 
   addStandardOptions(group.command('create <name>').description('Create a new group')).action(
     asyncCommand(handleGroupCreate(deps))

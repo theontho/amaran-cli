@@ -15,6 +15,7 @@ export const EFFECTS = {
   fireworks: 14,
 } as const;
 export type EffectName = keyof typeof EFFECTS;
+export const TRIGGER_EFFECTS: EffectName[] = ['lightning', 'faulty-bulb', 'pulsing', 'strobe', 'explosion'];
 export const WHITE_EFFECTS: EffectName[] = [
   'paparazzi',
   'fireworks',
@@ -55,10 +56,15 @@ export interface EffectOptions {
   palette: number;
   hue?: number;
   saturation?: number;
+  trigger?: 0 | 1 | 2;
 }
 
 export function effectPacket(options: EffectOptions): Buffer {
   const { effect } = options;
+  if (options.trigger !== undefined) {
+    numberInRange(options.trigger, 'trigger', 0, 2);
+    if (!Number.isInteger(options.trigger)) throw new Error('Trigger mode must be an integer');
+  }
   const id = EFFECTS[effect];
   const intensity = BigInt(Math.round(numberInRange(options.intensity, 'intensity', 0, 1000)));
   const frequency = BigInt(Math.round(numberInRange(options.frequency, 'frequency', 1, 10)));
@@ -72,16 +78,16 @@ export function effectPacket(options: EffectOptions): Buffer {
     if (options.hue !== undefined) {
       const hue = BigInt(Math.round(numberInRange(options.hue, 'hue', 0, 360)) % 360);
       const sat = BigInt(Math.round(numberInRange(options.saturation, 'saturation', 0, 100)));
-      bits |= (1n << 60n) | (hue << 37n) | (sat << 30n) | (1n << 28n);
+      bits |= (1n << 60n) | (hue << 37n) | (sat << 30n) | (BigInt(options.trigger ?? 1) << 28n);
       if (id === 8 || id === 9) bits |= speed << 24n;
     } else {
-      bits |= (cct << 36n) | (gm << 29n) | (1n << 27n);
+      bits |= (cct << 36n) | (gm << 29n) | (BigInt(options.trigger ?? 1) << 27n);
       if (id === 8 || id === 9) bits |= speed << 23n;
     }
   } else {
     bits |= (intensity << 54n) | (frequency << 50n);
     if (id === 1 || id === 2) bits |= (cct << 40n) | (gm << 33n);
-    if (id === 2) bits |= speed << 27n;
+    if (id === 2) bits |= (speed << 27n) | (BigInt(options.trigger ?? 0) << 31n);
     if (id === 3 || id === 5) bits |= palette << 40n;
     if (id === 14) bits |= palette << 42n;
     if (id === 11) bits |= palette << 46n;

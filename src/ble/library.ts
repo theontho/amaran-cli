@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { effectName } from './effects.js';
+import { FanSettingSchema } from './fan.js';
 import { atomicJson } from './storage.js';
 import type { FixtureState } from './telink.js';
 
@@ -20,6 +21,7 @@ export const SavedStateSchema = z
     speed: z.literal(0).optional(),
     palette: z.number().min(0).max(2).optional(),
     observedAt: z.string().datetime(),
+    fan: FanSettingSchema.optional(),
   })
   .strict()
   .superRefine((state, context) => {
@@ -41,12 +43,15 @@ const Schema = z.object({
   quickshots: z.array(Entry).max(128),
   groups: z.array(Group).max(128),
   steady: z.record(SavedStateSchema),
+  overrides: z.record(z.number().int().nonnegative()).default({}),
 });
 export type LibraryCollection = 'scenes' | 'presets' | 'quickshots';
 export type LibraryEntry = z.infer<typeof Entry>;
 export interface SteadyHistory {
   getSteady(key: string): FixtureState | undefined;
   saveSteady(key: string, state: FixtureState): void;
+  getOverride?(key: string): number | undefined;
+  setOverride?(key: string, until: number): void;
 }
 
 export class LocalLibrary implements SteadyHistory {
@@ -57,6 +62,7 @@ export class LocalLibrary implements SteadyHistory {
     quickshots: [],
     groups: [],
     steady: {},
+    overrides: {},
   };
   private readonly filename?: string;
   constructor(directory?: string) {
@@ -124,6 +130,15 @@ export class LocalLibrary implements SteadyHistory {
     const group = this.group(key);
     this.commit({ ...this.data, groups: this.data.groups.filter((item) => item.id !== group.id) });
   }
+  renameGroup(key: string, name: unknown): z.infer<typeof Group> {
+    const group = this.group(key);
+    const normalized = Name.parse(name);
+    if (this.data.groups.some((item) => item.id !== group.id && item.name.toLowerCase() === normalized.toLowerCase()))
+      throw new Error(`Group name already exists: ${normalized}`);
+    group.name = normalized;
+    this.commit({ ...this.data, groups: this.data.groups.map((item) => (item.id === group.id ? group : item)) });
+    return group;
+  }
   updateGroup(key: string, member: string, remove: boolean): void {
     const group = this.group(key);
     if (remove && !group.members.includes(member)) throw new Error(`${member} is not in ${group.name}`);
@@ -135,5 +150,11 @@ export class LocalLibrary implements SteadyHistory {
   }
   saveSteady(key: string, state: FixtureState): void {
     this.commit({ ...this.data, steady: { ...this.data.steady, [key]: SavedStateSchema.parse(state) } });
+  }
+  getOverride(key: string): number | undefined {
+    return this.data.overrides[key];
+  }
+  setOverride(key: string, until: number): void {
+    this.commit({ ...this.data, overrides: { ...this.data.overrides, [key]: until } });
   }
 }

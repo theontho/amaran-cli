@@ -7,7 +7,9 @@ import { capabilities, type MeshLink, VerifiedController, validateAction } from 
 import { cmac, MeshCrypto } from '../ble/crypto.js';
 import { EFFECTS, effectPacket } from '../ble/effects.js';
 import { LocalLibrary } from '../ble/library.js';
+import { packet } from '../ble/packets.js';
 import { createBleServer } from '../ble/server.js';
+import { decodeProductInfo } from '../ble/settings.js';
 import { atomicJson, type MeshConfig, MeshConfigSchema, SequenceStore } from '../ble/storage.js';
 import {
   brightnessPacket,
@@ -23,6 +25,7 @@ import {
   powerPacket,
   readStatePacket,
 } from '../ble/telink.js';
+import { interpolateState } from '../ble/transitions.js';
 import { ProxyAssembler, proxyFragments } from '../ble/transport.js';
 import { commandCallbackResult, getAppliedNumber, getLightDevices } from '../commands/cmdUtils.js';
 import registerCct from '../commands/deviceControl/cct.js';
@@ -343,6 +346,153 @@ describe('persistent mesh sequence identity', () => {
 });
 
 describe('verified command execution', () => {
+  it('persists manual overrides and checks them atomically before automatic CCT', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'amaran-override-'));
+    dirs.push(directory);
+    const link = fakeLink();
+    const controller = new VerifiedController(config, link, new LocalLibrary(directory));
+    const results = await Promise.all([
+      controller.execute('back', 'hsi', { hue: 120, saturation: 100, brightness: 1 }),
+      controller.automaticCct('back', { kelvin: 5600, brightness: 5 }),
+    ]);
+    expect(results[1]).toMatchObject({ skipped: true, reason: 'manual-override' });
+    expect(link.states.get(10)?.mode).toBe('hsi');
+    const restarted = new VerifiedController(config, link, new LocalLibrary(directory));
+    await expect(restarted.automaticCct('back', { kelvin: 5600 })).resolves.toMatchObject({ skipped: true });
+    await restarted.override(['back'], 0);
+    await expect(restarted.automaticCct('back', { kelvin: 5600 })).resolves.toMatchObject({
+      skipped: false,
+      state: { cct: 5600 },
+    });
+    expect(restarted.overrideStatus(['back']).back).toBe(0);
+    await restarted.override(['back'], 1);
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + 61_000);
+    expect(restarted.overrideStatus(['back']).back).toBe(0);
+  });
+  it('skips automatic changes for sleeping, stopped-cooling and thermally protected fixtures', async () => {
+    const link = fakeLink();
+    const controller = new VerifiedController(config, link);
+    await expect(controller.automaticCct('desk', { kelvin: 3200 })).resolves.toMatchObject({
+      skipped: true,
+      reason: 'light-off',
+    });
+    link.state.sleep = false;
+    const fan = link.fans.get(6);
+    if (!fan) throw new Error('No fan');
+    fan.mode = 3;
+    await expect(controller.automaticCct('desk', { kelvin: 3200 })).resolves.toMatchObject({
+      skipped: true,
+      reason: 'stopped-cooling',
+    });
+    fan.highTemperature = true;
+    await expect(controller.automaticCct('desk', { kelvin: 3200 })).resolves.toMatchObject({
+      skipped: true,
+      reason: 'thermal-protection',
+    });
+    expect(link.send).not.toHaveBeenCalled();
+  });
+  it('captures fan profiles and restores sleeping scenes without flashing their remembered brightness', async () => {
+    const link = fakeLink();
+    const controller = new VerifiedController(config, link);
+    const snapshot = await controller.snapshot();
+    expect(snapshot.back.fan).toEqual({ mode: 'smart' });
+    await controller.fan('back', 'medium');
+    link.send.mockClear();
+    await controller.restore(snapshot);
+    expect(link.fans.get(10)?.mode).toBe(1);
+    const cctWrites = link.send.mock.calls.filter(([, data]) => data[9] === 0x82);
+    for (const [, data] of cctWrites)
+      expect(Number(((data.readBigUInt64LE() | (BigInt(data[8]) << 64n)) >> 62n) & 1023n)).toBe(0);
+    expect(link.state).toMatchObject({ sleep: true, intensity: 10 });
+  });
+  it('stops effects for a logical group while preserving each fixture previous mode and power', async () => {
+    const link = fakeLink();
+    const controller = new VerifiedController(config, link);
+    await controller.execute('back', 'hsi', { hue: 120, saturation: 100, brightness: 1 });
+    await controller.execute('desk', 'effect', { name: 'pulsing', brightness: 0 });
+    await controller.execute('back', 'effect', { name: 'pulsing', brightness: 0 });
+    const restored = await controller.batch(['desk', 'back'], 'effect-stop', {});
+    expect(restored.states.desk).toMatchObject({ mode: 'cct', sleep: true, intensity: 10 });
+    expect(restored.states.back).toMatchObject({ mode: 'hsi', sleep: false, hue: 120 });
+  });
+  it('interpolates CCT/tint and shortest-path hue, crossing color modes through zero', () => {
+    const from = { ...initial, sleep: false, mode: 'hsi' as const, hue: 350, sat: 100 };
+    expect(interpolateState(from, { ...from, hue: 10 }, 0.5)).toMatchObject({ hue: 0 });
+    expect(interpolateState({ ...initial, gm: -20 }, { ...initial, cct: 5200, gm: 20 }, 0.5)).toMatchObject({
+      cct: 4200,
+      gm: 0,
+    });
+    expect(interpolateState({ ...initial, sleep: false }, from, 0.5).intensity).toBe(0);
+  });
+  it('transitions steady settings and rejects unsupported target groups before writes', async () => {
+    const link = fakeLink();
+    link.state.sleep = false;
+    const controller = new VerifiedController(config, link);
+    await expect(controller.transition(['desk', 'back'], 'hsi', { hue: 120, saturation: 100 }, 1)).rejects.toThrow(
+      'does not support'
+    );
+    expect(link.send).not.toHaveBeenCalled();
+    await expect(controller.transition(['desk'], 'cct', { kelvin: 4500, brightness: 2 }, 1)).resolves.toMatchObject({
+      states: { desk: { cct: 4500, intensity: 20, sleep: false } },
+    });
+    await expect(controller.transition(['back'], 'hsi', { hue: 120, saturation: 100 }, 1)).resolves.toMatchObject({
+      states: { back: { mode: 'hsi', hue: 120, sleep: true } },
+    });
+  });
+  it('cancels a transition without restoring its target or sending later frames', async () => {
+    const link = fakeLink();
+    const controller = new VerifiedController(config, link);
+    const cancel = new AbortController();
+    const operation = controller.transition(['desk'], 'cct', { kelvin: 5600 }, 1, cancel.signal);
+    setTimeout(() => cancel.abort(), 30);
+    await expect(operation).rejects.toThrow('intermediate settings');
+    expect(link.send).not.toHaveBeenCalled();
+  });
+  it('renames local groups without changing their identity or membership', () => {
+    const library = new LocalLibrary();
+    const group = library.createGroup('Old');
+    library.updateGroup(group.id, 'desk', false);
+    expect(library.renameGroup(group.id, 'New')).toEqual({ ...group, name: 'New', members: ['desk'] });
+    library.createGroup('Other');
+    expect(() => library.renameGroup(group.id, 'OTHER')).toThrow('already exists');
+  });
+  it('decodes native product/version fields without inventing a semantic firmware version', () => {
+    const data = packet(0, (12n << 16n) | (11n << 22n) | (13n << 28n) | (65n << 43n) | (27n << 50n) | (39n << 66n));
+    expect(decodeProductInfo(data)).toMatchObject({
+      driverHardware: 12,
+      controllerSoftware: 11,
+      controllerHardware: 13,
+      protocolVersion: 39,
+      cctMin: 2700,
+      cctMax: 6500,
+    });
+    data[0] ^= 1;
+    expect(() => decodeProductInfo(data)).toThrow('checksum');
+  });
+  it('sends trigger requests once and distinguishes settings verification from an event acknowledgement', async () => {
+    const link = fakeLink();
+    const controller = new VerifiedController(config, link);
+    await controller.execute('desk', 'effect', { name: 'lightning', brightness: 0 });
+    link.send.mockClear();
+    const result = await controller.execute('desk', 'effect-trigger', {});
+    expect(result).toMatchObject({
+      effect: 'lightning',
+      intensity: 0,
+      triggerRequest: { sent: true, eventConfirmed: false },
+    });
+    expect(link.send).toHaveBeenCalledOnce();
+    expect(Number((link.send.mock.calls[0][1].readBigUInt64LE() >> 31n) & 3n)).toBe(1);
+    const send = link.send.getMockImplementation();
+    if (!send) throw new Error('No send');
+    link.send.mockImplementation(async (address, data) => {
+      await send(address, data);
+      link.readState.mockRejectedValue(new Error('lost reply'));
+    });
+    link.send.mockClear();
+    await expect(controller.execute('desk', 'effect-trigger', {})).rejects.toThrow('not retried');
+    expect(link.send).toHaveBeenCalledOnce();
+  });
   it('reports a common applied value for groups without inventing one for mixed results', () => {
     expect(getAppliedNumber({ states: { desk: { cct: 4500 }, front: { cct: 4500 } } }, 'cct')).toBe(4500);
     expect(getAppliedNumber({ states: { desk: { cct: 4500 }, front: { cct: 3200 } } }, 'cct')).toBeUndefined();
@@ -921,6 +1071,52 @@ describe('verified command execution', () => {
         program.parseAsync(['node', 'test', 'fan', 'mode', 'back', 'manual', '--backend', 'ble'])
       ).rejects.toThrow('explicit RPM');
       expect(link.send.mock.calls.every(([, payload]) => payload[9] === 0x89)).toBe(true);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+  it('exposes overrides, product reads and persistent library updates through the client', async () => {
+    const link = fakeLink();
+    Object.assign(link, {
+      readProductInfo: vi.fn(async () => ({
+        driverSoftware: 0,
+        driverHardware: 12,
+        controllerSoftware: 11,
+        controllerHardware: 13,
+        cctMin: 2700,
+        cctMax: 6500,
+        protocolVersion: 39,
+        effects: { manual: true, music: true, picker: true, program: true, touchbar: true },
+      })),
+    });
+    const library = new LocalLibrary();
+    const server = createBleServer(new VerifiedController(config, link, library), library);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No test address');
+    try {
+      const client = await BleHttpController.connect(`http://127.0.0.1:${address.port}`);
+      await expect(commandCallbackResult((cb) => client.getProductInfo('desk', cb))).resolves.toMatchObject({
+        data: { controllerSoftware: 11, protocolVersion: 39 },
+      });
+      await commandCallbackResult((cb) => client.setCCT('back', 3200, 10, cb));
+      await expect(commandCallbackResult((cb) => client.setAutomaticCCT('back', 5600, 10, cb))).resolves.toMatchObject({
+        skipped: true,
+      });
+      await commandCallbackResult((cb) => client.overrides(['back'], 0, cb));
+      await expect(commandCallbackResult((cb) => client.setAutomaticCCT('back', 5600, 10, cb))).resolves.toMatchObject({
+        skipped: false,
+      });
+      await commandCallbackResult((cb) => client.createGroup('Before', cb));
+      await commandCallbackResult((cb) => client.addToGroup('Before', 'back', cb));
+      await commandCallbackResult((cb) => client.renameGroup('Before', 'After', cb));
+      expect(library.group('After').members).toEqual(['back']);
+      await commandCallbackResult((cb) => client.savePreset('back', 'Old preset', cb));
+      await commandCallbackResult((cb) => client.updateSaved('presets', 'Old preset', 'New preset', cb));
+      expect(library.find('presets', 'New preset').states.back.fan).toEqual({ mode: 'smart' });
+      await commandCallbackResult((cb) => client.saveQuickshot('Old quickshot', cb));
+      await commandCallbackResult((cb) => client.updateSaved('quickshots', 'Old quickshot', 'New quickshot', cb));
+      expect(library.find('quickshots', 'New quickshot').states.back.cct).toBe(5600);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

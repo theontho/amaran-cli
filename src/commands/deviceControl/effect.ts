@@ -15,6 +15,31 @@ export function registerEffect(program: Command, deps: CommandDeps) {
   const effect = program
     .command('effect')
     .description('Native lighting effects (flashing effects should be used cautiously)');
+  addStandardOptions(
+    effect
+      .command('trigger <device>')
+      .alias('retrigger')
+      .description('Send one native trigger request; fixture event acknowledgement is unavailable')
+  ).action(
+    deps.asyncCommand(async (deviceQuery: string, options: CommandOptions) => {
+      await runDeviceAction(
+        { deps, options, deviceQuery, actionName: 'request effect trigger' },
+        async (device, controller) => {
+          await commandCallbackResult((cb) =>
+            requireBleController(controller).triggerEffect(device.node_id as string, cb)
+          );
+        },
+        async (controller) => {
+          await commandCallbackResult((cb) =>
+            requireBleController(controller).batch('all', 'effect-trigger', {}, false, cb)
+          );
+        }
+      );
+      console.log(
+        'Trigger request sent; settings readback verified. Physical trigger event is not acknowledged by the fixture.'
+      );
+    })
+  );
   addStandardOptions(effect.command('list').description('List native effects; availability varies by fixture')).action(
     deps.asyncCommand(async (options: CommandOptions) => {
       const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
@@ -106,6 +131,12 @@ export function registerEffect(program: Command, deps: CommandDeps) {
         { deps, options, deviceQuery, actionName: `effect ${control}` },
         (device, controller) => apply(device.node_id as string, controller),
         async (controller) => {
+          if (control === 'stop') {
+            await commandCallbackResult((callback) =>
+              requireBleController(controller).batch('all', 'effect-stop', {}, false, callback)
+            );
+            return;
+          }
           for (const light of getLightDevices(controller.getDevices()))
             await apply(light.node_id as string, controller);
         }
