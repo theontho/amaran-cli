@@ -2,7 +2,7 @@
   "name": "amaran-light-cli",
   "version": "1.11.2",
   "type": "module",
-  "description": "Command line tool for controlling Aputure Amaran lights via WebSocket to a local Amaran desktop app.",
+  "description": "CLI and local web dashboard for verified direct-Bluetooth or Desktop control of Aputure Amaran lights.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

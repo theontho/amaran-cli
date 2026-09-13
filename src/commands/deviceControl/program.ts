@@ -126,7 +126,7 @@ export function registerPrograms(ble: Command, deps: CommandDeps) {
       .command('audio <file>')
       .description('Drive brightness from a local audio file, without uploading audio')
       .option('--seconds <seconds>', 'Maximum run duration, 1-1200 seconds', '30')
-      .option('--max <percent>', 'Maximum brightness', '5')
+      .option('--max <percent>', 'Maximum brightness', '100')
       .option('--gain <gain>', 'Audio sensitivity', '3')
   ).action(
     deps.asyncCommand(async (file: string, options: CommandOptions) => {
@@ -146,7 +146,7 @@ export function registerPrograms(ble: Command, deps: CommandDeps) {
       .command('microphone [device]')
       .description('Explicitly capture local microphone audio to drive brightness; macOS permission required')
       .option('--seconds <seconds>', 'Maximum run duration, 1-1200 seconds', '30')
-      .option('--max <percent>', 'Maximum brightness', '5')
+      .option('--max <percent>', 'Maximum brightness', '100')
       .option('--gain <gain>', 'Audio sensitivity', '3')
   ).action(
     deps.asyncCommand(async (device: string | undefined, options: CommandOptions) => {
@@ -170,7 +170,7 @@ export function registerPrograms(ble: Command, deps: CommandDeps) {
       .option('--camera <index>', 'Live camera index (default 0)')
       .option('--region <x,y,width,height>', 'Optional pixel crop')
       .option('--seconds <seconds>', 'Maximum run duration, 1-1200 seconds', '30')
-      .option('--max <percent>', 'Output brightness', '5')
+      .option('--max <percent>', 'Output brightness', '100')
   ).action(
     deps.asyncCommand(async (options: CommandOptions) => {
       if (options.image && options.camera) throw new Error('Choose an image or a camera, not both');

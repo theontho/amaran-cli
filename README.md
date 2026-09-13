@@ -125,7 +125,7 @@ The WebSocket backend remains the default; explicitly pass `--backend ble` to us
 
 Neither model has native RGB/XY or advanced HSI CCT/G/M. The BLE stack implements all eight native fan modes, including explicit manual RPM control, for individual fixtures, groups and all lights. Every mode requires advertised device support: the tested 150c and 200x S fixtures currently advertise only Smart and Medium. Mode changes are verified by readback; zero reported RPM is not treated as a fault. Active thermal protection blocks changes without restarting the fixture, and stopped-cooling requests require LEDs off or at zero brightness.
 
-Optional native mesh groups use verified subscriptions after private Device Key import. Desktop quickshots/workspaces can be previewed and imported without applying lighting. Bounded timelines, local audio-driven brightness and image/camera HSI picking run as cancellable daemon jobs and restore initial settings by default. Provisioning discovery and key-refresh inspection are read-only; full joining/re-keying is not implemented. OTA/firmware updates are intentionally excluded, and unverified dimming-curve writes remain unavailable.
+Optional native mesh groups use verified subscriptions after private Device Key import. Desktop effect presets, quickshots, and workspaces can be previewed and imported without applying lighting. Bounded timelines, local audio-driven brightness and image/camera HSI picking run as cancellable daemon jobs and restore initial settings by default. Provisioning discovery and key-refresh inspection are read-only; full joining/re-keying is not implemented. OTA/firmware updates are intentionally excluded, and unverified dimming-curve writes remain unavailable.
 
 ### Direct Bluetooth setup
 
@@ -147,12 +147,32 @@ node dist/cli.js status --backend ble
 node dist/cli.js cct 3200 desk -i 5 --backend ble
 node dist/cli.js hsi 240 100 5 back --backend ble
 node dist/cli.js ble gm back 20
+node dist/cli.js ble health
+node dist/cli.js ble dashboard --open
+node dist/cli.js ble import-desktop "/path/to/amaran.db"
 node dist/cli.js intensity 5 all --backend ble
 node dist/cli.js ble batch brightness --args '{"value":5}' --broadcast
 node dist/cli.js scene save Evening --backend ble
+node dist/cli.js scene show Evening --backend ble
 node dist/cli.js fan info all --backend ble
 node dist/cli.js off --backend ble
 ```
+
+The daemon also serves a local control dashboard at `http://127.0.0.1:2708/dashboard`. It uses the same verified
+BLE API as the CLI for fixtures, groups, power, CCT/G/M, HSI, effects, fans, saved states, transitions, circadian
+overrides, timelines, local media paths, browser camera/microphone sampling, Desktop-library import and mesh
+diagnostics. It is loopback-only, loads no remote code, and does not expose mesh credentials. The dashboard exposes
+the fixtures' full 0-100% brightness range without an artificial output cap. In CCT mode, fixture cards also show
+estimated lux from the configured Kelvin-dependent `maxLux` calibration, scaled by verified brightness. Optional
+`maxLuxByModel` entries for `200x`, `200x-s`, and `150c` override the shared curve per fixture model. Dashboard
+preferences and the last timestamped observed status are stored beside the private BLE configuration as
+`dashboard-settings.json` and `dashboard-status.json`.
+
+Desktop import previews by default and never changes fixture output. With `--apply`, Desktop quickshots become local
+quickshots, explicit workspace membership becomes local groups, and all eleven supported legacy effect types become
+retargetable local presets. Effect frequency, animation speed, trigger mode, CCT/HSI variants, palettes, saturation,
+brightness, and 150c G/M are converted and validated against the configured fixtures before anything is persisted.
+Use `--allow-partial` only when intentionally accepting a report that contains unsupported or malformed records.
 
 These fixtures use whole-percent brightness, 100-K CCT steps, and (150c only) G/M steps of 10. Requests are rounded and verified against the applied values. Omitting CCT brightness or tint preserves the fixture's actual setting, never an 80% brightness default or full-magenta tint. CCT/HSI commands wake the fixture, matching its native behavior; use `off` to put it back to sleep.
 

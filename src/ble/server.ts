@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { z } from 'zod';
+import type { MaxLuxCalibration } from '../config.js';
 import { capabilities, type VerifiedController, validateAction } from './controller.js';
+import { DashboardStore, dashboardCss, dashboardHtml, dashboardJs, estimateLux } from './dashboard.js';
 import { planDesktopImport } from './desktopLibrary.js';
 import { type LibraryCollection, LocalLibrary } from './library.js';
 import { Programs } from './programs.js';
@@ -24,13 +26,26 @@ async function bodyOf(request: IncomingMessage, maximum = 4096): Promise<Record<
 export function createBleServer(
   controller: VerifiedController,
   library = new LocalLibrary(),
-  options: { persistMesh?: (config: MeshConfig) => void } = {}
+  options: {
+    persistMesh?: (config: MeshConfig) => void;
+    dashboard?: DashboardStore;
+    luxCalibration?: MaxLuxCalibration;
+    luxByModel?: Partial<Record<MeshConfig['lights'][number]['model'], MaxLuxCalibration>>;
+  } = {}
 ) {
+  const dashboard =
+    options.dashboard ??
+    new DashboardStore(
+      undefined,
+      controller.config.lights.map((light) => light.key)
+    );
   const fanTargets = (targets: 'all' | string[]): string[] => {
     if (targets === 'all') return controller.config.lights.map((light) => light.key);
     return [...new Set(targets.flatMap((key) => (key.startsWith('group:') ? library.group(key).members : [key])))];
   };
   const programs = new Programs(controller, fanTargets);
+  const calibrationFor = (model: MeshConfig['lights'][number]['model']) =>
+    options.luxByModel?.[model] ?? options.luxCalibration;
   const manual = async (keys: string[], action: string, args: Record<string, unknown>) => {
     if (!keys.length || new Set(keys).size !== keys.length)
       throw new Error('Manual control requires unique, nonempty targets');
@@ -54,22 +69,93 @@ export function createBleServer(
     await programs.cancelTargets(keys);
   };
   const server = createServer(async (request, response) => {
-    const reply = (status: number, value: unknown) => {
+    const send = (status: number, contentType: string, value: string, cache = 'no-store') => {
       if (!response.destroyed) {
-        response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-        response.end(JSON.stringify(value));
+        response.writeHead(status, {
+          'content-type': contentType,
+          'cache-control': cache,
+          'content-security-policy':
+            "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+          'referrer-policy': 'no-referrer',
+          'x-content-type-options': 'nosniff',
+          'x-frame-options': 'DENY',
+        });
+        response.end(value);
       }
     };
+    const reply = (status: number, value: unknown) => send(status, 'application/json', JSON.stringify(value));
     const cancellation = new AbortController();
     response.on('close', () => {
       if (!response.writableEnded) cancellation.abort(new Error('HTTP client disconnected'));
     });
     try {
-      if (request.headers.origin) {
+      const origin = request.headers.origin;
+      const fetchSite = request.headers['sec-fetch-site'];
+      const expectedOrigin = request.headers.host ? `http://${request.headers.host}` : undefined;
+      if (
+        (origin && (!expectedOrigin || origin !== expectedOrigin)) ||
+        (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none')
+      ) {
         reply(403, { ok: false, error: 'Browser-origin requests are not permitted' });
         return;
       }
       const route = request.url ?? '/';
+      if (
+        request.method === 'GET' &&
+        (route === '/dashboard' || (route === '/' && request.headers.accept?.includes('text/html')))
+      ) {
+        send(200, 'text/html; charset=utf-8', dashboardHtml);
+        return;
+      }
+      if (request.method === 'GET' && route === '/dashboard.css') {
+        send(200, 'text/css; charset=utf-8', dashboardCss);
+        return;
+      }
+      if (request.method === 'GET' && route === '/dashboard.js') {
+        send(200, 'text/javascript; charset=utf-8', dashboardJs);
+        return;
+      }
+      if (route === '/dashboard/settings') {
+        if (request.method === 'GET') {
+          reply(200, { ok: true, result: dashboard.getSettings() });
+          return;
+        }
+        if (request.method === 'POST') {
+          reply(200, {
+            ok: true,
+            result: dashboard.updateSettings(
+              await bodyOf(request),
+              controller.config.lights.map((light) => light.key)
+            ),
+          });
+          return;
+        }
+      }
+      if (route === '/dashboard/status-cache' && request.method === 'GET') {
+        const cached = dashboard.getStatus();
+        if (!cached) throw new Error('No dashboard status has been observed yet');
+        reply(200, { ok: true, result: cached });
+        return;
+      }
+      if (route === '/dashboard/status' && request.method === 'GET') {
+        const keys = controller.config.lights.map((light) => light.key);
+        const lighting = await controller.snapshot(keys, false);
+        const result = dashboard.saveStatus({
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          connected: controller.link.ready,
+          lighting,
+          fans: await controller.fans(keys),
+          estimatedLux: Object.fromEntries(
+            controller.config.lights.map((light) => [
+              light.key,
+              estimateLux(calibrationFor(light.model), lighting[light.key]),
+            ])
+          ),
+        });
+        reply(200, { ok: true, verified: true, result });
+        return;
+      }
       if (request.method === 'GET' && (route === '/' || route === '/lights' || route === '/health')) {
         reply(200, {
           ok: true,
@@ -97,6 +183,10 @@ export function createBleServer(
             batch: true,
             library: true,
             fade: true,
+            dashboard: true,
+            dashboardStatus: true,
+            effectAnimationSpeed: true,
+            savedTargetSelection: true,
           },
           lights: controller.config.lights.map((light) => ({
             key: light.key,
@@ -105,6 +195,7 @@ export function createBleServer(
             address: light.address,
             model: light.model,
             capabilities: capabilities(light),
+            luxCalibration: calibrationFor(light.model),
           })),
           groups: library.groups(),
         });
@@ -291,7 +382,7 @@ export function createBleServer(
           })
           .strict()
           .parse(await bodyOf(request));
-        const keys = body.targets === 'all' ? controller.config.lights.map((light) => light.key) : body.targets;
+        const keys = fanTargets(body.targets);
         await manual(keys, body.action, body.args);
         const result = await controller.batch(keys, body.action, body.args, body.broadcast, cancellation.signal);
         reply(200, { ok: true, verified: true, result });
@@ -306,7 +397,7 @@ export function createBleServer(
           })
           .strict()
           .parse(await bodyOf(request));
-        const keys = body.targets === 'all' ? controller.config.lights.map((light) => light.key) : body.targets;
+        const keys = fanTargets(body.targets);
         await manual(keys, 'brightness', { value: body.brightness });
         reply(200, {
           ok: true,
@@ -331,7 +422,7 @@ export function createBleServer(
         if (request.method === 'POST') {
           if (key && libraryRoute[3] === 'recall') {
             const body = z
-              .object({ target: z.string().optional(), seconds: z.number().optional() })
+              .object({ target: z.string().optional(), seconds: z.number().min(0.5).max(20).optional() })
               .strict()
               .parse(await bodyOf(request));
             const saved = library.find(collection, key);
@@ -347,11 +438,16 @@ export function createBleServer(
             return;
           }
           const body = z
-            .object({ name: z.string().optional(), keys: z.array(z.string()).min(1).optional() })
+            .object({
+              name: z.string().optional(),
+              keys: z.union([z.literal('all'), z.array(z.string()).min(1)]).optional(),
+            })
             .strict()
             .parse(await bodyOf(request));
           const existing = key ? library.find(collection, key) : undefined;
-          const states = await controller.snapshot(body.keys ?? (existing ? Object.keys(existing.states) : undefined));
+          const states = await controller.snapshot(
+            body.keys !== undefined ? fanTargets(body.keys) : existing ? Object.keys(existing.states) : undefined
+          );
           cancellation.signal.throwIfAborted();
           const result = library.save(collection, body.name ?? existing?.name, states, key);
           reply(200, { ok: true, result });

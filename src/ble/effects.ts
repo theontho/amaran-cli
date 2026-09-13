@@ -120,6 +120,11 @@ export function decodeEffect(data: Buffer): FixtureState {
     state.cct = field(compact ? 36n : 40n, 1023n) * 10;
     state.gm = (field(compact ? 29n : 33n, 127n) - 10) * 10;
   }
+  if ([2, 6, 7, 8, 9].includes(id)) {
+    const trigger = field(id === 2 ? 31n : variant === 1 ? 28n : 27n, 3n);
+    if (trigger > 2) throw new Error(`Unsupported native trigger mode ${trigger}`);
+    state.trigger = trigger as 0 | 1 | 2;
+  }
   if (id === 8 || id === 9 || id === 2) state.speed = field(id === 2 ? 27n : variant === 1 ? 24n : 23n, 15n);
   if (id === 3 || id === 5) state.palette = field(40n, 1023n);
   if (id === 14) state.palette = field(42n, 255n);

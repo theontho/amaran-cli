@@ -38,13 +38,35 @@ export function registerPreset(program: Command, deps: CommandDeps) {
   addStandardOptions(preset.command('list').description('List all available presets')).action(
     asyncCommand(handlePresetList(deps))
   );
-
-  addStandardOptions(preset.command('recall <device> <preset_id>').description('Recall a preset on a device')).action(
-    asyncCommand(handlePresetRecall(deps))
+  addStandardOptions(preset.command('show <id>').description('Show the stored fixture, fan and effect state')).action(
+    asyncCommand(async (id: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) => requireBleController(controller).getSaved('presets', id, cb)),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
   );
 
   addStandardOptions(
-    preset.command('set <device> <preset_id>').description('Set a preset on a device (alias for recall)')
+    preset
+      .command('recall <device> <preset_id>')
+      .option('--fade <seconds>', 'Transition to a steady preset over 0.5-20 seconds')
+      .description('Recall a preset on a device')
+  ).action(asyncCommand(handlePresetRecall(deps)));
+
+  addStandardOptions(
+    preset
+      .command('set <device> <preset_id>')
+      .option('--fade <seconds>', 'Transition to a steady preset over 0.5-20 seconds')
+      .description('Set a preset on a device (alias for recall)')
   ).action(asyncCommand(handlePresetRecall(deps)));
   addStandardOptions(
     preset.command('save <device> <name>').description('Save a single-fixture local BLE preset')
@@ -113,19 +135,25 @@ function handlePresetRecall(deps: CommandDeps) {
         deviceQuery,
         actionName: `recall preset ${presetId}`,
       },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          const nodeId = device.node_id as string;
-          controller.recallPreset(nodeId, presetId, (success, message) => {
-            if (success) {
-              console.log(chalk.green(`✓ Preset ${presetId} recalled on ${device.device_name || 'device'}`));
-            } else {
-              process.exitCode = 1;
-              console.error(chalk.red(`✗ Failed to recall preset: ${message}`));
-            }
-            resolve();
-          });
-        });
+      async (device: Device, controller) => {
+        const nodeId = device.node_id as string;
+        await commandCallbackResult((callback) =>
+          options.fade === undefined
+            ? controller.recallPreset(nodeId, presetId, callback)
+            : requireBleController(controller).recallSaved(
+                'presets',
+                presetId,
+                { target: nodeId, seconds: Number(options.fade) },
+                callback
+              )
+        );
+        console.log(
+          chalk.green(
+            `✓ Preset ${presetId} ${options.fade === undefined ? 'recalled' : 'transitioned'} on ${
+              device.device_name || 'device'
+            }`
+          )
+        );
       },
       () => {
         throw new Error('Preset recall for "all" is not supported; use a saved scene');

@@ -10,10 +10,29 @@ export function registerScene(program: Command, deps: CommandDeps) {
   addStandardOptions(scene.command('list').description('List all saved scenes')).action(
     asyncCommand(handleSceneList(deps))
   );
-
-  addStandardOptions(scene.command('save <name>').description('Save current state as a scene')).action(
-    asyncCommand(handleSceneSave(deps))
+  addStandardOptions(scene.command('show <id>').description('Show every stored fixture, fan and effect state')).action(
+    asyncCommand(async (id: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) => requireBleController(controller).getSaved('scenes', id, cb)),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
   );
+
+  addStandardOptions(
+    scene
+      .command('save <name>')
+      .option('--targets <keys>', 'Comma-separated fixture keys/group IDs; defaults to all')
+      .description('Save current state as a scene')
+  ).action(asyncCommand(handleSceneSave(deps)));
 
   addStandardOptions(
     scene
@@ -27,7 +46,11 @@ export function registerScene(program: Command, deps: CommandDeps) {
   );
 
   addStandardOptions(
-    scene.command('update <id>').option('-n, --name <name>', 'New name for the scene').description('Update a scene')
+    scene
+      .command('update <id>')
+      .option('-n, --name <name>', 'New name for the scene')
+      .option('--targets <keys>', 'Replace with these fixture keys/group IDs')
+      .description('Update a scene')
   ).action(asyncCommand(handleSceneUpdate(deps)));
 }
 
@@ -65,6 +88,22 @@ function handleSceneSave(deps: CommandDeps) {
   return async (name: string, options: CommandOptions) => {
     const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
+    if (options.targets !== undefined) {
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((callback) =>
+              requireBleController(controller).saveSaved('scenes', name, targetList(options.targets), callback)
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+      return;
+    }
     controller.saveScene(name, (success, message, data) => {
       if (success) {
         console.log(chalk.green(`Scene "${name}" saved successfully`));
@@ -128,6 +167,28 @@ function handleSceneUpdate(deps: CommandDeps) {
   return async (id: string, options: CommandOptions & { name?: string }) => {
     const controller = await createController(options.url, options.clientId, options.debug, options.backend);
 
+    if (options.targets !== undefined) {
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((callback) =>
+              requireBleController(controller).replaceSaved(
+                'scenes',
+                id,
+                options.name,
+                targetList(options.targets),
+                callback
+              )
+            ),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+      return;
+    }
     controller.updateScene(id, options.name, (success, message) => {
       if (success) {
         console.log(chalk.green(`Scene ${id} updated successfully`));
@@ -138,6 +199,16 @@ function handleSceneUpdate(deps: CommandDeps) {
       controller.disconnect();
     });
   };
+}
+
+function targetList(value: unknown): 'all' | string[] {
+  if (String(value).trim().toLowerCase() === 'all') return 'all';
+  const keys = String(value)
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
+  if (!keys.length) throw new Error('Targets must contain at least one fixture or group');
+  return keys;
 }
 
 export default registerScene;

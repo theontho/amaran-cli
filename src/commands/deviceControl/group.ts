@@ -38,6 +38,24 @@ export function registerGroup(program: Command, deps: CommandDeps) {
 
   addStandardOptions(group.command('list').description('List all groups')).action(asyncCommand(handleGroupList(deps)));
   addStandardOptions(
+    group.command('show <id>').description('Show local membership and native subscription metadata')
+  ).action(
+    asyncCommand(async (id: string, options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, options.backend);
+      try {
+        console.log(
+          JSON.stringify(
+            await commandCallbackResult((cb) => requireBleController(controller).getGroup(id, cb)),
+            null,
+            2
+          )
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
+  addStandardOptions(
     group.command('rename <id> <name>').description('Rename a local BLE group without changing membership')
   ).action(
     asyncCommand(async (id: string, name: string, options: CommandOptions) => {

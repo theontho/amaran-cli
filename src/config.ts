@@ -8,7 +8,7 @@ export const APP_NAME = 'amaran-cli';
 
 const legacyConfigPath = join(homedir(), '.amaran-cli.json');
 
-const maxLuxSchema = z.union([
+export const MaxLuxCalibrationSchema = z.union([
   z.number().positive(),
   z.record(z.string(), z.number().positive()).transform((value) => {
     const normalized: Record<string, number> = {};
@@ -22,6 +22,7 @@ const maxLuxSchema = z.union([
     return normalized;
   }),
 ]);
+export type MaxLuxCalibration = z.infer<typeof MaxLuxCalibrationSchema>;
 
 export const ConfigSchema = z
   .object({
@@ -39,7 +40,15 @@ export const ConfigSchema = z
     intensityMin: z.number().min(0).max(100).optional(),
     intensityMax: z.number().min(0).max(100).optional(),
     autoStartApp: z.boolean().optional(),
-    maxLux: maxLuxSchema.optional(),
+    maxLux: MaxLuxCalibrationSchema.optional(),
+    maxLuxByModel: z
+      .object({
+        '200x': MaxLuxCalibrationSchema.optional(),
+        '200x-s': MaxLuxCalibrationSchema.optional(),
+        '150c': MaxLuxCalibrationSchema.optional(),
+      })
+      .strict()
+      .optional(),
     weather: z.boolean().optional(),
   })
   .passthrough()

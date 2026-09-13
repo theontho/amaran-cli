@@ -14,6 +14,7 @@ export interface FixtureState {
   effect?: EffectName;
   frequency?: number;
   speed?: number;
+  trigger?: 0 | 1 | 2;
   palette?: number;
   observedAt: string;
   fan?: { mode: FanMode; rpm?: number };

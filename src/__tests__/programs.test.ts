@@ -64,7 +64,7 @@ describe('bounded media programs', () => {
     expect(control.batch).toHaveBeenCalledWith(
       ['back'],
       'color',
-      { color: '#00ff00', brightness: 5 },
+      { color: '#00ff00', brightness: 100 },
       false,
       expect.any(AbortSignal)
     );

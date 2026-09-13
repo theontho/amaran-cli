@@ -81,7 +81,7 @@ export function registerEffect(program: Command, deps: CommandDeps) {
       .command('custom <device> <effect_name>')
       .option(
         '--params <json>',
-        'Effect parameters: brightness (percent), frequency, kelvin, gm, palette, hue, saturation',
+        'Effect parameters: brightness (percent), frequency, speed, kelvin, gm, palette, hue, saturation',
         '{}'
       )
   ).action(
@@ -101,6 +101,30 @@ export function registerEffect(program: Command, deps: CommandDeps) {
         }
       );
       console.log(chalk.green(`Effect ${name} applied to ${deviceQuery}`));
+    })
+  );
+  addStandardOptions(
+    effect
+      .command('animation-speed <device> <value>')
+      .description('Set native animation speed (0-10) for lightning, faulty-bulb or pulsing')
+  ).action(
+    deps.asyncCommand(async (deviceQuery: string, value: string, options: CommandOptions) => {
+      const speed = numberInRange(Number(value), 'animation speed', 0, 10);
+      await runDeviceAction(
+        { deps, options, deviceQuery, actionName: 'set effect animation speed' },
+        async (device, controller) => {
+          await commandCallbackResult((callback) =>
+            requireBleController(controller).setEffectAnimationSpeed(device.node_id as string, speed, callback)
+          );
+        },
+        async (controller) => {
+          for (const light of getLightDevices(controller.getDevices()))
+            await commandCallbackResult((callback) =>
+              requireBleController(controller).setEffectAnimationSpeed(light.node_id as string, speed, callback)
+            );
+        }
+      );
+      console.log(chalk.green(`Effect animation speed applied to ${deviceQuery}`));
     })
   );
   for (const control of ['speed', 'intensity', 'stop'] as const) {

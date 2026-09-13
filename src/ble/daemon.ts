@@ -1,6 +1,8 @@
 import path from 'node:path';
+import { loadConfig } from '../config.js';
 import { VerifiedController } from './controller.js';
 import { MeshCrypto } from './crypto.js';
+import { DashboardStore } from './dashboard.js';
 import { LocalLibrary } from './library.js';
 import { createBleServer } from './server.js';
 import { atomicJson, loadMeshConfig, meshDirectory, SequenceStore } from './storage.js';
@@ -8,13 +10,21 @@ import { MeshTransport } from './transport.js';
 
 export async function serveBle(port = 2708, debug = false): Promise<void> {
   const config = loadMeshConfig();
+  const appConfig = loadConfig();
   const crypto = new MeshCrypto(config.netKey, config.appKey);
   const sequence = new SequenceStore(meshDirectory(), crypto.networkId.toString('hex'), config.source);
   const link = new MeshTransport(config, sequence, debug);
   const library = new LocalLibrary(meshDirectory());
+  const dashboard = new DashboardStore(
+    meshDirectory(),
+    config.lights.map((light) => light.key)
+  );
   const controller = new VerifiedController(config, link, library);
   const server = createBleServer(controller, library, {
     persistMesh: (value) => atomicJson(path.join(meshDirectory(), 'mesh.json'), value),
+    dashboard,
+    luxCalibration: appConfig?.maxLux,
+    luxByModel: appConfig?.maxLuxByModel,
   });
   let stopping = false;
   const stop = async () => {

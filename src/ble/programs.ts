@@ -11,7 +11,7 @@ export const ProgramSchema = z
     targets: z.union([z.literal('all'), z.array(z.string()).min(1)]),
     duration: z.number().min(1).max(1200).default(30),
     restore: z.boolean().default(true),
-    maxBrightness: z.number().min(0).max(100).default(5),
+    maxBrightness: z.number().min(0).max(100).default(100),
     gain: z.number().positive().max(100).default(3),
     source: MediaSourceSchema.optional(),
     steps: z

@@ -242,6 +242,7 @@ describe('actual Amaran packet encoding', () => {
       intensity: 20,
       frequency: 1,
       speed: 2,
+      trigger: 2 as const,
       cct: 3200,
       gm: 30,
       palette: 0,
@@ -249,7 +250,13 @@ describe('actual Amaran packet encoding', () => {
     const packet = effectPacket(options);
     expect(packet[8]).toBe(id);
     expect(packet[9]).toBe(0x87);
-    expect(decodeState(packet)).toMatchObject({ mode: 'effect', effect: name, intensity: 20, frequency: 1 });
+    expect(decodeState(packet)).toMatchObject({
+      mode: 'effect',
+      effect: name,
+      intensity: 20,
+      frequency: 1,
+      ...(['lightning', 'faulty-bulb', 'pulsing', 'strobe', 'explosion'].includes(name) ? { trigger: 2 } : {}),
+    });
   });
   it('encodes the separate HSI effect layout without CCT/G/M overlap', () => {
     const packet = effectPacket({
@@ -257,6 +264,7 @@ describe('actual Amaran packet encoding', () => {
       intensity: 20,
       frequency: 1,
       speed: 2,
+      trigger: 2,
       cct: 3200,
       gm: 0,
       palette: 0,
@@ -268,6 +276,7 @@ describe('actual Amaran packet encoding', () => {
       hue: 120,
       sat: 90,
       speed: 2,
+      trigger: 2,
       intensity: 20,
       frequency: 1,
     });
@@ -580,15 +589,30 @@ describe('verified command execution', () => {
         hue: 120,
         saturation: 90,
         frequency: 1,
+        speed: 4,
         brightness: 2,
       })
-    ).resolves.toMatchObject({ mode: 'effect', hue: 120, sat: 90, speed: 0 });
+    ).resolves.toMatchObject({ mode: 'effect', hue: 120, sat: 90, speed: 4 });
     await expect(controller.execute('back', 'effect-intensity', { value: 3 })).resolves.toMatchObject({
       hue: 120,
       sat: 90,
-      speed: 0,
+      speed: 4,
       intensity: 30,
     });
+    await expect(controller.execute('back', 'effect-speed', { value: 7 })).resolves.toMatchObject({
+      frequency: 7,
+      speed: 4,
+    });
+    await expect(controller.execute('back', 'effect-animation-speed', { value: 2 })).resolves.toMatchObject({
+      frequency: 7,
+      speed: 2,
+    });
+    await controller.execute('back', 'effect', { name: 'fire', brightness: 2, frequency: 1 });
+    const writes = link.send.mock.calls.length;
+    await expect(controller.execute('back', 'effect-animation-speed', { value: 2 })).rejects.toThrow(
+      'no animation speed'
+    );
+    expect(link.send).toHaveBeenCalledTimes(writes);
     const restarted = new VerifiedController(config, link, new LocalLibrary(directory));
     await expect(restarted.execute('back', 'effect-stop', {})).resolves.toMatchObject({
       mode: 'cct',
@@ -995,6 +1019,28 @@ describe('verified command execution', () => {
       expect(bad.status).toBe(400);
       expect(await bad.json()).toMatchObject({ ok: false });
       expect((await fetch(url, { headers: { origin: 'https://example.com' } })).status).toBe(403);
+      const dashboard = await fetch(`${url}/dashboard`);
+      expect(dashboard.headers.get('content-security-policy')).toContain("default-src 'self'");
+      expect((await dashboard.text()).toLowerCase()).toContain('direct bluetooth mesh');
+      expect(
+        (
+          await fetch(`${url}/dashboard/settings`, {
+            method: 'POST',
+            headers: { origin: url },
+            body: JSON.stringify({ title: 'Studio lights' }),
+          })
+        ).status
+      ).toBe(200);
+      const dashboardStatus = await (await fetch(`${url}/dashboard/status`)).json();
+      expect(dashboardStatus).toMatchObject({
+        ok: true,
+        verified: true,
+        result: { connected: true, lighting: { desk: {}, back: {} }, fans: { desk: {}, back: {} } },
+      });
+      expect(await (await fetch(`${url}/dashboard/status-cache`)).json()).toMatchObject({
+        ok: true,
+        result: dashboardStatus.result,
+      });
       const program = new Command();
       registerCct(program, {
         createController: async () => client,
@@ -1111,6 +1157,10 @@ describe('verified command execution', () => {
       await commandCallbackResult((cb) => client.addToGroup('Before', 'back', cb));
       await commandCallbackResult((cb) => client.renameGroup('Before', 'After', cb));
       expect(library.group('After').members).toEqual(['back']);
+      await commandCallbackResult((cb) => client.saveSaved('scenes', 'Back only', [library.group('After').id], cb));
+      expect(Object.keys(library.find('scenes', 'Back only').states)).toEqual(['back']);
+      await commandCallbackResult((cb) => client.replaceSaved('scenes', 'Back only', 'All now', 'all', cb));
+      expect(Object.keys(library.find('scenes', 'All now').states)).toEqual(['desk', 'back']);
       await commandCallbackResult((cb) => client.savePreset('back', 'Old preset', cb));
       await commandCallbackResult((cb) => client.updateSaved('presets', 'Old preset', 'New preset', cb));
       expect(library.find('presets', 'New preset').states.back.fan).toEqual({ mode: 'smart' });

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLightDevices } from '../commands/cmdUtils.js';
+import { commandCallbackResult, getLightDevices } from '../commands/cmdUtils.js';
 import registerAutoCct from '../commands/daylightSimulation/autoCct.js';
 import BleHttpController, { trimTrailingSlashes } from '../deviceControl/bleHttpControl.js';
 import type { CommandDeps } from '../deviceControl/types.js';
@@ -37,6 +37,10 @@ describe('BleHttpController', () => {
         res.end(
           JSON.stringify({
             ok: true,
+            daemon: true,
+            protocolVersion: 2,
+            connected: true,
+            features: { library: true, meshConfig: true, effects: true },
             lights: [
               { key: 'key', name: 'Key Light', mac: 'A4:C1:38:13:41:38', address: 2 },
               { key: 'back', name: 'Back Light', mac: 'A4:C1:38:13:30:86', address: 4 },
@@ -94,6 +98,42 @@ describe('BleHttpController', () => {
     expect(getLightDevices(controller.getDevices())).toHaveLength(2);
   });
 
+  it('exposes daemon health and detailed local records through read-only methods', async () => {
+    const controller = await BleHttpController.connect(baseUrl);
+
+    const health = await new Promise<unknown>((resolve, reject) =>
+      controller.getHealth((success, message, data) => (success ? resolve(data) : reject(new Error(message))))
+    );
+    const group = await new Promise<unknown>((resolve, reject) =>
+      controller.getGroup('group:work', (success, message, data) =>
+        success ? resolve(data) : reject(new Error(message))
+      )
+    );
+    const scene = await new Promise<unknown>((resolve, reject) =>
+      controller.getSaved('scenes', 'Evening', (success, message, data) =>
+        success ? resolve(data) : reject(new Error(message))
+      )
+    );
+
+    expect(health).toMatchObject({
+      data: { daemon: true, protocolVersion: 2, connected: true, features: { library: true, meshConfig: true } },
+    });
+    expect(group).toEqual({ data: 'ok' });
+    expect(scene).toEqual({ data: 'ok' });
+    expect(requests).toContainEqual({
+      method: 'GET',
+      url: '/groups/group%3Awork',
+      body: undefined,
+      authorization: undefined,
+    });
+    expect(requests).toContainEqual({
+      method: 'GET',
+      url: '/library/scenes/Evening',
+      body: undefined,
+      authorization: undefined,
+    });
+  });
+
   it('sends supported commands to the BLE HTTP API', async () => {
     const controller = await BleHttpController.connect(baseUrl, 'test-key');
 
@@ -108,6 +148,7 @@ describe('BleHttpController', () => {
       body: { kelvin: 5600, brightness: 75 },
       authorization: 'Bearer test-key',
     });
+
     expect(requests).toContainEqual({
       method: 'POST',
       url: '/lights/back/cct',
@@ -125,6 +166,44 @@ describe('BleHttpController', () => {
       url: '/lights/key/off',
       body: {},
       authorization: 'Bearer test-key',
+    });
+  });
+
+  it('routes effect animation, target selection and saved-state transitions', async () => {
+    const controller = await BleHttpController.connect(baseUrl);
+
+    await commandCallbackResult((callback) => controller.setEffectAnimationSpeed('back', 4, callback));
+    await commandCallbackResult((callback) => controller.saveSaved('scenes', 'Work', ['key'], callback));
+    await commandCallbackResult((callback) =>
+      controller.replaceSaved('quickshots', 'Workday', undefined, 'all', callback)
+    );
+    await commandCallbackResult((callback) =>
+      controller.recallSaved('presets', 'Portrait', { target: 'back', seconds: 2 }, callback)
+    );
+
+    expect(requests).toContainEqual({
+      method: 'POST',
+      url: '/lights/back/effect-animation-speed',
+      body: { value: 4 },
+      authorization: undefined,
+    });
+    expect(requests).toContainEqual({
+      method: 'POST',
+      url: '/library/scenes',
+      body: { name: 'Work', keys: ['key'] },
+      authorization: undefined,
+    });
+    expect(requests).toContainEqual({
+      method: 'POST',
+      url: '/library/quickshots/Workday',
+      body: { keys: 'all' },
+      authorization: undefined,
+    });
+    expect(requests).toContainEqual({
+      method: 'POST',
+      url: '/library/presets/Portrait/recall',
+      body: { target: 'back', seconds: 2 },
+      authorization: undefined,
     });
   });
 

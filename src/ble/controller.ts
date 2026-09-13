@@ -76,8 +76,9 @@ const ARGUMENTS: Record<string, string[]> = {
   gm: ['value'],
   hsi: ['hue', 'saturation', 'brightness'],
   color: ['color', 'brightness'],
-  effect: ['name', 'brightness', 'frequency', 'kelvin', 'gm', 'palette', 'hue', 'saturation'],
+  effect: ['name', 'brightness', 'frequency', 'speed', 'trigger', 'kelvin', 'gm', 'palette', 'hue', 'saturation'],
   'effect-speed': ['value'],
+  'effect-animation-speed': ['value'],
   'effect-intensity': ['value'],
   'effect-stop': [],
   'effect-trigger': [],
@@ -122,8 +123,19 @@ export function validateAction(light: MeshLight, action: string, body: Record<st
         throw new Error('An HSI effect cannot also specify CCT/G/M');
     }
     if (body.saturation !== undefined) numberInRange(body.saturation, 'saturation', 0, 100);
+    if (body.speed !== undefined) {
+      if (!['lightning', 'faulty-bulb', 'pulsing'].includes(name))
+        throw new Error(`${name} has no animation speed parameter`);
+      numberInRange(body.speed, 'animation speed', 0, 10);
+    }
+    if (body.trigger !== undefined) {
+      if (!TRIGGER_EFFECTS.includes(name)) throw new Error(`${name} has no trigger mode`);
+      numberInRange(body.trigger, 'trigger mode', 0, 2);
+      if (!Number.isInteger(body.trigger)) throw new Error('Trigger mode must be an integer');
+    }
   }
   if (action === 'effect-speed') numberInRange(body.value, 'effect frequency', 1, 10);
+  if (action === 'effect-animation-speed') numberInRange(body.value, 'effect animation speed', 0, 10);
   if (body.frequency !== undefined) numberInRange(body.frequency, 'frequency', 1, 10);
   if (body.palette !== undefined) numberInRange(body.palette, 'palette', 0, 2);
   if (body.brightness !== undefined) numberInRange(body.brightness, 'brightness', 0, 100);
@@ -466,10 +478,6 @@ export class VerifiedController {
         )
           throw new Error(`${light.name}: saved stopped cooling is incompatible with emitting LEDs`);
       }
-      if (state.mode === 'effect' && state.speed !== undefined && state.speed !== 0)
-        throw new Error(
-          'These first-generation effects do not expose a separately verified speed parameter; use frequency'
-        );
       if (!capabilities(light).gm_support && state.gm !== undefined && state.gm !== 0)
         throw new Error(`${light.name} cannot reproduce a preset with non-neutral G/M`);
       const action = state.mode === 'effect' ? 'effect' : state.mode;
@@ -481,6 +489,8 @@ export class VerifiedController {
                 name: state.effect,
                 brightness: state.intensity / 10,
                 frequency: state.frequency,
+                ...(state.speed === undefined ? {} : { speed: state.speed }),
+                ...(state.trigger === undefined ? {} : { trigger: state.trigger }),
                 ...(state.cct === undefined ? {} : { kelvin: state.cct }),
                 ...(state.palette === undefined ? {} : { palette: state.palette }),
                 ...(state.hue === undefined ? {} : { hue: state.hue }),
@@ -842,16 +852,19 @@ export class VerifiedController {
         { ...colorToHSI(body.color), ...(body.brightness === undefined ? {} : { brightness: body.brightness }) },
         previous
       );
-    if (['effect-speed', 'effect-intensity', 'effect-trigger'].includes(action)) {
+    if (['effect-speed', 'effect-animation-speed', 'effect-intensity', 'effect-trigger'].includes(action)) {
       if (previous.mode !== 'effect' || !previous.effect) throw new Error('No native effect is active');
       if (action === 'effect-trigger' && (previous.sleep || !TRIGGER_EFFECTS.includes(previous.effect)))
         throw new Error('Trigger requires an awake lightning, faulty-bulb, pulsing, strobe or explosion effect');
+      if (action === 'effect-animation-speed' && !['lightning', 'faulty-bulb', 'pulsing'].includes(previous.effect))
+        throw new Error(`${previous.effect} has no animation speed parameter`);
       return this.prepare(
         light,
         'effect',
         {
           name: previous.effect,
           frequency: action === 'effect-speed' ? body.value : previous.frequency,
+          speed: action === 'effect-animation-speed' ? body.value : previous.speed,
           brightness: action === 'effect-intensity' ? body.value : previous.intensity / 10,
           ...(previous.cct === undefined ? {} : { kelvin: previous.cct }),
           ...(previous.palette === undefined ? {} : { palette: previous.palette }),
@@ -895,8 +908,12 @@ export class VerifiedController {
           effect,
           intensity: expected.intensity,
           frequency: Math.round(numberInRange(body.frequency ?? previous.frequency ?? 1, 'frequency', 1, 10)),
-          speed: 0,
-          ...(body._trigger === true ? { trigger: 1 as const } : {}),
+          speed: Math.round(numberInRange(body.speed ?? previous.speed ?? 0, 'animation speed', 0, 10)),
+          ...(body._trigger === true
+            ? { trigger: 1 as const }
+            : body.trigger === undefined
+              ? {}
+              : { trigger: Math.round(numberInRange(body.trigger, 'trigger mode', 0, 2)) as 0 | 1 | 2 }),
           cct:
             Math.round(numberInRange(body.kelvin ?? previous.cct ?? 3200, 'CCT', caps.cct_min, caps.cct_max) / 100) *
             100,
@@ -917,6 +934,7 @@ export class VerifiedController {
           if (caps.gm_support) expected.gm = options.gm;
         }
         if (['lightning', 'faulty-bulb', 'pulsing'].includes(effect)) expected.speed = options.speed;
+        if (options.trigger !== undefined) expected.trigger = options.trigger;
         if (['tv', 'fire', 'fireworks', 'cop-car'].includes(effect)) expected.palette = options.palette;
         if (effect === 'party-lights') expected.sat = options.saturation ?? 100;
       } else throw new Error(`Unsupported action: ${action}`);

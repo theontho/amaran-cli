@@ -14,6 +14,9 @@ interface BleLight {
 
 interface BleLightsResponse {
   ok?: boolean;
+  daemon?: boolean;
+  protocolVersion?: number;
+  connected?: boolean;
   lights?: BleLight[];
   error?: string;
   features?: Record<string, boolean | undefined>;
@@ -64,6 +67,16 @@ export default class BleHttpController {
     this.refreshDevices()
       .then(() => callback?.(true, 'OK', { data: this.devices }))
       .catch((error) => callback?.(false, (error as Error).message));
+  }
+
+  public async getHealth(callback?: CommandCallback) {
+    try {
+      const response = await this.request<BleLightsResponse>('/', { method: 'GET' });
+      if (response.ok !== true) throw new Error(response.error || 'BLE backend returned an error');
+      callback?.(true, 'OK', { data: response });
+    } catch (error) {
+      callback?.(false, (error as Error).message);
+    }
   }
 
   public turnLightOn(nodeId: string, callback?: CommandCallback) {
@@ -143,6 +156,9 @@ export default class BleHttpController {
   public renameGroup(groupId: string, name: string, callback?: CommandCallback) {
     return this.libraryRequest(`/groups/${encodeURIComponent(groupId)}/rename`, 'POST', { name }, callback);
   }
+  public getGroup(groupId: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/groups/${encodeURIComponent(groupId)}`, 'GET', undefined, callback);
+  }
   public nativeGroup(
     groupId: string,
     action: 'enable' | 'sync' | 'disable',
@@ -197,6 +213,36 @@ export default class BleHttpController {
       callback
     );
   }
+  public replaceSaved(
+    collection: 'scenes' | 'presets' | 'quickshots',
+    key: string,
+    name: string | undefined,
+    keys: 'all' | string[] | undefined,
+    callback?: CommandCallback
+  ) {
+    return this.libraryRequest(
+      `/library/${collection}/${encodeURIComponent(key)}`,
+      'POST',
+      { ...(name === undefined ? {} : { name }), ...(keys === undefined ? {} : { keys }) },
+      callback
+    );
+  }
+  public saveSaved(
+    collection: 'scenes' | 'presets' | 'quickshots',
+    name: string,
+    keys: 'all' | string[] | undefined,
+    callback?: CommandCallback
+  ) {
+    return this.libraryRequest(
+      `/library/${collection}`,
+      'POST',
+      { name, ...(keys === undefined ? {} : { keys }) },
+      callback
+    );
+  }
+  public getSaved(collection: 'scenes' | 'presets' | 'quickshots', key: string, callback?: CommandCallback) {
+    return this.libraryRequest(`/library/${collection}/${encodeURIComponent(key)}`, 'GET', undefined, callback);
+  }
   public transition(
     targets: 'all' | string[],
     action: string,
@@ -207,7 +253,15 @@ export default class BleHttpController {
     return this.runCommand('/transition', { targets, action, args, seconds }, callback);
   }
   public transitionScene(key: string, seconds: number, callback?: CommandCallback) {
-    return this.runCommand(`/library/scenes/${encodeURIComponent(key)}/recall`, { seconds }, callback);
+    return this.recallSaved('scenes', key, { seconds }, callback);
+  }
+  public recallSaved(
+    collection: 'scenes' | 'presets' | 'quickshots',
+    key: string,
+    options: { target?: string; seconds?: number },
+    callback?: CommandCallback
+  ) {
+    return this.runCommand(`/library/${collection}/${encodeURIComponent(key)}/recall`, options, callback);
   }
 
   public async setCCTAndIntensityForAllLights(cct: number, intensity?: number, callback?: CommandCallback) {
@@ -387,6 +441,10 @@ export default class BleHttpController {
     return this.postLightCommand(nodeId, 'effect-speed', { value: speed }, callback);
   }
 
+  public setEffectAnimationSpeed(nodeId: string, speed: number, callback?: CommandCallback) {
+    return this.postLightCommand(nodeId, 'effect-animation-speed', { value: speed }, callback);
+  }
+
   public setEffectIntensity(nodeId: string, intensity: number, callback?: CommandCallback) {
     return this.postLightCommand(
       nodeId,
@@ -492,7 +550,7 @@ export default class BleHttpController {
   }
 
   public recallPreset(nodeId: string, presetId: string, callback?: CommandCallback) {
-    return this.runCommand(`/library/presets/${encodeURIComponent(presetId)}/recall`, { target: nodeId }, callback);
+    return this.recallSaved('presets', presetId, { target: nodeId }, callback);
   }
 
   public setPreset(nodeId: string, presetId: string, callback?: CommandCallback) {
@@ -504,7 +562,7 @@ export default class BleHttpController {
   }
 
   public setQuickshot(quickshotId: string, callback?: CommandCallback) {
-    return this.runCommand(`/library/quickshots/${encodeURIComponent(quickshotId)}/recall`, {}, callback);
+    return this.recallSaved('quickshots', quickshotId, {}, callback);
   }
 
   public saveScene(name: string, callback?: CommandCallback) {
@@ -858,6 +916,7 @@ export default class BleHttpController {
       color: 'color',
       effect: 'effects',
       'effect-speed': 'effects',
+      'effect-animation-speed': 'effects',
       'effect-intensity': 'effects',
       'effect-stop': 'effects',
       'effect-trigger': 'effectTrigger',

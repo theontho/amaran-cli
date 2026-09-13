@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import type { Command } from 'commander';
 import { z } from 'zod';
@@ -10,9 +11,47 @@ export default function registerBle(program: Command, deps: CommandDeps): void {
   const ble = program.command('ble').description('Direct Bluetooth Mesh setup and verified local daemon');
   registerPrograms(ble, deps);
   addStandardOptions(
+    ble.command('health').description('Show daemon connectivity, feature flags and fixture capabilities')
+  ).action(
+    asyncCommand(async (options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, 'ble');
+      try {
+        console.log(
+          JSON.stringify(await commandCallbackResult((cb) => requireBleController(controller).getHealth(cb)), null, 2)
+        );
+      } finally {
+        await controller.disconnect();
+      }
+    })
+  );
+  addStandardOptions(
+    ble
+      .command('dashboard')
+      .description('Print or open the local direct-BLE web dashboard')
+      .option('--open', 'Open the dashboard in the default browser')
+  ).action(
+    asyncCommand(async (options: CommandOptions) => {
+      const controller = await deps.createController(options.url, options.clientId, options.debug, 'ble');
+      try {
+        await commandCallbackResult((cb) => requireBleController(controller).getHealth(cb));
+      } finally {
+        await controller.disconnect();
+      }
+      const configured = deps.loadConfig?.();
+      const baseUrl = String(options.url || configured?.bleUrl || 'http://localhost:2708').replace(/\/+$/, '');
+      const url = `${baseUrl}/dashboard`;
+      if (options.open === true) {
+        const command =
+          process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer.exe' : 'xdg-open';
+        spawn(command, [url], { detached: true, stdio: 'ignore' }).unref();
+      }
+      console.log(url);
+    })
+  );
+  addStandardOptions(
     ble
       .command('import-desktop <database>')
-      .description('Preview or import local Desktop quickshots/workspace groups; never applies lighting')
+      .description('Preview or import Desktop effect presets, quickshots, and workspace groups; never applies lighting')
       .option('--apply', 'Apply the validated import plan')
       .option('--replace', 'Allow replacement of previously imported records')
       .option('--allow-partial', 'Explicitly import valid entries despite reported unsupported records')

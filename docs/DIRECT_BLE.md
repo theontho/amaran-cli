@@ -13,7 +13,7 @@ On, off and toggle are supported for each fixture or all configured lights. Zero
 
 Additional controls include relative brightness/CCT, named or hex colors converted to HSI, native effects and trigger requests, fan profiles, batched control, CCT/HSI/scene transitions, persistent local groups/scenes/presets/quickshots with fan profiles, and manual overrides for circadian control.
 
-Neither fixture advertises native RGB/XY; the 150c does not advertise advanced HSI CCT/G/M. Native mesh subscriptions, Desktop quickshot/workspace import, and host-driven timeline/audio/camera programs are implemented. Provisioning discovery and key-refresh phase inspection are read-only; joining/re-keying a mesh is not implemented. OTA/firmware updates are intentionally excluded. Extended CCT and unverified dimming-curve writes remain unavailable. Hardware validation uses two 200x S fixtures and one 150c; an original non-S 200x was not available.
+Neither fixture advertises native RGB/XY; the 150c does not advertise advanced HSI CCT/G/M. Native mesh subscriptions, Desktop effect-preset/quickshot/workspace import, and host-driven timeline/audio/camera programs are implemented. Provisioning discovery and key-refresh phase inspection are read-only; joining/re-keying a mesh is not implemented. OTA/firmware updates are intentionally excluded. Extended CCT and unverified dimming-curve writes remain unavailable. Hardware validation uses two 200x S fixtures and one 150c; an original non-S 200x was not available.
 
 ### Tint, colors and relative adjustments
 
@@ -37,10 +37,16 @@ amaran-cli effect custom desk pulsing --backend ble \
   --params '{"brightness":1,"frequency":1,"kelvin":3200}'
 amaran-cli effect custom back pulsing --backend ble \
   --params '{"brightness":1,"frequency":1,"hue":120,"saturation":100}'
+amaran-cli effect animation-speed back 4 --backend ble
 amaran-cli effect stop all --backend ble
 ```
 
-`frequency` is 1-10. These first-generation fixtures returned zero for the SDK's separate effect-speed field even when sent a nonzero setting, so that unverified parameter is not exposed. CCT-capable effects accept `kelvin` and 150c `gm`; HSI variants instead accept `hue` and `saturation`. TV/fire/fireworks/cop-car use native `palette` indices (0-2), not Kelvin. Party-lights accepts saturation. Parameters that do not apply to an effect are rejected, not ignored. `effect speed` changes frequency; the legacy `effect intensity` command uses 0-1000 API units, whereas `--params` brightness and `effect set -i` use percent.
+`frequency` is 1-10. The separate native animation-speed field is 0-10 and is encoded only by Lightning,
+Faulty Bulb and Pulsing; the command requires matching readback and rejects other effects. `effect speed` retains its
+legacy meaning and changes frequency. CCT-capable effects accept `kelvin` and 150c `gm`; HSI variants instead accept
+`hue` and `saturation`. TV/fire/fireworks/cop-car use native `palette` indices (0-2), not Kelvin. Party-lights accepts
+saturation. Parameters that do not apply to an effect are rejected, not ignored. The legacy `effect intensity`
+command uses 0-1000 API units, whereas `--params` brightness and `effect set -i` use percent.
 
 Starting an effect saves its preceding steady state persistently. `effect stop` restores that CCT/HSI setting, brightness and power, including after daemon restart. An effect started by another controller without saved history needs an explicit CCT/HSI setting to stop. Avoid strobe and other rapid flashing around photosensitive people; hardware diagnostics deliberately exclude rapid flashing.
 
@@ -94,21 +100,30 @@ amaran-cli ble fade 1 3 --targets all
 amaran-cli group create Work --backend ble
 amaran-cli group add Work desk --backend ble
 amaran-cli group add Work front --backend ble
+amaran-cli group show Work --backend ble
 amaran-cli intensity 5 Work --backend ble
 amaran-cli status Work --backend ble
 amaran-cli scene save Evening --backend ble
+amaran-cli scene save Work --targets desk,front --backend ble
+amaran-cli scene show Evening --backend ble
 amaran-cli scene recall Evening --backend ble
 amaran-cli preset save back Portrait --backend ble
+amaran-cli preset show Portrait --backend ble
 amaran-cli preset recall back Portrait --backend ble
+amaran-cli preset recall back Portrait --fade 2 --backend ble
 amaran-cli quickshot save Workday --backend ble
+amaran-cli quickshot save Portrait --targets back --backend ble
+amaran-cli quickshot show Workday --backend ble
 amaran-cli quickshot set Workday --backend ble
+amaran-cli quickshot set Workday --fade 2 --backend ble
 ```
 
 Normal bulk commands prevalidate and read all targets before sending a burst of unicast packets, then verify every member. Explicit broadcast sends one mesh packet and verifies each member, repairing mismatches individually. It requires the complete configured target set and identical encoded settings. **Broadcast reaches every provisioned node on that mesh**, including any nodes absent from the configuration; it is not a subset-group operation. Neither method promises atomic or hard-real-time synchronization.
 
-Groups start as local logical membership lists and can optionally be enabled as verified native subscriptions. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint, effect parameters and native fan profiles. Manual fan setpoints cannot be inferred from measured RPM, so snapshots refuse an active Manual fan profile. Old saved entries without fan settings remain compatible. These records are local, not imported desktop-library entries. Retargeting a preset validates the receiving model before changing it.
+Groups start as local logical membership lists and can optionally be enabled as verified native subscriptions. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint, effect parameters and native fan profiles. Manual fan setpoints cannot be inferred from measured RPM, so snapshots refuse an active Manual fan profile. Old saved entries without fan settings remain compatible. Local and imported entries share the same on-disk library, while stable Desktop source IDs keep repeat imports idempotent. Retargeting a preset validates the receiving model before changing it.
 
 `group rename ID NAME` preserves identity/membership. `preset update ID --name NAME` and `quickshot update ID --name NAME` replace their saved states from the original fixture targets, optionally renaming them. Add `--backend ble` to these commands.
+The corresponding `show` commands print the complete persisted record, including per-fixture power, color/effect parameters, fan profile, and native group metadata, without applying it.
 
 `ble fade` provides a host-paced brightness transition over 0.5-20 seconds, at up to two updates per second with whole-percent steps. It preserves power state, rejects active native effects, and verifies final brightness on every target. Interrupting it stops subsequent writes and may leave intermediate brightness. Saved-state recall is serialized, not atomic; failures can leave some fixtures changed.
 
@@ -146,11 +161,12 @@ Ready native groups use one group-addressed lighting packet when members need id
 ```sh
 amaran-cli ble import-desktop /path/to/amaran.db
 amaran-cli ble import-desktop /path/to/amaran.db --apply
+amaran-cli ble import-desktop /path/to/amaran.db --apply --replace
 ```
 
-The default is a preview with errors/warnings. Import reads SQLite in read-only mode and maps fixture IDs by MAC. Desktop quickshots become local quickshots; Desktop scenes are workspaces and become local groups, not invented lighting snapshots. CCT/HSI parameters are validated, Desktop 150c tint is converted from its stored 0-200 range to signed G/M, and asleep snapshots preserve remembered brightness without emitting it. Import never applies lighting or changes native subscriptions/fan modes.
+The default is a preview with errors/warnings. Import reads SQLite in read-only mode and maps fixture IDs by MAC. Desktop quickshots become local quickshots; Desktop scenes are workspaces and become local groups, not invented lighting snapshots. Desktop effect presets become retargetable local presets for Paparazzi, Lightning, TV, Fire, Strobe, Explosion, Faulty Bulb, Pulsing, Cop Car, Party Lights, and Fireworks. The importer preserves frequency, native animation speed, trigger mode, CCT- or HSI-effect variants, palettes and saturation, converts preset intensity from 0-100 to the direct API's 0-1000 units, and converts Desktop 150c tint from its stored 0-200 range to signed G/M. Each generic Desktop preset is stored against the first configured fixture that can reproduce it; `preset recall DEVICE ID` validates and retargets that state to another compatible fixture. Import never applies lighting or changes native subscriptions/fan modes.
 
-Stable source IDs make repeat imports idempotent. Changed imports require `--replace`; unrelated local-name collisions and imported groups with native subscriptions are protected. Unmapped/unsupported records stop an apply unless `--allow-partial` explicitly permits the valid subset. Desktop preset formats without a verified schema are reported rather than guessed; the tested database contained no preset rows. The implementation successfully mapped its four quickshots and two explicit workspace/groups. An implicit All group without explicit membership is reported and skipped.
+Stable source IDs make repeat imports idempotent. Changed imports require `--replace`; unrelated local-name collisions and imported groups with native subscriptions are protected. Duplicate Desktop preset names receive stable numeric suffixes instead of being dropped. Unmapped, malformed, unsupported-effect, or fixture-incompatible records stop an apply unless `--allow-partial` explicitly permits the valid subset. Non-effect Desktop preset categories remain skipped with a warning. An implicit All group without explicit membership is reported and skipped.
 
 ### Timeline and media control
 
@@ -171,7 +187,7 @@ Timeline JSON contains `duration` (1-1200 seconds), optional `restore`, and `ste
 {"duration":3,"steps":[{"at":0,"action":"brightness","args":{"value":1}},{"at":1,"action":"cct","args":{"kelvin":3200,"brightness":2}}]}
 ```
 
-These are bounded host-driven programs, not on-fixture timelines. Cues must be ordered at least 0.5 seconds apart. Media uses local `ffmpeg`: audio RMS drives brightness with smoothing; image/camera averages drive HSI. RGB is converted to the fixture's HSI controls, not a native RGB mode. Picker targets must support HSI; media starts require awake fixtures in steady CCT/HSI mode. Default output cap is 5%, maximum duration is 20 minutes, and data is not uploaded. Files must be local; media subprocesses cannot fetch network URLs. Camera and microphone capture currently require macOS.
+These are bounded host-driven programs, not on-fixture timelines. Cues must be ordered at least 0.5 seconds apart. Media uses local `ffmpeg`: audio RMS drives brightness with smoothing; image/camera averages drive HSI. RGB is converted to the fixture's HSI controls, not a native RGB mode. Picker targets must support HSI; media starts require awake fixtures in steady CCT/HSI mode. Media brightness defaults to the fixture's full 100% range; use `--max` when a lower level is wanted. Maximum duration is 20 minutes, and data is not uploaded. Files must be local; media subprocesses cannot fetch network URLs. Camera and microphone capture currently require macOS.
 
 Live camera/microphone capture runs in the foreground CLI, which has the terminal's OS permissions; only validated RGB averages/RMS numbers are sent to the loopback daemon. It does not bypass or modify macOS privacy settings. Live capture cannot use `--background`; local files and timelines can. `ffmpeg` is resolved from standard installation locations or `AMARAN_FFMPEG_PATH`, so a LaunchAgent's minimal PATH does not hide Homebrew installations. Media duration starts with the first usable sample; startup has a separate 10-second deadline.
 
@@ -186,11 +202,45 @@ amaran-cli ble override status --targets all
 amaran-cli ble override hold --targets desk,back --minutes 60
 amaran-cli ble override resume --targets all
 amaran-cli ble info all
+amaran-cli ble health
 ```
 
 Override status reports remaining milliseconds per fixture. Resume clears the hold; the next circadian update takes over. Changes made outside this daemon are not automatically assigned a hold, so explicitly hold before using the desktop app or physical controls for comparisons.
 
 `ble info` reads native product/firmware/protocol identifiers and reported feature bits. Version fields are raw SDK codes, not invented semantic version strings. Read-only dimming-curve queries were attempted on all three fixtures and produced no response; curve writes remain disabled. Provisioning/key rotation are not implemented, and OTA/firmware updates are intentionally excluded.
+`ble health` prints daemon connectivity, protocol version, feature flags, configured fixture capabilities, and logical groups without changing hardware state.
+
+### Local web dashboard
+
+```sh
+amaran-cli ble dashboard
+amaran-cli ble dashboard --open
+```
+
+The daemon serves a responsive dashboard at `http://127.0.0.1:2708/dashboard`. It covers the verified runtime
+controls exposed by the CLI: individual/all/group power and color, effects and animation speed, fan modes, logical
+and native groups, scenes/presets/quickshots with transitions, circadian holds, jobs, local audio/image paths,
+browser camera/microphone sampling, Desktop import and mesh diagnostics. Daemon installation and initial private
+mesh import remain CLI operations because the web interface does not receive mesh credentials.
+
+The compact live-status cards provide direct per-fixture power, full-range brightness and model-correct Kelvin
+sliders. Slider values update locally while dragging and send one verified BLE write when released, avoiding a flood
+of intermediate mesh commands. In CCT mode each card also shows estimated lux: the interpolated full-output
+calibration at that Kelvin multiplied by verified brightness. Sleeping fixtures show 0 lx; HSI/effect states show no
+CCT-based estimate.
+
+The dashboard uses the ordinary `maxLux` number/map as its fallback calibration. Different measured curves can be
+assigned by model in `config.json` under `maxLuxByModel`, whose supported keys are `200x`, `200x-s`, and `150c`.
+Each value uses the same Kelvin-to-lux map shape as `maxLux`. Use the locally measured curves for the actual setup; a
+model-specific entry takes precedence over the shared fallback.
+
+The dashboard is loopback-only and same-origin: it loads no CDN resources, rejects cross-origin browser requests,
+and applies a restrictive Content Security Policy. Fixture registration still comes from private `mesh.json`.
+UI title, refresh interval and fixture ordering/labels are stored in
+`dashboard-settings.json`; the last successful readback is written with an `updatedAt` timestamp to
+`dashboard-status.json`. Both live beside the BLE state in the platform config directory. The UI distinguishes the
+cached timestamp from live connectivity and refreshes verified fixture/fan readback rather than assuming that a
+request succeeded.
 
 ## Setup and services
 
