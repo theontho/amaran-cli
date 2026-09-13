@@ -956,6 +956,7 @@ describe('verified command execution', () => {
           date: '2026-09-13',
           timeZone: 'America/Los_Angeles',
           intervalMinutes: 15,
+          intensityLimit: 25,
           points: [
             { time: '2026-09-13T07:00:00.000Z', cct: 2000, intensity: 5 },
             { time: '2026-09-14T07:00:00.000Z', cct: 2000, intensity: 5 },
@@ -1081,7 +1082,7 @@ describe('verified command execution', () => {
         result: {
           service: { active: true, lastTarget: { cct: 6002, intensity: 25 } },
           current: { weatherActive: false },
-          schedule: { intervalMinutes: 15 },
+          schedule: { intervalMinutes: 15, intensityLimit: 25 },
         },
       });
       const program = new Command();

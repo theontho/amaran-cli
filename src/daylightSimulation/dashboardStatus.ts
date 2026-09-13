@@ -47,6 +47,7 @@ export interface CircadianDashboardStatus {
     date: string;
     timeZone: string;
     intervalMinutes: number;
+    intensityLimit: number;
     points: CircadianSchedulePoint[];
   };
   calculationError?: string;
@@ -145,6 +146,7 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
       date: localDate(start),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       intervalMinutes,
+      intensityLimit: config.intensityMax ?? 100,
       points,
     };
   } catch (error) {

@@ -170,7 +170,8 @@ preferences and the last timestamped observed status are stored beside the priva
 `dashboard-settings.json` and `dashboard-status.json`. A circadian panel shows whether the LaunchAgent is loaded and
 recently updating, its latest requested target, current verified fixture output, active curve, weather adjustment
 state, and a hover/touch daily graph of Kelvin, intensity, and estimated lux. The graph uses the same configured
-CCT/intensity bounds as `auto-cct`.
+CCT/intensity bounds as `auto-cct`, while keeping the intensity axis fixed at 0–100% and marking the configured
+maximum with a dotted limit line.
 
 Desktop import previews by default and never changes fixture output. With `--apply`, Desktop quickshots become local
 quickshots, explicit workspace membership becomes local groups, and all eleven supported legacy effect types become
