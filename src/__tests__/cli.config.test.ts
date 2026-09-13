@@ -76,14 +76,14 @@ describe('CLI config integration', () => {
     expect(config.bleApiKey).toBe('test-key');
   });
 
-  it('defaults to websocket backend for commands without --backend', () => {
+  it('uses the configured BLE backend for commands without --backend', () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       configPath,
       JSON.stringify({
         backend: 'ble',
         wsUrl: 'ws://127.0.0.1:1',
-        bleUrl: 'http://localhost:2708',
+        bleUrl: 'http://127.0.0.1:1',
         autoStartApp: false,
       })
     );
@@ -91,7 +91,44 @@ describe('CLI config integration', () => {
     const proc = runCli(['list'], configDir);
     const output = `${proc.stdout}${proc.stderr}`;
 
-    expect(output).not.toContain('Unable to reach BLE backend at http://localhost:2708/');
+    expect(output).toContain('Unable to reach BLE backend at http://127.0.0.1:1/');
+  });
+
+  it('defaults to BLE when configuration does not select a backend', () => {
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(configPath, JSON.stringify({ bleUrl: 'http://127.0.0.1:1', autoStartApp: false }));
+
+    const proc = runCli(['list'], configDir);
+    const output = `${proc.stdout}${proc.stderr}`;
+
+    expect(output).toContain('Unable to reach BLE backend at http://127.0.0.1:1/');
+    expect(output).not.toContain('WebSocket connection failed');
+  });
+
+  it('accepts desktop as the explicit Amaran Desktop backend', () => {
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        backend: 'ble',
+        wsUrl: 'ws://127.0.0.1:1',
+        bleUrl: 'http://127.0.0.1:2',
+        autoStartApp: false,
+      })
+    );
+
+    const proc = runCli(['list', '--backend', 'desktop'], configDir);
+    const output = `${proc.stdout}${proc.stderr}`;
+
+    expect(output).toContain('WebSocket connection failed');
+    expect(output).not.toContain('Unable to reach BLE backend');
+  });
+
+  it('persists desktop as the default backend', () => {
+    const proc = runCli(['config', '--backend', 'desktop'], configDir);
+
+    expect(proc.status).toBe(0);
+    expect(JSON.parse(readFileSync(configPath, 'utf8')).backend).toBe('desktop');
   });
 
   it('fails fast on invalid persisted configuration', () => {

@@ -34,13 +34,14 @@ function getRuntimeLabel(): string {
 const HELP_DETAILS: Record<string, { notes?: string[]; examples: string[] }> = {
   '': {
     notes: [
-      'The WebSocket backend uses Amaran Desktop. The direct BLE backend uses the local verified daemon and does not require Desktop at runtime.',
+      'Direct BLE is the default backend. Use --backend desktop for Amaran Desktop; --backend websocket remains a compatibility alias.',
     ],
     examples: [
-      'amaran-cli status --backend ble',
-      'amaran-cli cct 5000 all --intensity 80 --backend ble',
-      'amaran-cli color "#ff6400" back --intensity 20 --backend ble',
+      'amaran-cli status',
+      'amaran-cli cct 5000 all --intensity 80',
+      'amaran-cli color "#ff6400" back --intensity 20',
       'amaran-cli ble dashboard --open',
+      'amaran-cli list --backend desktop',
     ],
   },
   ble: {
@@ -90,10 +91,10 @@ const HELP_DETAILS: Record<string, { notes?: string[]; examples: string[] }> = {
       'Trigger requests are sent once because fixtures do not acknowledge the physical transient event.',
     ],
     examples: [
-      'amaran-cli effect list --backend ble',
-      'amaran-cli effect custom back pulsing --params \'{"brightness":20,"frequency":5,"speed":4,"hue":120,"saturation":80}\' --backend ble',
-      'amaran-cli effect animation-speed back 4 --backend ble',
-      'amaran-cli effect stop all --backend ble',
+      'amaran-cli effect list',
+      'amaran-cli effect custom back pulsing --params \'{"brightness":20,"frequency":5,"speed":4,"hue":120,"saturation":80}\'',
+      'amaran-cli effect animation-speed back 4',
+      'amaran-cli effect stop all',
     ],
   },
   preset: {
@@ -102,9 +103,9 @@ const HELP_DETAILS: Record<string, { notes?: string[]; examples: string[] }> = {
       'Desktop effect presets imported with ble import-desktop appear in this library.',
     ],
     examples: [
-      'amaran-cli preset list --backend ble',
-      'amaran-cli preset show "Desktop: Effect 01" --backend ble',
-      'amaran-cli preset recall back "Desktop: Effect 01" --backend ble',
+      'amaran-cli preset list',
+      'amaran-cli preset show "Desktop: Effect 01"',
+      'amaran-cli preset recall back "Desktop: Effect 01"',
     ],
   },
 };
@@ -257,8 +258,8 @@ function saveWsUrl(url: string) {
 
 function parseBackend(value: unknown): LightBackend | undefined {
   if (value === undefined) return undefined;
-  if (value === 'websocket' || value === 'ble') return value;
-  throw new Error('Backend must be "websocket" or "ble"');
+  if (value === 'ble' || value === 'desktop' || value === 'websocket') return value;
+  throw new Error('Backend must be "ble" or "desktop" ("websocket" remains an alias)');
 }
 
 // Create light controller with connection handling
@@ -269,7 +270,7 @@ async function createController(
   backend?: LightBackend
 ): Promise<LightController | BleHttpController> {
   const config = loadConfig();
-  const selectedBackend = backend || 'websocket';
+  const selectedBackend = backend || config?.backend || 'ble';
   if (selectedBackend === 'ble') {
     const url = wsUrl || config?.bleUrl || 'http://localhost:2708';
     if (debug) {

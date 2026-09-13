@@ -1,6 +1,6 @@
 // Common types for the Amaran CLI
 
-export type LightBackend = 'websocket' | 'ble';
+export type LightBackend = 'ble' | 'desktop' | 'websocket';
 
 export type CommandType =
   | 'get_device_list'

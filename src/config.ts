@@ -26,7 +26,7 @@ export type MaxLuxCalibration = z.infer<typeof MaxLuxCalibrationSchema>;
 
 export const ConfigSchema = z
   .object({
-    backend: z.enum(['websocket', 'ble']).optional(),
+    backend: z.enum(['ble', 'desktop', 'websocket']).optional(),
     wsUrl: z.string().trim().min(1).optional(),
     bleUrl: z.string().trim().min(1).optional(),
     bleApiKey: z.string().optional(),

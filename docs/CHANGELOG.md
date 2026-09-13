@@ -1,3 +1,10 @@
+## Unreleased
+
+- **Breaking change**: Direct BLE is now the default command backend.
+- **Feature**: Added `--backend desktop` as the explicit Amaran Desktop WebSocket backend.
+- **Compatibility**: `--backend websocket` and existing `backend: "websocket"` configuration remain supported aliases.
+- **Service**: Newly installed circadian LaunchAgents explicitly run `auto-cct --backend ble`.
+
 ## [1.11.2] - 2026-07-25
 
 - **Fix**: Default command execution uses the WebSocket backend unless `--backend ble` is explicitly provided.

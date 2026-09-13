@@ -16,8 +16,8 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .command('auto-cct [device]')
     .usage('[device] [options]')
     .description('Set CCT for lights (or specific device) based on current location and time (geoip)')
-    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
-    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
+    .option('-b, --backend <backend>', 'Light backend: ble (default) or desktop; websocket is an alias')
+    .option('-u, --url <url>', 'Backend URL (BLE HTTP or Desktop WebSocket)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .option('-i, --ip <ip>', 'Override IP address for geoip lookup')
@@ -39,7 +39,7 @@ function handleAutoCct(deps: CommandDeps) {
   return async (deviceQuery: string | undefined, optionsRaw: Record<string, unknown>) => {
     const options = optionsRaw as {
       url?: string;
-      backend?: 'websocket' | 'ble';
+      backend?: 'ble' | 'desktop' | 'websocket';
       clientId?: string;
       debug?: boolean;
       ip?: string;

@@ -122,7 +122,7 @@ Normal bulk commands prevalidate and read all targets before sending a burst of 
 
 Groups start as local logical membership lists and can optionally be enabled as verified native subscriptions. They accept shared lighting settings; inspection uses `status GROUP` because members may differ. They are excluded from physical-light automation to avoid duplicate commands. Presets hold one fixture's state; scenes and quickshots hold a multi-fixture snapshot, including power, tint, effect parameters and native fan profiles. Manual fan setpoints cannot be inferred from measured RPM, so snapshots refuse an active Manual fan profile. Old saved entries without fan settings remain compatible. Local and imported entries share the same on-disk library, while stable Desktop source IDs keep repeat imports idempotent. Retargeting a preset validates the receiving model before changing it.
 
-`group rename ID NAME` preserves identity/membership. `preset update ID --name NAME` and `quickshot update ID --name NAME` replace their saved states from the original fixture targets, optionally renaming them. Add `--backend ble` to these commands.
+`group rename ID NAME` preserves identity/membership. `preset update ID --name NAME` and `quickshot update ID --name NAME` replace their saved states from the original fixture targets, optionally renaming them. Direct BLE is the default backend; `--backend ble` remains accepted when an explicit declaration is useful in automation.
 The corresponding `show` commands print the complete persisted record, including per-fixture power, color/effect parameters, fan profile, and native group metadata, without applying it.
 
 `ble fade` provides a host-paced brightness transition over 0.5-20 seconds, at up to two updates per second with whole-percent steps. It preserves power state, rejects active native effects, and verifies final brightness on every target. Interrupting it stops subsequent writes and may leave intermediate brightness. Saved-state recall is serialized, not atomic; failures can leave some fixtures changed.
@@ -195,7 +195,7 @@ The daemon owns each job, exposes preparing/running/restoring/terminal status, a
 
 ### Circadian overrides
 
-Manual lighting mutations create a **30-minute per-fixture override**, persisted across daemon restart. This also protects potentially partial/failed manual operations from being overwritten by the next automatic update. `auto-cct --backend ble` uses a separate daemon action that checks overrides inside the same serialized queue as manual commands. It also skips sleeping fixtures, reported thermal protection, and reported stopped-cooling modes. Fan-only changes and read-only queries do not create lighting overrides.
+Manual lighting mutations create a **30-minute per-fixture override**, persisted across daemon restart. This also protects potentially partial/failed manual operations from being overwritten by the next automatic update. `auto-cct` uses the default BLE daemon action that checks overrides inside the same serialized queue as manual commands. It also skips sleeping fixtures, reported thermal protection, and reported stopped-cooling modes. Fan-only changes and read-only queries do not create lighting overrides.
 
 ```sh
 amaran-cli ble override status --targets all
@@ -264,7 +264,7 @@ node dist/cli.js ble service start
 
 The LaunchAgent is `com.amaran-cli.ble`. It uses the current compiled CLI and Node executable, starts at user login, and restarts after crashes. Keep that CLI installation/build path available. Logs are in `~/Library/Logs/amaran-cli/`. `stop` unloads it; `start` loads it again. A Node upgrade that removes its recorded executable path requires updating the LaunchAgent.
 
-The CLI still defaults to WebSocket for backward compatibility. Pass `--backend ble` explicitly, including in automation:
+The CLI defaults to direct BLE. Use `--backend desktop` to opt into Amaran Desktop; `--backend websocket` remains a compatibility alias. Explicit `--backend ble` is optional but may still be useful in automation:
 
 ```sh
 node dist/cli.js list --backend ble

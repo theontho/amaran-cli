@@ -33,8 +33,8 @@ It's not as obvious, but this repo is published on npm too: https://www.npmjs.co
 
 ## Prerequisites
 
-- Default WebSocket backend: Aputure Amaran Desktop application must be running and the WebSocket server should be accessible (default: ws://localhost:60124)
-- Direct BLE backend: macOS with Bluetooth permission for Node and a private mesh configuration imported from the previous BLE project. The included daemon listens on `http://127.0.0.1:2708`; Amaran Desktop is not required at runtime.
+- Default direct BLE backend: macOS with Bluetooth permission for Node and a private mesh configuration imported from the previous BLE project. The included daemon listens on `http://127.0.0.1:2708`; Amaran Desktop is not required at runtime.
+- Explicit Desktop backend: Aputure Amaran Desktop must be running with its WebSocket server accessible (default: `ws://localhost:60124`). Select it with `--backend desktop`; `websocket` remains a compatibility alias.
 
 ## Library Usage
 
@@ -85,14 +85,14 @@ registerCommands(program, deps);
 Configure the light control backend and other settings:
 
 ```bash
-# Use the default WebSocket backend
-amaran-cli config --backend websocket
-
-# Set WebSocket URL
-amaran-cli config -u ws://localhost:60124
-
-# Use the BLE backend backed by https://github.com/wesbos/amaran-BLE-control
+# Use the default direct BLE backend
 amaran-cli config --backend ble --ble-url http://localhost:2708
+
+# Explicitly use Amaran Desktop
+amaran-cli config --backend desktop
+
+# Set the Desktop WebSocket URL
+amaran-cli config -u ws://localhost:60124
 
 # If the BLE daemon has http.apiKey configured
 amaran-cli config --ble-api-key my-secret
@@ -115,13 +115,14 @@ Configuration is stored in the platform config directory used by the CLI; legacy
 You can also select the backend per command without changing config:
 
 ```bash
-amaran-cli list --backend ble --url http://localhost:2708
-amaran-cli cct 5600 -i 80 --backend ble
+amaran-cli list --url http://localhost:2708
+amaran-cli cct 5600 -i 80
+amaran-cli list --backend desktop
 ```
 
-When `--url` is used with `--backend`, it overrides the endpoint for that backend: a WebSocket URL for `websocket`, or an HTTP base URL for `ble`.
+When `--url` is used with `--backend`, it overrides the endpoint for that backend: an HTTP base URL for `ble`, or a WebSocket URL for `desktop`/`websocket`.
 
-The WebSocket backend remains the default; explicitly pass `--backend ble` to use direct control. The included daemon supports power, brightness, CCT, 150c G/M and HSI, native effects/trigger requests, fan profiles, named/hex colors through HSI, relative adjustments, local groups/scenes/presets/quickshots with fan settings, and CCT/HSI/scene transitions. Manual lighting changes create a persistent 30-minute circadian override; use `ble override resume` to hand control back sooner. Hardware settings require matching authenticated readback; transient trigger events explicitly lack event confirmation, and library operations confirm local persistence instead.
+Direct BLE is the default when neither the command nor configuration selects a backend. Use `--backend desktop` for Amaran Desktop; the legacy name `--backend websocket` remains accepted. The included daemon supports power, brightness, CCT, 150c G/M and HSI, native effects/trigger requests, fan profiles, named/hex colors through HSI, relative adjustments, local groups/scenes/presets/quickshots with fan settings, and CCT/HSI/scene transitions. Manual lighting changes create a persistent 30-minute circadian override; use `ble override resume` to hand control back sooner. Hardware settings require matching authenticated readback; transient trigger events explicitly lack event confirmation, and library operations confirm local persistence instead.
 
 Neither model has native RGB/XY or advanced HSI CCT/G/M. The BLE stack implements all eight native fan modes, including explicit manual RPM control, for individual fixtures, groups and all lights. Every mode requires advertised device support: the tested 150c and 200x S fixtures currently advertise only Smart and Medium. Mode changes are verified by readback; zero reported RPM is not treated as a fault. Active thermal protection blocks changes without restarting the fixture, and stopped-cooling requests require LEDs off or at zero brightness.
 
@@ -143,19 +144,19 @@ node dist/cli.js ble serve
 node dist/cli.js ble service install
 node dist/cli.js ble service status
 
-node dist/cli.js status --backend ble
-node dist/cli.js cct 3200 desk -i 5 --backend ble
-node dist/cli.js hsi 240 100 5 back --backend ble
+node dist/cli.js status
+node dist/cli.js cct 3200 desk -i 5
+node dist/cli.js hsi 240 100 5 back
 node dist/cli.js ble gm back 20
 node dist/cli.js ble health
 node dist/cli.js ble dashboard --open
 node dist/cli.js ble import-desktop "/path/to/amaran.db"
-node dist/cli.js intensity 5 all --backend ble
+node dist/cli.js intensity 5 all
 node dist/cli.js ble batch brightness --args '{"value":5}' --broadcast
-node dist/cli.js scene save Evening --backend ble
-node dist/cli.js scene show Evening --backend ble
-node dist/cli.js fan info all --backend ble
-node dist/cli.js off --backend ble
+node dist/cli.js scene save Evening
+node dist/cli.js scene show Evening
+node dist/cli.js fan info all
+node dist/cli.js off
 ```
 
 The daemon also serves a local control dashboard at `http://127.0.0.1:2708/dashboard`. It uses the same verified
@@ -650,7 +651,8 @@ amaran-cli delete-quickshot "My Scene"
 
 All commands support these options:
 
-- `-u, --url <url>`: Override backend endpoint URL (WebSocket URL for `websocket`, HTTP base URL for `ble`)
+- `-b, --backend <backend>`: Select `ble` (default) or `desktop`; `websocket` is a compatibility alias
+- `-u, --url <url>`: Override the backend endpoint (BLE HTTP URL or Desktop WebSocket URL)
 - `-c, --client-id <id>`: Override client ID  
 - `-d, --debug`: Enable debug mode
 

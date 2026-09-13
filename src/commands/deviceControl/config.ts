@@ -33,7 +33,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
   program
     .command('config')
     .description('Configure light backend and other settings')
-    .option('-b, --backend <backend>', 'Light control backend: websocket or ble (default: websocket)')
+    .option('-b, --backend <backend>', 'Default backend: ble or desktop; websocket is a desktop alias')
     .option('-u, --url <url>', 'WebSocket URL (default: ws://localhost:60124)')
     .option('--ble-url <url>', 'BLE HTTP daemon URL (default: http://localhost:2708)')
     .option('--ble-api-key <key>', 'BLE HTTP daemon API key')
@@ -110,8 +110,8 @@ function handleConfig(deps: CommandDeps) {
 
     if (options.backend !== undefined) {
       const backend = options.backend.trim().toLowerCase();
-      if (backend !== 'websocket' && backend !== 'ble') {
-        console.error(chalk.red('Backend must be "websocket" or "ble"'));
+      if (backend !== 'ble' && backend !== 'desktop' && backend !== 'websocket') {
+        console.error(chalk.red('Backend must be "ble" or "desktop" ("websocket" remains an alias)'));
         process.exit(1);
       }
       config.backend = backend;

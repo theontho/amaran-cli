@@ -144,6 +144,8 @@ function handleInstall(_deps: CommandDeps) {
         <string>${escapedNodePath}</string>
         <string>${escapedCliPath}</string>
         <string>auto-cct</string>
+        <string>--backend</string>
+        <string>ble</string>
         <string>--service-mode</string>
         <string>--curve</string>
         <string>${escapedCurveType}</string>

@@ -12,8 +12,8 @@ export function registerList(program: Command, deps: CommandDeps) {
     .usage('[options]')
     .alias('ls')
     .description('List all available lights')
-    .option('-b, --backend <backend>', 'Light backend: websocket or ble')
-    .option('-u, --url <url>', 'Backend URL (WebSocket or BLE HTTP)')
+    .option('-b, --backend <backend>', 'Light backend: ble (default) or desktop; websocket is an alias')
+    .option('-u, --url <url>', 'Backend URL (BLE HTTP or Desktop WebSocket)')
     .option('-c, --client-id <id>', 'Client ID')
     .option('-d, --debug', 'Enable debug mode')
     .action(asyncCommand(handleList(deps)));

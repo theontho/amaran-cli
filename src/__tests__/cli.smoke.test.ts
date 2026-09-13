@@ -60,6 +60,7 @@ describe('CLI Smoke Test', () => {
     const root = help();
     expect(root.status).toBe(0);
     expect(root.stdout).toContain('amaran-cli ble dashboard --open');
+    expect(root.stdout).toContain('amaran-cli list --backend desktop');
     expect(root.stdout).not.toContain('amaran-cli power on');
 
     const dashboard = help('ble', 'dashboard');
