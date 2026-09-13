@@ -310,11 +310,24 @@ function handleAutoCct(deps: CommandDeps) {
             : typeof device.id === 'string'
               ? device.id
               : device.node_id;
+      const capabilities =
+        device.capabilities && typeof device.capabilities === 'object'
+          ? (device.capabilities as Record<string, unknown>)
+          : undefined;
+      const minimumCct =
+        typeof capabilities?.cct_min === 'number' && Number.isFinite(capabilities.cct_min)
+          ? capabilities.cct_min
+          : undefined;
+      const maximumCct =
+        typeof capabilities?.cct_max === 'number' && Number.isFinite(capabilities.cct_max)
+          ? capabilities.cct_max
+          : undefined;
+      const deviceCct = Math.min(maximumCct ?? result.cct, Math.max(minimumCct ?? result.cct, result.cct));
 
-      console.log(`  Setting ${displayName} (${device.node_id}) to ${result.cct}K at ${percent}%`);
+      console.log(`  Setting ${displayName} (${device.node_id}) to ${deviceCct}K at ${percent}%`);
       const set = controller.setAutomaticCCT?.bind(controller) ?? controller.setCCT.bind(controller);
       await commandCallbackPromise((callback) =>
-        set(device.node_id, result.cct, percent * 10, (ok, message, data) => {
+        set(device.node_id, deviceCct, percent * 10, (ok, message, data) => {
           if (ok && data && typeof data === 'object' && 'skipped' in data && data.skipped === true)
             console.log(chalk.gray(`  ${displayName}: ${message}`));
           callback(ok, message, data);

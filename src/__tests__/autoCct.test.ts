@@ -145,4 +145,39 @@ describe('auto-cct command', () => {
     expect(setCCT).toHaveBeenCalledWith('400J5-F2C008', 5600, 500, expect.any(Function));
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
+
+  test('clamps automatic CCT to each BLE fixture capability', async () => {
+    const setAutomaticCCT = vi.fn(
+      (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
+        cb?.(true, 'ok');
+      }
+    );
+    const controllerStub = {
+      getDevices: vi.fn(() => [
+        {
+          node_id: 'desk',
+          device_name: 'Desk',
+          backend: 'ble',
+          capabilities: { cct_min: 2700, cct_max: 5500 },
+        },
+      ]),
+      setAutomaticCCT,
+      disconnect: vi.fn(async () => undefined),
+    };
+    const program = new Command();
+    program.exitOverride();
+    registerCommands(program, {
+      createController: async () => controllerStub as unknown as LightController,
+      findDevice: () => null,
+      asyncCommand:
+        <T extends unknown[]>(fn: (...args: T) => Promise<void>) =>
+        (...args: T) =>
+          fn(...args),
+      loadConfig: () => ({}),
+    });
+
+    await program.parseAsync(['node', 'test', 'auto-cct']);
+
+    expect(setAutomaticCCT).toHaveBeenCalledWith('desk', 5500, 500, expect.any(Function));
+  });
 });
