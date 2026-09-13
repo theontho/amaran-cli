@@ -80,6 +80,7 @@ const HELP_DETAILS: Record<string, { notes?: string[]; examples: string[] }> = {
     notes: [
       'The dashboard is loopback-only and uses the same verified API as the CLI.',
       'Estimated lux uses maxLuxByModel for the fixture model, then falls back to maxLux.',
+      'The circadian panel reports service health, latest target, applied readback, weather state, and an interactive daily schedule.',
     ],
     examples: ['amaran-cli ble dashboard', 'amaran-cli ble dashboard --open'],
   },

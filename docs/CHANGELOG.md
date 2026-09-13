@@ -6,6 +6,7 @@
 - **Service**: Newly installed circadian LaunchAgents explicitly run `auto-cct --backend ble`.
 - **CLI**: Moved WebSocket discovery and vendor firmware updating under the explicit `desktop` namespace.
 - **Fix**: Removed `firmware check`, which read generic device information and incorrectly reported that firmware was current.
+- **Dashboard**: Added circadian service health, latest target/applied output, weather state, and an interactive daily Kelvin/intensity/lux graph.
 
 ## [1.11.2] - 2026-07-25
 

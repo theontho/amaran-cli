@@ -78,6 +78,7 @@ describe('CLI Smoke Test', () => {
     const dashboard = help('ble', 'dashboard');
     expect(dashboard.stdout).toContain('maxLuxByModel');
     expect(dashboard.stdout).toContain('loopback-only');
+    expect(dashboard.stdout).toContain('interactive daily schedule');
 
     const desktop = help('ble', 'import-desktop');
     expect(desktop.stdout).toContain('Preview is the default');

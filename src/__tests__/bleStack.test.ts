@@ -930,7 +930,39 @@ describe('verified command execution', () => {
   });
   it('serves truthful state and model capabilities through the existing CLI client', async () => {
     const link = fakeLink();
-    const server = createBleServer(new VerifiedController(config, link));
+    const server = createBleServer(new VerifiedController(config, link), undefined, {
+      circadianStatus: async () => ({
+        generatedAt: '2026-09-13T22:30:00.000Z',
+        service: {
+          installed: true,
+          loaded: true,
+          active: true,
+          healthy: true,
+          intervalSeconds: 60,
+          curve: 'cie-daylight',
+          weatherConfigured: false,
+          lastRunAt: '2026-09-13T22:29:38.000Z',
+          lastTarget: { cct: 6002, intensity: 25 },
+        },
+        current: {
+          time: '2026-09-13T22:30:00.000Z',
+          cct: 6000,
+          intensity: 25,
+          curve: 'cie-daylight',
+          weatherActive: false,
+          weatherSource: 'none',
+        },
+        schedule: {
+          date: '2026-09-13',
+          timeZone: 'America/Los_Angeles',
+          intervalMinutes: 15,
+          points: [
+            { time: '2026-09-13T07:00:00.000Z', cct: 2000, intensity: 5 },
+            { time: '2026-09-14T07:00:00.000Z', cct: 2000, intensity: 5 },
+          ],
+        },
+      }),
+    });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Missing server address');
@@ -1021,7 +1053,10 @@ describe('verified command execution', () => {
       expect((await fetch(url, { headers: { origin: 'https://example.com' } })).status).toBe(403);
       const dashboard = await fetch(`${url}/dashboard`);
       expect(dashboard.headers.get('content-security-policy')).toContain("default-src 'self'");
-      expect((await dashboard.text()).toLowerCase()).toContain('direct bluetooth mesh');
+      const dashboardMarkup = (await dashboard.text()).toLowerCase();
+      expect(dashboardMarkup).toContain('direct bluetooth mesh');
+      expect(dashboardMarkup).toContain('circadian service');
+      expect(dashboardMarkup).toContain('hover or slide over the graph');
       expect(
         (
           await fetch(`${url}/dashboard/settings`, {
@@ -1040,6 +1075,14 @@ describe('verified command execution', () => {
       expect(await (await fetch(`${url}/dashboard/status-cache`)).json()).toMatchObject({
         ok: true,
         result: dashboardStatus.result,
+      });
+      expect(await (await fetch(`${url}/dashboard/circadian`)).json()).toMatchObject({
+        ok: true,
+        result: {
+          service: { active: true, lastTarget: { cct: 6002, intensity: 25 } },
+          current: { weatherActive: false },
+          schedule: { intervalMinutes: 15 },
+        },
       });
       const program = new Command();
       registerCct(program, {

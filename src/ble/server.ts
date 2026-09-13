@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { MaxLuxCalibration } from '../config.js';
+import type { CircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 import { capabilities, type VerifiedController, validateAction } from './controller.js';
 import { DashboardStore, dashboardCss, dashboardHtml, dashboardJs, estimateLux } from './dashboard.js';
 import { planDesktopImport } from './desktopLibrary.js';
@@ -31,6 +32,7 @@ export function createBleServer(
     dashboard?: DashboardStore;
     luxCalibration?: MaxLuxCalibration;
     luxByModel?: Partial<Record<MeshConfig['lights'][number]['model'], MaxLuxCalibration>>;
+    circadianStatus?: () => Promise<CircadianDashboardStatus>;
   } = {}
 ) {
   const dashboard =
@@ -137,6 +139,11 @@ export function createBleServer(
         reply(200, { ok: true, result: cached });
         return;
       }
+      if (route === '/dashboard/circadian' && request.method === 'GET') {
+        if (!options.circadianStatus) throw new Error('Circadian dashboard status is unavailable');
+        reply(200, { ok: true, result: await options.circadianStatus() });
+        return;
+      }
       if (route === '/dashboard/status' && request.method === 'GET') {
         const keys = controller.config.lights.map((light) => light.key);
         const lighting = await controller.snapshot(keys, false);
@@ -185,6 +192,7 @@ export function createBleServer(
             fade: true,
             dashboard: true,
             dashboardStatus: true,
+            circadianDashboard: !!options.circadianStatus,
             effectAnimationSpeed: true,
             savedTargetSelection: true,
           },

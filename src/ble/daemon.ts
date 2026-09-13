@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { loadConfig } from '../config.js';
+import { getCircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 import { VerifiedController } from './controller.js';
 import { MeshCrypto } from './crypto.js';
 import { DashboardStore } from './dashboard.js';
@@ -20,11 +21,18 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
     config.lights.map((light) => light.key)
   );
   const controller = new VerifiedController(config, link, library);
+  let circadianCache: { expiresAt: number; value: Awaited<ReturnType<typeof getCircadianDashboardStatus>> } | undefined;
   const server = createBleServer(controller, library, {
     persistMesh: (value) => atomicJson(path.join(meshDirectory(), 'mesh.json'), value),
     dashboard,
     luxCalibration: appConfig?.maxLux,
     luxByModel: appConfig?.maxLuxByModel,
+    circadianStatus: async () => {
+      if (circadianCache && circadianCache.expiresAt > Date.now()) return circadianCache.value;
+      const value = await getCircadianDashboardStatus({ loadConfig });
+      circadianCache = { expiresAt: Date.now() + 30_000, value };
+      return value;
+    },
   });
   let stopping = false;
   const stop = async () => {
