@@ -13,6 +13,7 @@ export interface CircadianSchedulePoint {
   time: string;
   cct: number;
   intensity: number;
+  appliedIntensity: number;
   lightOutput?: number;
 }
 
@@ -122,24 +123,30 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
     const points: CircadianSchedulePoint[] = [];
+    const uncappedConfig: Config = { ...config, intensityMax: 100 };
     for (let time = start.getTime(); time <= end.getTime(); time += intervalMinutes * 60_000) {
-      const calculation = await calculateCurrentCCT(
+      const options = {
+        lat: current.lat,
+        lon: current.lon,
+        time: new Date(time),
+        curve,
+        weather: false,
+        cloudCover: current.weatherOptions?.cloudCover,
+        precipitation: current.weatherOptions?.precipitation,
+      };
+      const natural = await calculateCurrentCCT(options, { loadConfig: () => uncappedConfig });
+      const applied = await calculateCurrentCCT(
         {
-          lat: current.lat,
-          lon: current.lon,
-          time: new Date(time),
-          curve,
-          weather: false,
-          cloudCover: current.weatherOptions?.cloudCover,
-          precipitation: current.weatherOptions?.precipitation,
+          ...options,
         },
         { loadConfig: () => config }
       );
       points.push({
         time: new Date(time).toISOString(),
-        cct: calculation.result.cct,
-        intensity: calculation.percent,
-        lightOutput: calculation.result.lightOutput,
+        cct: natural.result.cct,
+        intensity: natural.percent,
+        appliedIntensity: applied.percent,
+        lightOutput: natural.result.lightOutput,
       });
     }
     result.schedule = {

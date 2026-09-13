@@ -958,8 +958,8 @@ describe('verified command execution', () => {
           intervalMinutes: 15,
           intensityLimit: 25,
           points: [
-            { time: '2026-09-13T07:00:00.000Z', cct: 2000, intensity: 5 },
-            { time: '2026-09-14T07:00:00.000Z', cct: 2000, intensity: 5 },
+            { time: '2026-09-13T07:00:00.000Z', cct: 2000, intensity: 5, appliedIntensity: 5 },
+            { time: '2026-09-14T07:00:00.000Z', cct: 2000, intensity: 5, appliedIntensity: 5 },
           ],
         },
       }),

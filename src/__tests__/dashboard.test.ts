@@ -105,7 +105,8 @@ describe('DashboardStore', () => {
     expect(result.current).toMatchObject({ curve: 'cie-daylight', weatherActive: false });
     expect(result.schedule?.points).toHaveLength(97);
     expect(result.schedule?.intensityLimit).toBe(25);
-    expect(Math.max(...(result.schedule?.points.map((point) => point.intensity) ?? []))).toBeLessThanOrEqual(25);
+    expect(Math.max(...(result.schedule?.points.map((point) => point.intensity) ?? []))).toBeGreaterThan(25);
+    expect(Math.max(...(result.schedule?.points.map((point) => point.appliedIntensity) ?? []))).toBeLessThanOrEqual(25);
   });
 
   it('ships a parseable interactive circadian dashboard client', () => {
@@ -115,6 +116,7 @@ describe('DashboardStore', () => {
     expect(dashboardJs).toContain("api('/dashboard/circadian')");
     expect(dashboardJs).toContain('onpointermove');
     expect(dashboardJs).toContain('100%</text>');
-    expect(dashboardJs).toContain('% limit</text>');
+    expect(dashboardJs).toContain('% service limit</text>');
+    expect(dashboardJs).toContain('Service applies ');
   });
 });
