@@ -15,6 +15,8 @@ export interface CircadianSchedulePoint {
   intensity: number;
   appliedIntensity: number;
   lightOutput?: number;
+  sunlightLux?: number;
+  systemCapacityLux?: number;
 }
 
 export interface CircadianDashboardStatus {
@@ -147,6 +149,8 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
         intensity: natural.percent,
         appliedIntensity: applied.percent,
         lightOutput: natural.result.lightOutput,
+        sunlightLux: natural.result.lightOutput,
+        systemCapacityLux: natural.effectiveMaxLux,
       });
     }
     result.schedule = {

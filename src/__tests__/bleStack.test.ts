@@ -958,8 +958,22 @@ describe('verified command execution', () => {
           intervalMinutes: 15,
           intensityLimit: 25,
           points: [
-            { time: '2026-09-13T07:00:00.000Z', cct: 2000, intensity: 5, appliedIntensity: 5 },
-            { time: '2026-09-14T07:00:00.000Z', cct: 2000, intensity: 5, appliedIntensity: 5 },
+            {
+              time: '2026-09-13T07:00:00.000Z',
+              cct: 2000,
+              intensity: 5,
+              appliedIntensity: 5,
+              sunlightLux: 0,
+              systemCapacityLux: 9500,
+            },
+            {
+              time: '2026-09-14T07:00:00.000Z',
+              cct: 2000,
+              intensity: 5,
+              appliedIntensity: 5,
+              sunlightLux: 0,
+              systemCapacityLux: 9500,
+            },
           ],
         },
       }),
@@ -1077,13 +1091,18 @@ describe('verified command execution', () => {
         ok: true,
         result: dashboardStatus.result,
       });
-      expect(await (await fetch(`${url}/dashboard/circadian`)).json()).toMatchObject({
+      const circadianStatus = await (await fetch(`${url}/dashboard/circadian`)).json();
+      expect(circadianStatus).toMatchObject({
         ok: true,
         result: {
           service: { active: true, lastTarget: { cct: 6002, intensity: 25 } },
           current: { weatherActive: false },
           schedule: { intervalMinutes: 15, intensityLimit: 25 },
         },
+      });
+      expect(circadianStatus.result.schedule.points[0]).toMatchObject({
+        sunlightLux: 0,
+        systemCapacityLux: 9500,
       });
       const program = new Command();
       registerCct(program, {

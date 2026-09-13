@@ -88,6 +88,7 @@ describe('DashboardStore', () => {
         longitude: -122.3874,
         intensityMin: 5,
         intensityMax: 25,
+        maxLux: { 2700: 9500, 5600: 15000, 6500: 14630 },
         weather: false,
       }),
     });
@@ -107,16 +108,22 @@ describe('DashboardStore', () => {
     expect(result.schedule?.intensityLimit).toBe(25);
     expect(Math.max(...(result.schedule?.points.map((point) => point.intensity) ?? []))).toBeGreaterThan(25);
     expect(Math.max(...(result.schedule?.points.map((point) => point.appliedIntensity) ?? []))).toBeLessThanOrEqual(25);
+    expect(Math.max(...(result.schedule?.points.map((point) => point.sunlightLux ?? 0) ?? []))).toBeGreaterThan(
+      Math.max(...(result.schedule?.points.map((point) => point.systemCapacityLux ?? 0) ?? []))
+    );
   });
 
   it('ships a parseable interactive circadian dashboard client', () => {
     expect(() => new Script(dashboardJs)).not.toThrow();
     expect(dashboardHtml).toContain('id="circadian-graph"');
     expect(dashboardHtml).toContain('Hover or slide over the graph');
+    expect(dashboardHtml).toContain('Actual sunlight lux (modeled)');
     expect(dashboardJs).toContain("api('/dashboard/circadian')");
     expect(dashboardJs).toContain('onpointermove');
     expect(dashboardJs).toContain('100%</text>');
     expect(dashboardJs).toContain('% service limit</text>');
     expect(dashboardJs).toContain('Service applies ');
+    expect(dashboardJs).toContain('Actual sunlight ');
+    expect(dashboardJs).toContain('System capacity ');
   });
 });
