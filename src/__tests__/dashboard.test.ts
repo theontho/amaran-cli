@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Script } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DashboardStore, dashboardHtml, dashboardJs, estimateLux } from '../ble/dashboard.js';
+import { DashboardStore, dashboardFavicon, dashboardHtml, dashboardJs, estimateLux } from '../ble/dashboard.js';
 import { getCircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 
 describe('DashboardStore', () => {
@@ -126,6 +126,9 @@ describe('DashboardStore', () => {
     expect(dashboardHtml).toContain('id="circadian-graph"');
     expect(dashboardHtml).toContain('Hover or slide over the graph');
     expect(dashboardHtml).toContain('Actual sunlight lux (modeled)');
+    expect(dashboardHtml).toContain('href="/favicon.svg"');
+    expect(dashboardFavicon).toContain('<svg');
+    expect(dashboardFavicon).toContain('viewBox="0 0 64 64"');
     expect(dashboardHtml).toContain('Save circadian settings');
     expect(dashboardJs).toContain("api('/dashboard/circadian')");
     expect(dashboardJs).toContain("api('/dashboard/circadian/settings'");

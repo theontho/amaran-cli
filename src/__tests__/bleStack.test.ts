@@ -1086,6 +1086,10 @@ describe('verified command execution', () => {
       expect(dashboardMarkup).toContain('direct bluetooth mesh');
       expect(dashboardMarkup).toContain('circadian service');
       expect(dashboardMarkup).toContain('hover or slide over the graph');
+      expect(dashboardMarkup).toContain('href="/favicon.svg"');
+      const favicon = await fetch(`${url}/favicon.svg`);
+      expect(favicon.headers.get('content-type')).toContain('image/svg+xml');
+      expect(await favicon.text()).toContain('<svg');
       expect(
         (
           await fetch(`${url}/dashboard/settings`, {

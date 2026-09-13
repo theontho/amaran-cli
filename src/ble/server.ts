@@ -3,7 +3,14 @@ import { z } from 'zod';
 import type { MaxLuxCalibration } from '../config.js';
 import type { CircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 import { capabilities, type VerifiedController, validateAction } from './controller.js';
-import { DashboardStore, dashboardCss, dashboardHtml, dashboardJs, estimateLux } from './dashboard.js';
+import {
+  DashboardStore,
+  dashboardCss,
+  dashboardFavicon,
+  dashboardHtml,
+  dashboardJs,
+  estimateLux,
+} from './dashboard.js';
 import { planDesktopImport } from './desktopLibrary.js';
 import { type LibraryCollection, LocalLibrary } from './library.js';
 import { Programs } from './programs.js';
@@ -116,6 +123,10 @@ export function createBleServer(
       }
       if (request.method === 'GET' && route === '/dashboard.js') {
         send(200, 'text/javascript; charset=utf-8', dashboardJs);
+        return;
+      }
+      if (request.method === 'GET' && route === '/favicon.svg') {
+        send(200, 'image/svg+xml; charset=utf-8', dashboardFavicon, 'public, max-age=86400');
         return;
       }
       if (route === '/dashboard/settings') {
