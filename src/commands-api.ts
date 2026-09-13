@@ -15,7 +15,7 @@ export { registerWeather } from './commands/daylightSimulation/weather.js';
 export { registerCct } from './commands/deviceControl/cct.js';
 export { registerColor } from './commands/deviceControl/color.js';
 export { default as registerConfig } from './commands/deviceControl/config.js';
-export { registerDiscover } from './commands/deviceControl/discover.js';
+export { registerDesktop, registerDiscover } from './commands/deviceControl/desktop.js';
 export { registerEffect } from './commands/deviceControl/effect.js';
 export { registerFan } from './commands/deviceControl/fan.js';
 export { registerGroup } from './commands/deviceControl/group.js';

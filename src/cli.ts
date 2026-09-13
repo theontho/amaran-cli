@@ -55,6 +55,27 @@ const HELP_DETAILS: Record<string, { notes?: string[]; examples: string[] }> = {
       'amaran-cli ble batch brightness --targets all --args \'{"value":50}\'',
     ],
   },
+  desktop: {
+    notes: [
+      'These commands explicitly require Amaran Desktop. Ordinary light control uses direct BLE by default.',
+      'Firmware availability checks are not exposed because the Desktop protocol does not provide a reliable check through this CLI.',
+    ],
+    examples: [
+      'amaran-cli desktop discover',
+      'amaran-cli desktop firmware update desk',
+      'amaran-cli desktop firmware update desk --url ws://localhost:60124',
+    ],
+  },
+  'desktop discover': {
+    notes: ['Finds Amaran Desktop with lsof and saves its WebSocket URL for explicit Desktop-backend use.'],
+    examples: ['amaran-cli desktop discover', 'amaran-cli desktop discover --debug'],
+  },
+  'desktop firmware update': {
+    notes: [
+      'This always uses the Amaran Desktop backend; the direct BLE daemon intentionally does not implement OTA updates.',
+    ],
+    examples: ['amaran-cli desktop firmware update desk'],
+  },
   'ble dashboard': {
     notes: [
       'The dashboard is loopback-only and uses the same verified API as the CLI.',

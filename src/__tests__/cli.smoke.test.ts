@@ -61,7 +61,19 @@ describe('CLI Smoke Test', () => {
     expect(root.status).toBe(0);
     expect(root.stdout).toContain('amaran-cli ble dashboard --open');
     expect(root.stdout).toContain('amaran-cli list --backend desktop');
+    expect(root.stdout).toMatch(/^ {2}desktop\s/m);
+    expect(root.stdout).not.toMatch(/^ {2}discover\s/m);
+    expect(root.stdout).not.toMatch(/^ {2}firmware\s/m);
     expect(root.stdout).not.toContain('amaran-cli power on');
+
+    const desktopCommands = help('desktop');
+    expect(desktopCommands.stdout).toContain('desktop discover');
+    expect(desktopCommands.stdout).toContain('desktop firmware update desk');
+    expect(desktopCommands.stdout).toContain('explicitly require Amaran Desktop');
+
+    const firmware = help('desktop', 'firmware', 'update');
+    expect(firmware.stdout).toContain('always uses the Amaran Desktop backend');
+    expect(firmware.stdout).not.toContain('Firmware is up to date');
 
     const dashboard = help('ble', 'dashboard');
     expect(dashboard.stdout).toContain('maxLuxByModel');

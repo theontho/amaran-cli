@@ -264,7 +264,7 @@ node dist/cli.js ble service start
 
 The LaunchAgent is `com.amaran-cli.ble`. It uses the current compiled CLI and Node executable, starts at user login, and restarts after crashes. Keep that CLI installation/build path available. Logs are in `~/Library/Logs/amaran-cli/`. `stop` unloads it; `start` loads it again. A Node upgrade that removes its recorded executable path requires updating the LaunchAgent.
 
-The CLI defaults to direct BLE. Use `--backend desktop` to opt into Amaran Desktop; `--backend websocket` remains a compatibility alias. Explicit `--backend ble` is optional but may still be useful in automation:
+The CLI defaults to direct BLE. Use `--backend desktop` to opt into Amaran Desktop; `--backend websocket` remains a compatibility alias. Desktop-only WebSocket discovery and vendor firmware updating are isolated under `desktop discover` and `desktop firmware update`; there is no synthetic firmware-current check. Explicit `--backend ble` is optional but may still be useful in automation:
 
 ```sh
 node dist/cli.js list --backend ble

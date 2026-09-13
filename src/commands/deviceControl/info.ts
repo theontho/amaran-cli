@@ -8,15 +8,6 @@ export function registerInfo(program: Command, deps: CommandDeps) {
   const info = program.command('info [device]').description('Get detailed device info');
 
   addStandardOptions(info).action(asyncCommand(handleDeviceInfo(deps)));
-
-  const firmware = program.command('firmware').description('Firmware management');
-  addStandardOptions(firmware.command('check <device>').description('Get device firmware info')).action(
-    asyncCommand(handleFirmwareInfo(deps))
-  );
-
-  addStandardOptions(firmware.command('update <device>').description('Update device firmware')).action(
-    asyncCommand(handleFirmwareUpdate(deps))
-  );
 }
 
 function handleDeviceInfo(deps: CommandDeps) {
@@ -117,60 +108,6 @@ function displayConfig(device: Device, data: unknown, _options: CommandOptions) 
   } else {
     console.log(chalk.yellow('  No capability data returned.'));
   }
-}
-
-function handleFirmwareInfo(deps: CommandDeps) {
-  return async (deviceQuery: string, options: CommandOptions) => {
-    return runDeviceAction(
-      {
-        deps,
-        options,
-        deviceQuery,
-        actionName: 'get firmware info',
-      },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          controller.getDeviceInfo(device.node_id as string, (success, message, data) => {
-            if (success) {
-              console.log(chalk.blue('Firmware Status:'));
-              console.log(chalk.gray('  Firmware is up to date'));
-              if (options.debug) console.log(data);
-            } else {
-              console.error(chalk.red(`Error getting firmware info: ${message}`));
-            }
-            resolve();
-          });
-        });
-      },
-      () => Promise.resolve()
-    );
-  };
-}
-
-function handleFirmwareUpdate(deps: CommandDeps) {
-  return async (deviceQuery: string, options: CommandOptions) => {
-    return runDeviceAction(
-      {
-        deps,
-        options,
-        deviceQuery,
-        actionName: 'update firmware',
-      },
-      (device: Device, controller) => {
-        return new Promise((resolve) => {
-          controller.updateFirmware(device.node_id as string, (success, message, data) => {
-            if (success) {
-              console.log(chalk.green('Firmware update started:'), data);
-            } else {
-              console.error(chalk.red(`Error starting firmware update: ${message}`));
-            }
-            resolve();
-          });
-        });
-      },
-      () => Promise.resolve()
-    );
-  };
 }
 
 export default registerInfo;

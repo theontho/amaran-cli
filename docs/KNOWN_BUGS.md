@@ -7,7 +7,7 @@ In my local install, the get_hsi command returns an unknown command error, which
 I haven't gotten to properly testing / using these commands, so they probably have problems:
 
 - fan (desktop backend; direct BLE Smart/Medium control and telemetry are verified - see [cooling safety](DIRECT_BLE.md#cooling-safety))
-- firmware
+- firmware (`desktop firmware update` is Desktop-only and has not been hardware-validated; no update-availability check is exposed)
 - group
 - color (these are named colors, not random rgb in actuallity in the amaran desktop app, need a way to query the list of names)
 - rgb (unimplemented or improperly named color in the cli)

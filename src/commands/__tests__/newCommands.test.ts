@@ -188,7 +188,7 @@ describe('New CLI Commands Integration Tests', () => {
     consoleSpy.mockRestore();
   });
 
-  it('should check firmware info', async () => {
+  it('should update firmware only through the explicit desktop namespace', async () => {
     const program = new Command();
     program.exitOverride();
     const deps = createDeps();
@@ -198,11 +198,13 @@ describe('New CLI Commands Integration Tests', () => {
       /* no-op */
     });
 
-    await program.parseAsync(['node', 'test', 'firmware', 'check', '400J5-F2C008']);
+    await program.parseAsync(['node', 'test', 'desktop', 'firmware', 'update', '400J5-F2C008']);
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Firmware Status'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Firmware is up to date'));
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Firmware update started through Amaran Desktop:'),
+      expect.anything()
+    );
 
     consoleSpy.mockRestore();
   });

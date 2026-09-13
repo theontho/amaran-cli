@@ -8,7 +8,7 @@ import registerBle from './commands/deviceControl/ble.js';
 import registerCct from './commands/deviceControl/cct.js';
 import registerColor from './commands/deviceControl/color.js';
 import registerConfig from './commands/deviceControl/config.js';
-import registerDiscover from './commands/deviceControl/discover.js';
+import registerDesktop from './commands/deviceControl/desktop.js';
 import registerEffect from './commands/deviceControl/effect.js';
 import registerFan from './commands/deviceControl/fan.js';
 import registerGroup from './commands/deviceControl/group.js';
@@ -32,7 +32,7 @@ export function registerCommands(program: Command, deps: CommandDeps) {
   // Register all other commands
   registerAutoCct(program, deps);
   registerSchedule(program, deps);
-  registerDiscover(program, deps);
+  registerDesktop(program, deps);
   registerList(program, deps);
   registerPower(program, deps);
   registerIntensity(program, deps);

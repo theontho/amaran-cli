@@ -179,19 +179,25 @@ These fixtures use whole-percent brightness, 100-K CCT steps, and (150c only) G/
 
 See [Direct BLE operation and verification](docs/DIRECT_BLE.md) for restart behavior, permissions, protocol findings, webcam checks, and limitations.
 
-## Discovery
+## Amaran Desktop compatibility
 
-The CLI can automatically discover the WebSocket endpoint from a running Amaran Desktop application:
+Desktop-only utilities are isolated under the explicit `desktop` namespace. The CLI can discover and save the
+WebSocket endpoint from a running Amaran Desktop application:
 
 ```bash
 # Discover and save WebSocket URL
-amaran-cli discover
+amaran-cli desktop discover
 
 # Discover with debug output
-amaran-cli discover -d
+amaran-cli desktop discover -d
+
+# Start a vendor firmware update through Amaran Desktop
+amaran-cli desktop firmware update desk
 ```
 
-This command uses `lsof` to find the WebSocket port that the Amaran Desktop application is listening on, then saves it to your configuration file for future use.
+Discovery uses `lsof` to find the WebSocket port and saves it for explicit Desktop-backend use. Firmware updates are
+not implemented by the direct BLE daemon. The previous `firmware check` command was removed because it did not query
+update availability and could incorrectly claim that firmware was current.
 
 ## Device Identification
 
