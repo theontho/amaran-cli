@@ -31,10 +31,88 @@ function getRuntimeLabel(): string {
   return fileURLToPath(import.meta.url).endsWith(path.join('src', 'cli.ts')) ? ' (dev)' : '';
 }
 
+const HELP_DETAILS: Record<string, { notes?: string[]; examples: string[] }> = {
+  '': {
+    notes: [
+      'The WebSocket backend uses Amaran Desktop. The direct BLE backend uses the local verified daemon and does not require Desktop at runtime.',
+    ],
+    examples: [
+      'amaran-cli status --backend ble',
+      'amaran-cli cct 5000 all --intensity 80 --backend ble',
+      'amaran-cli color "#ff6400" back --intensity 20 --backend ble',
+      'amaran-cli ble dashboard --open',
+    ],
+  },
+  ble: {
+    notes: [
+      'Direct BLE commands use the loopback daemon. Hardware writes require matching readback; library imports never apply lighting.',
+    ],
+    examples: [
+      'amaran-cli ble health',
+      'amaran-cli ble dashboard --open',
+      'amaran-cli ble import-desktop "/path/to/amaran.db"',
+      'amaran-cli ble batch brightness --targets all --args \'{"value":50}\'',
+    ],
+  },
+  'ble dashboard': {
+    notes: [
+      'The dashboard is loopback-only and uses the same verified API as the CLI.',
+      'Estimated lux uses maxLuxByModel for the fixture model, then falls back to maxLux.',
+    ],
+    examples: ['amaran-cli ble dashboard', 'amaran-cli ble dashboard --open'],
+  },
+  'ble import-desktop': {
+    notes: [
+      'Preview is the default and never changes lights or the local library.',
+      'Effect presets, quickshots, and explicit workspace groups are validated before --apply. Use --replace only to update a previous import.',
+      'Supported effects: Paparazzi, Lightning, TV, Fire, Strobe, Explosion, Faulty Bulb, Pulsing, Cop Car, Party Lights, and Fireworks.',
+    ],
+    examples: [
+      'amaran-cli ble import-desktop "/path/to/amaran.db"',
+      'amaran-cli ble import-desktop "/path/to/amaran.db" --apply',
+      'amaran-cli ble import-desktop "/path/to/amaran.db" --apply --replace',
+    ],
+  },
+  config: {
+    notes: [
+      '--max-lux accepts a positive number or a Kelvin map such as 2700:8000,5600:10000.',
+      'Per-model dashboard curves use maxLuxByModel in config.json with 200x, 200x-s, or 150c keys.',
+    ],
+    examples: [
+      'amaran-cli config --backend ble --ble-url http://localhost:2708',
+      'amaran-cli config --max-lux "2700:8000,5600:10000"',
+      'amaran-cli config --show',
+    ],
+  },
+  effect: {
+    notes: [
+      'Effect frequency and animation speed are separate fields. animation-speed is supported by Lightning, Faulty Bulb, and Pulsing.',
+      'Trigger requests are sent once because fixtures do not acknowledge the physical transient event.',
+    ],
+    examples: [
+      'amaran-cli effect list --backend ble',
+      'amaran-cli effect custom back pulsing --params \'{"brightness":20,"frequency":5,"speed":4,"hue":120,"saturation":80}\' --backend ble',
+      'amaran-cli effect animation-speed back 4 --backend ble',
+      'amaran-cli effect stop all --backend ble',
+    ],
+  },
+  preset: {
+    notes: [
+      'Presets store one fixture state but may be retargeted at recall; the destination fixture is validated before any write.',
+      'Desktop effect presets imported with ble import-desktop appear in this library.',
+    ],
+    examples: [
+      'amaran-cli preset list --backend ble',
+      'amaran-cli preset show "Desktop: Effect 01" --backend ble',
+      'amaran-cli preset recall back "Desktop: Effect 01" --backend ble',
+    ],
+  },
+};
+
 program
   .name('amaran-cli')
   .description(
-    'Command line tool for controlling Aputure Amaran lights via WebSocket and a circadian lighting service that uses the amaran lights.'
+    'Control Aputure Amaran lights through Amaran Desktop or the verified local Bluetooth Mesh daemon, with circadian automation.'
   )
   .version(version, '-v, --version', 'output the current version')
   .option('--service-mode', 'Internal flag for being run from background service')
@@ -138,15 +216,12 @@ program
         sections.push('');
       }
 
-      // Add examples for the root command
-      if (cmd.name() === 'amaran-cli') {
-        sections.push(
-          chalk.blue('Examples:'),
-          '  $ amaran-cli power on --all        # Turn on all connected lights',
-          '  $ amaran-cli cct 5000 --intensity 80  # Set color temperature to 5000K at 80%',
-          '  $ amaran-cli color 255 100 50     # Set RGB color (R:255 G:100 B:50)',
-          ''
-        );
+      const details = HELP_DETAILS[commandName];
+      if (details?.notes?.length) {
+        sections.push(chalk.blue('Notes:'), ...details.notes.map((note) => `  ${note}`), '');
+      }
+      if (details?.examples.length) {
+        sections.push(chalk.blue('Examples:'), ...details.examples.map((example) => `  $ ${example}`), '');
       }
 
       sections.push(`Run ${chalk.blue('amaran-cli <command> --help')} for more information about a command.`);

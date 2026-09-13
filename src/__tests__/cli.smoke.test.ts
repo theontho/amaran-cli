@@ -48,4 +48,33 @@ describe('CLI Smoke Test', () => {
     expect(proc.stdout).toContain('Usage: amaran-cli');
     expect(proc.stdout).not.toContain('(dev)');
   });
+
+  runBuiltCliTest('documents direct BLE dashboard, import, lux, effects, and retargetable presets', () => {
+    const help = (...args: string[]) =>
+      spawnSync('node', [cliPath, ...args, '--help'], {
+        encoding: 'utf8',
+        timeout: 10000,
+        env: { ...process.env, [CONFIG_DIR_ENV]: configDir, FORCE_COLOR: '0' },
+      });
+
+    const root = help();
+    expect(root.status).toBe(0);
+    expect(root.stdout).toContain('amaran-cli ble dashboard --open');
+    expect(root.stdout).not.toContain('amaran-cli power on');
+
+    const dashboard = help('ble', 'dashboard');
+    expect(dashboard.stdout).toContain('maxLuxByModel');
+    expect(dashboard.stdout).toContain('loopback-only');
+
+    const desktop = help('ble', 'import-desktop');
+    expect(desktop.stdout).toContain('Preview is the default');
+    expect(desktop.stdout).toContain('Faulty Bulb');
+
+    const effect = help('effect');
+    expect(effect.stdout).toContain('frequency and animation speed are separate');
+    expect(effect.stdout).toContain('"speed":4');
+
+    const preset = help('preset');
+    expect(preset.stdout).toContain('may be retargeted at recall');
+  });
 });

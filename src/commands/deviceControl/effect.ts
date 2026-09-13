@@ -55,6 +55,7 @@ export function registerEffect(program: Command, deps: CommandDeps) {
   addStandardOptions(
     effect
       .command('set <device> <effect_type>')
+      .description('Start a native effect, optionally setting brightness in percent')
       .option('-i, --intensity <percent>', 'Brightness 0-100; omitted preserves current output')
   ).action(
     deps.asyncCommand(async (deviceQuery: string, name: string, options: CommandOptions) => {
@@ -79,9 +80,10 @@ export function registerEffect(program: Command, deps: CommandDeps) {
   addStandardOptions(
     effect
       .command('custom <device> <effect_name>')
+      .description('Start a native effect with validated effect-specific parameters')
       .option(
         '--params <json>',
-        'Effect parameters: brightness (percent), frequency, speed, kelvin, gm, palette, hue, saturation',
+        'Effect parameters: brightness, frequency, speed, trigger, kelvin, gm, palette, hue, saturation',
         '{}'
       )
   ).action(

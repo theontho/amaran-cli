@@ -50,7 +50,7 @@ export default function registerConfig(program: Command, deps: CommandDeps) {
       '--auto-start-app <boolean>',
       'Automatically start Amaran desktop app on connection failure (default: true)'
     )
-    .option('--max-lux <number>', 'Maximum lux output of the setup (for auto-cct scaling)')
+    .option('--max-lux <value>', 'Maximum lux number or Kelvin map, e.g. 2700:8000,5600:10000')
     .option('--weather <boolean>', 'Enable automatic weather fetching for auto-cct (default: false)')
     .option('--privacy-off', 'Show full coordinates and sensitive data', false)
     .option('--show', 'Show current configuration')
