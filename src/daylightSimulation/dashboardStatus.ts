@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { Config } from '../config.js';
+import { CCT_DEFAULTS, DEFAULT_CURVE } from './constants.js';
 import { calculateCurrentCCT } from './currentCct.js';
 
 const execFileAsync = promisify(execFile);
@@ -35,6 +36,18 @@ export interface CircadianDashboardStatus {
       intensity: number;
     };
   };
+  settings: {
+    enabled: boolean;
+    intervalSeconds: number;
+    curve: string;
+    weather: boolean;
+    latitude?: number;
+    longitude?: number;
+    cctMin: number;
+    cctMax: number;
+    intensityMin: number;
+    intensityMax: number;
+  };
   current?: {
     time: string;
     cct: number;
@@ -45,6 +58,11 @@ export interface CircadianDashboardStatus {
     weatherDataSource?: string;
     cloudCover?: number;
     precipitation?: string;
+    weatherEffect?: {
+      cctDelta: number;
+      intensityDelta: number;
+      sunlightLuxDelta?: number;
+    };
   };
   schedule?: {
     date: string;
@@ -97,6 +115,18 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
           }
         : {}),
     },
+    settings: {
+      enabled: loaded,
+      intervalSeconds,
+      curve: curve ?? DEFAULT_CURVE,
+      weather: weatherConfigured,
+      latitude: config.latitude,
+      longitude: config.longitude,
+      cctMin: config.cctMin ?? CCT_DEFAULTS.cctMinK,
+      cctMax: config.cctMax ?? CCT_DEFAULTS.cctMaxK,
+      intensityMin: config.intensityMin ?? CCT_DEFAULTS.intensityMinPct,
+      intensityMax: config.intensityMax ?? CCT_DEFAULTS.intensityMaxPct,
+    },
   };
 
   try {
@@ -108,6 +138,19 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
       },
       { loadConfig: () => config }
     );
+    const clearWeather =
+      current.weatherSource !== 'none'
+        ? await calculateCurrentCCT(
+            {
+              lat: current.lat,
+              lon: current.lon,
+              time: now,
+              curve,
+              weather: false,
+            },
+            { loadConfig: () => config }
+          )
+        : undefined;
     result.current = {
       time: now.toISOString(),
       cct: current.result.cct,
@@ -118,6 +161,17 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
       weatherDataSource: current.weatherDataSource,
       cloudCover: current.weatherOptions?.cloudCover,
       precipitation: current.weatherOptions?.precipitation,
+      ...(clearWeather
+        ? {
+            weatherEffect: {
+              cctDelta: current.result.cct - clearWeather.result.cct,
+              intensityDelta: Math.round((current.percent - clearWeather.percent) * 10) / 10,
+              ...(current.result.lightOutput !== undefined && clearWeather.result.lightOutput !== undefined
+                ? { sunlightLuxDelta: Math.round(current.result.lightOutput - clearWeather.result.lightOutput) }
+                : {}),
+            },
+          }
+        : {}),
     };
 
     const intervalMinutes = 15;

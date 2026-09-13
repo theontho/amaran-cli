@@ -173,7 +173,10 @@ state, and a hover/touch daily graph of Kelvin, intensity, and estimated lux. Th
 CCT/intensity bounds as `auto-cct`, while keeping the intensity axis fixed at 0–100% and marking the configured
 maximum with a dotted limit line. The natural intensity curve continues above that line; tooltips show both the
 uncapped schedule and the value the service will actually apply. A separate **Actual sunlight lux (modeled)** curve
-continues beyond the fixtures' measured lux capacity, which is shown as its own dashed reference.
+continues beyond the fixtures' measured lux capacity, which is shown as its own dashed reference. The same panel can
+persistently enable or disable the service and edit its curve, live-weather adjustment, interval, location, Kelvin
+bounds, and intensity bounds. Saving immediately recalculates the graph; active weather shows cloud/precipitation
+details and its current intensity, Kelvin, and sunlight-lux difference from clear-sky output.
 
 Desktop import previews by default and never changes fixture output. With `--apply`, Desktop quickshots become local
 quickshots, explicit workspace membership becomes local groups, and all eleven supported legacy effect types become

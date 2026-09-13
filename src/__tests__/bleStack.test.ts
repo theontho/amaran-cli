@@ -30,6 +30,7 @@ import { ProxyAssembler, proxyFragments } from '../ble/transport.js';
 import { commandCallbackResult, getAppliedNumber, getLightDevices } from '../commands/cmdUtils.js';
 import registerCct from '../commands/deviceControl/cct.js';
 import registerFan from '../commands/deviceControl/fan.js';
+import type { CircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 import BleHttpController from '../deviceControl/bleHttpControl.js';
 
 // Public Bluetooth Mesh specification test keys; never real fixture credentials.
@@ -930,53 +931,66 @@ describe('verified command execution', () => {
   });
   it('serves truthful state and model capabilities through the existing CLI client', async () => {
     const link = fakeLink();
+    const circadianStatus = {
+      generatedAt: '2026-09-13T22:30:00.000Z',
+      service: {
+        installed: true,
+        loaded: true,
+        active: true,
+        healthy: true,
+        intervalSeconds: 60,
+        curve: 'cie-daylight',
+        weatherConfigured: false,
+        lastRunAt: '2026-09-13T22:29:38.000Z',
+        lastTarget: { cct: 6002, intensity: 25 },
+      },
+      settings: {
+        enabled: true,
+        intervalSeconds: 60,
+        curve: 'cie-daylight',
+        weather: false,
+        cctMin: 1700,
+        cctMax: 6500,
+        intensityMin: 5,
+        intensityMax: 25,
+      },
+      current: {
+        time: '2026-09-13T22:30:00.000Z',
+        cct: 6000,
+        intensity: 25,
+        curve: 'cie-daylight',
+        weatherActive: false,
+        weatherSource: 'none',
+      },
+      schedule: {
+        date: '2026-09-13',
+        timeZone: 'America/Los_Angeles',
+        intervalMinutes: 15,
+        intensityLimit: 25,
+        points: [
+          {
+            time: '2026-09-13T07:00:00.000Z',
+            cct: 2000,
+            intensity: 5,
+            appliedIntensity: 5,
+            sunlightLux: 0,
+            systemCapacityLux: 9500,
+          },
+          {
+            time: '2026-09-14T07:00:00.000Z',
+            cct: 2000,
+            intensity: 5,
+            appliedIntensity: 5,
+            sunlightLux: 0,
+            systemCapacityLux: 9500,
+          },
+        ],
+      },
+    } satisfies CircadianDashboardStatus;
+    const updateCircadianSettings = vi.fn(async () => circadianStatus);
     const server = createBleServer(new VerifiedController(config, link), undefined, {
-      circadianStatus: async () => ({
-        generatedAt: '2026-09-13T22:30:00.000Z',
-        service: {
-          installed: true,
-          loaded: true,
-          active: true,
-          healthy: true,
-          intervalSeconds: 60,
-          curve: 'cie-daylight',
-          weatherConfigured: false,
-          lastRunAt: '2026-09-13T22:29:38.000Z',
-          lastTarget: { cct: 6002, intensity: 25 },
-        },
-        current: {
-          time: '2026-09-13T22:30:00.000Z',
-          cct: 6000,
-          intensity: 25,
-          curve: 'cie-daylight',
-          weatherActive: false,
-          weatherSource: 'none',
-        },
-        schedule: {
-          date: '2026-09-13',
-          timeZone: 'America/Los_Angeles',
-          intervalMinutes: 15,
-          intensityLimit: 25,
-          points: [
-            {
-              time: '2026-09-13T07:00:00.000Z',
-              cct: 2000,
-              intensity: 5,
-              appliedIntensity: 5,
-              sunlightLux: 0,
-              systemCapacityLux: 9500,
-            },
-            {
-              time: '2026-09-14T07:00:00.000Z',
-              cct: 2000,
-              intensity: 5,
-              appliedIntensity: 5,
-              sunlightLux: 0,
-              systemCapacityLux: 9500,
-            },
-          ],
-        },
-      }),
+      circadianStatus: async () => circadianStatus,
+      updateCircadianSettings,
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
@@ -1104,6 +1118,15 @@ describe('verified command execution', () => {
         sunlightLux: 0,
         systemCapacityLux: 9500,
       });
+      const updatedCircadianStatus = await (
+        await fetch(`${url}/dashboard/circadian/settings`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ curve: 'physics', weather: true }),
+        })
+      ).json();
+      expect(updatedCircadianStatus).toMatchObject({ ok: true, result: { settings: { curve: 'cie-daylight' } } });
+      expect(updateCircadianSettings).toHaveBeenCalledWith({ curve: 'physics', weather: true });
       const program = new Command();
       registerCct(program, {
         createController: async () => client,

@@ -33,6 +33,7 @@ export function createBleServer(
     luxCalibration?: MaxLuxCalibration;
     luxByModel?: Partial<Record<MeshConfig['lights'][number]['model'], MaxLuxCalibration>>;
     circadianStatus?: () => Promise<CircadianDashboardStatus>;
+    updateCircadianSettings?: (value: Record<string, unknown>) => Promise<CircadianDashboardStatus>;
   } = {}
 ) {
   const dashboard =
@@ -144,6 +145,11 @@ export function createBleServer(
         reply(200, { ok: true, result: await options.circadianStatus() });
         return;
       }
+      if (route === '/dashboard/circadian/settings' && request.method === 'POST') {
+        if (!options.updateCircadianSettings) throw new Error('Circadian settings are unavailable');
+        reply(200, { ok: true, result: await options.updateCircadianSettings(await bodyOf(request)) });
+        return;
+      }
       if (route === '/dashboard/status' && request.method === 'GET') {
         const keys = controller.config.lights.map((light) => light.key);
         const lighting = await controller.snapshot(keys, false);
@@ -193,6 +199,7 @@ export function createBleServer(
             dashboard: true,
             dashboardStatus: true,
             circadianDashboard: !!options.circadianStatus,
+            circadianSettings: !!options.updateCircadianSettings,
             effectAnimationSpeed: true,
             savedTargetSelection: true,
           },

@@ -104,6 +104,14 @@ describe('DashboardStore', () => {
       lastTarget: { cct: 6002, intensity: 25 },
     });
     expect(result.current).toMatchObject({ curve: 'cie-daylight', weatherActive: false });
+    expect(result.settings).toMatchObject({
+      enabled: true,
+      intervalSeconds: 60,
+      curve: 'cie-daylight',
+      weather: false,
+      intensityMin: 5,
+      intensityMax: 25,
+    });
     expect(result.schedule?.points).toHaveLength(97);
     expect(result.schedule?.intensityLimit).toBe(25);
     expect(Math.max(...(result.schedule?.points.map((point) => point.intensity) ?? []))).toBeGreaterThan(25);
@@ -118,12 +126,15 @@ describe('DashboardStore', () => {
     expect(dashboardHtml).toContain('id="circadian-graph"');
     expect(dashboardHtml).toContain('Hover or slide over the graph');
     expect(dashboardHtml).toContain('Actual sunlight lux (modeled)');
+    expect(dashboardHtml).toContain('Save circadian settings');
     expect(dashboardJs).toContain("api('/dashboard/circadian')");
+    expect(dashboardJs).toContain("api('/dashboard/circadian/settings'");
     expect(dashboardJs).toContain('onpointermove');
     expect(dashboardJs).toContain('100%</text>');
     expect(dashboardJs).toContain('% service limit</text>');
     expect(dashboardJs).toContain('Service applies ');
     expect(dashboardJs).toContain('Actual sunlight ');
     expect(dashboardJs).toContain('System capacity ');
+    expect(dashboardJs).toContain(' vs clear');
   });
 });

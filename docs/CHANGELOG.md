@@ -10,6 +10,7 @@
 - **Dashboard**: Fixed the circadian intensity graph to use a full 0–100% axis and mark the configured ceiling with a dotted line.
 - **Dashboard**: Kept the natural intensity curve visible above the service ceiling and added uncapped/applied values to graph tooltips.
 - **Dashboard**: Added modeled actual-sunlight lux and measured system-capacity curves so daylight can visibly exceed fixture output.
+- **Dashboard**: Added persistent circadian service controls for enablement, interval, curve, weather, location, Kelvin bounds, and intensity bounds, with immediate graph recalculation and clear-sky weather deltas.
 
 ## [1.11.2] - 2026-07-25
 

@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { loadConfig } from '../config.js';
+import { loadConfig, saveConfig } from '../config.js';
+import { updateCircadianDashboardSettings } from '../daylightSimulation/dashboardSettings.js';
 import { getCircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 import { VerifiedController } from './controller.js';
 import { MeshCrypto } from './crypto.js';
@@ -32,6 +33,13 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
       const value = await getCircadianDashboardStatus({ loadConfig });
       circadianCache = { expiresAt: Date.now() + 30_000, value };
       return value;
+    },
+    updateCircadianSettings: async (value) => {
+      await updateCircadianDashboardSettings(value, { loadConfig, saveConfig });
+      circadianCache = undefined;
+      const status = await getCircadianDashboardStatus({ loadConfig });
+      circadianCache = { expiresAt: Date.now() + 30_000, value: status };
+      return status;
     },
   });
   let stopping = false;
