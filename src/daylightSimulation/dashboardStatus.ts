@@ -9,6 +9,8 @@ import { calculateCurrentCCT } from './currentCct.js';
 
 const execFileAsync = promisify(execFile);
 const SERVICE_LABEL = 'com.hmmfn.amaran.circadian-service';
+const SYSTEMD_SERVICE = 'amaran-circadian.service';
+const SYSTEMD_TIMER = 'amaran-circadian.timer';
 
 export interface CircadianSchedulePoint {
   time: string;
@@ -77,21 +79,21 @@ export interface CircadianDashboardStatus {
 interface CircadianDashboardDeps {
   homeDir?: string;
   now?: Date;
+  platform?: NodeJS.Platform;
   loadConfig: () => Config | null;
   isServiceLoaded?: () => Promise<boolean>;
+  isSystemdTimerActive?: () => Promise<boolean>;
+  readSystemdLog?: () => Promise<string>;
 }
 
 export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps): Promise<CircadianDashboardStatus> {
   const now = deps.now ?? new Date();
   const homeDir = deps.homeDir ?? homedir();
-  const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', `${SERVICE_LABEL}.plist`);
-  const logPath = path.join(homeDir, 'Library', 'Logs', 'amaran-circadian-service.log');
-  const installed = existsSync(plistPath);
-  const plist = installed ? readFileSync(plistPath, 'utf8') : '';
-  const args = parseProgramArguments(plist);
-  const intervalSeconds = parseInteger(plist, 'StartInterval') ?? 60;
-  const loaded = installed && (await (deps.isServiceLoaded ?? isServiceLoaded)());
-  const latest = existsSync(logPath) ? parseLatestTarget(readTail(logPath)) : undefined;
+  const platform = deps.platform ?? process.platform;
+  const serviceState =
+    platform === 'linux' ? await readSystemdState(homeDir, deps) : await readLaunchdState(homeDir, deps);
+  const { installed, loaded, intervalSeconds, args, log } = serviceState;
+  const latest = parseLatestTarget(log);
   const recent =
     latest !== undefined &&
     now.getTime() - new Date(latest.time).getTime() <= Math.max(intervalSeconds * 3 * 1000, 180_000);
@@ -221,6 +223,43 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
   return result;
 }
 
+async function readLaunchdState(homeDir: string, deps: CircadianDashboardDeps) {
+  const plistPath = path.join(homeDir, 'Library', 'LaunchAgents', `${SERVICE_LABEL}.plist`);
+  const logPath = path.join(homeDir, 'Library', 'Logs', 'amaran-circadian-service.log');
+  const installed = existsSync(plistPath);
+  const plist = installed ? readFileSync(plistPath, 'utf8') : '';
+  return {
+    installed,
+    loaded: installed && (await (deps.isServiceLoaded ?? isServiceLoaded)()),
+    intervalSeconds: parseInteger(plist, 'StartInterval') ?? 60,
+    args: parseProgramArguments(plist),
+    log: existsSync(logPath) ? readTail(logPath) : '',
+  };
+}
+
+async function readSystemdState(homeDir: string, deps: CircadianDashboardDeps) {
+  const unitDirectory = path.join(homeDir, '.config', 'systemd', 'user');
+  const servicePath = path.join(unitDirectory, SYSTEMD_SERVICE);
+  const timerPath = path.join(unitDirectory, SYSTEMD_TIMER);
+  const logPath = path.join(homeDir, '.config', 'amaran-cli', 'circadian.log');
+  const installed = existsSync(servicePath) && existsSync(timerPath);
+  const service = installed ? readFileSync(servicePath, 'utf8') : '';
+  const timer = installed ? readFileSync(timerPath, 'utf8') : '';
+  return {
+    installed,
+    loaded: installed && (await (deps.isSystemdTimerActive ?? isSystemdTimerActive)()),
+    intervalSeconds: parseSystemdInterval(timer) ?? 60,
+    args: parseSystemdArguments(service),
+    log: !installed
+      ? ''
+      : deps.readSystemdLog
+        ? await deps.readSystemdLog()
+        : existsSync(logPath)
+          ? readTail(logPath)
+          : await readSystemdLog(),
+  };
+}
+
 async function isServiceLoaded(): Promise<boolean> {
   if (process.platform !== 'darwin') return false;
   try {
@@ -231,13 +270,46 @@ async function isServiceLoaded(): Promise<boolean> {
   }
 }
 
+async function isSystemdTimerActive(): Promise<boolean> {
+  try {
+    await execFileAsync('systemctl', ['--user', 'is-active', '--quiet', SYSTEMD_TIMER]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readSystemdLog(): Promise<string> {
+  const { stdout } = await execFileAsync('journalctl', [
+    '--user',
+    '-u',
+    SYSTEMD_SERVICE,
+    '-n',
+    '200',
+    '--no-pager',
+    '-o',
+    'cat',
+  ]);
+  return stdout;
+}
+
 function parseProgramArguments(plist: string): string[] {
   const block = /<key>ProgramArguments<\/key>\s*<array>(.*?)<\/array>/s.exec(plist)?.[1] ?? '';
   return [...block.matchAll(/<string>(.*?)<\/string>/g)].map((match) => match[1]);
 }
 
+function parseSystemdArguments(service: string): string[] {
+  const command = /^ExecStart=(.+)$/m.exec(service)?.[1] ?? '';
+  return command.trim().split(/\s+/).filter(Boolean);
+}
+
 function parseInteger(plist: string, key: string): number | undefined {
   const value = new RegExp(`<key>${key}</key>\\s*<integer>(\\d+)</integer>`).exec(plist)?.[1];
+  return value === undefined ? undefined : Number(value);
+}
+
+function parseSystemdInterval(timer: string): number | undefined {
+  const value = /^OnUnitActiveSec=(\d+)s$/m.exec(timer)?.[1];
   return value === undefined ? undefined : Number(value);
 }
 

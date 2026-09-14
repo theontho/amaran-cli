@@ -445,7 +445,7 @@ amaran-cli circadian-service install
 - Global installations run the executable directly for better performance
 - Local development builds use Node.js to run the built JavaScript files
 
-The service uses macOS launchd and will automatically start on login. Logs are stored in `~/Library/Logs/amaran-circadian-service.log`.
+The built-in installer uses macOS launchd and automatically starts on login. Logs are stored in `~/Library/Logs/amaran-circadian-service.log`. Linux deployments can run `auto-cct` from a user systemd timer; the dashboard recognizes and controls `~/.config/systemd/user/amaran-circadian.{service,timer}` and reads `~/.config/amaran-cli/circadian.log`.
 
 #### Alternative: Using Cron
 

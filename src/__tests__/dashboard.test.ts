@@ -121,6 +121,41 @@ describe('DashboardStore', () => {
     );
   });
 
+  it('reports a Linux user systemd circadian timer', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'amaran-circadian-dashboard-'));
+    directories.push(directory);
+    const units = path.join(directory, '.config', 'systemd', 'user');
+    mkdirSync(units, { recursive: true });
+    writeFileSync(
+      path.join(units, 'amaran-circadian.service'),
+      '[Service]\nExecStart=/usr/local/bin/amaran-cli auto-cct --backend ble --service-mode --curve physics\n'
+    );
+    writeFileSync(path.join(units, 'amaran-circadian.timer'), '[Timer]\nOnUnitActiveSec=120s\n');
+
+    const result = await getCircadianDashboardStatus({
+      platform: 'linux',
+      homeDir: directory,
+      now: new Date('2026-09-13T22:30:00.000Z'),
+      isSystemdTimerActive: async () => true,
+      readSystemdLog: async () => '[2026-09-13T22:29:38.000Z] Setting CCT to 6002K at 25% for active lights\n',
+      loadConfig: () => ({
+        latitude: 37.7852,
+        longitude: -122.3874,
+        intensityMax: 25,
+      }),
+    });
+
+    expect(result.service).toMatchObject({
+      installed: true,
+      loaded: true,
+      healthy: true,
+      intervalSeconds: 120,
+      curve: 'physics',
+      lastTarget: { cct: 6002, intensity: 25 },
+    });
+    expect(result.settings.enabled).toBe(true);
+  });
+
   it('ships a parseable interactive circadian dashboard client', () => {
     expect(() => new Script(dashboardJs)).not.toThrow();
     expect(dashboardHtml).toContain('id="circadian-graph"');

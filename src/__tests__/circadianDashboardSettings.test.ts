@@ -104,4 +104,36 @@ describe('circadian dashboard settings', () => {
 
     expect(runLaunchctl).toHaveBeenCalledWith(['unload', '-w', plistPath]);
   });
+
+  it('updates and controls a Linux user systemd timer', async () => {
+    const homeDir = mkdtempSync(path.join(tmpdir(), 'amaran-circadian-settings-'));
+    roots.push(homeDir);
+    const unitDirectory = path.join(homeDir, '.config', 'systemd', 'user');
+    mkdirSync(unitDirectory, { recursive: true });
+    const servicePath = path.join(unitDirectory, 'amaran-circadian.service');
+    const timerPath = path.join(unitDirectory, 'amaran-circadian.timer');
+    writeFileSync(
+      servicePath,
+      '[Service]\nExecStart=/usr/local/bin/amaran-cli auto-cct --backend ble --service-mode --curve cie-daylight\n'
+    );
+    writeFileSync(timerPath, '[Timer]\nOnUnitActiveSec=60s\n');
+    const runSystemctl = vi.fn(async () => undefined);
+
+    await updateCircadianDashboardSettings(
+      { enabled: true, intervalSeconds: 120, curve: 'physics' },
+      {
+        platform: 'linux',
+        homeDir,
+        loadConfig: () => ({ backend: 'ble' }),
+        saveConfig: vi.fn(),
+        isSystemdTimerActive: async () => true,
+        runSystemctl,
+      }
+    );
+
+    expect(readFileSync(servicePath, 'utf8')).toContain('--curve physics');
+    expect(readFileSync(timerPath, 'utf8')).toContain('OnUnitActiveSec=120s');
+    expect(runSystemctl).toHaveBeenNthCalledWith(1, ['daemon-reload']);
+    expect(runSystemctl).toHaveBeenNthCalledWith(2, ['restart', 'amaran-circadian.timer']);
+  });
 });
