@@ -1,6 +1,14 @@
 ## Unreleased
 
+## [1.12.0] - 2026-09-13
+
 - **Breaking change**: Direct BLE is now the default command backend.
+- **Direct BLE**: Added authenticated Bluetooth Mesh transport with persisted source/sequence state, replay protection, verified fixture readback, and loopback-only daemon/service management.
+- **Lighting**: Added verified power, brightness, CCT, 150c G/M and HSI, relative adjustments, transitions, broadcast/batch control, groups, scenes, presets, quickshots, native effects, and effect restoration.
+- **Cooling**: Added all native fan command modes, explicit manual RPM encoding, advertised-capability checks, thermal-lockout handling, and readback verification.
+- **Mesh**: Added native group subscriptions, mesh inspection, unprovisioned discovery, Device Key import, and safe local library persistence.
+- **Programs**: Added timelines and bounded local audio, image, camera, and microphone-driven lighting programs.
+- **Desktop migration**: Added retargetable import for quickshots, workspaces, and all eleven supported legacy effect-preset types.
 - **Feature**: Added `--backend desktop` as the explicit Amaran Desktop WebSocket backend.
 - **Compatibility**: `--backend websocket` and existing `backend: "websocket"` configuration remain supported aliases.
 - **Service**: Newly installed circadian LaunchAgents explicitly run `auto-cct --backend ble`.
@@ -11,7 +19,9 @@
 - **Dashboard**: Kept the natural intensity curve visible above the service ceiling and added uncapped/applied values to graph tooltips.
 - **Dashboard**: Added modeled actual-sunlight lux and measured system-capacity curves so daylight can visibly exceed fixture output.
 - **Dashboard**: Added persistent circadian service controls for enablement, interval, curve, weather, location, Kelvin bounds, and intensity bounds, with immediate graph recalculation and clear-sky weather deltas.
+- **Dashboard**: Added a local SVG favicon and per-model lux calibration support for 200x, 200x S, and 150c fixtures.
 - **Fix**: Clamp automatic CCT per BLE fixture capability so broad dashboard schedule bounds cannot block all service updates.
+- **Release**: Authenticate npm publication with the repository publishing token while retaining signed provenance.
 
 ## [1.11.2] - 2026-07-25
 

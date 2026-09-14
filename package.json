@@ -1,6 +1,6 @@
 {
   "name": "amaran-light-cli",
-  "version": "1.11.2",
+  "version": "1.12.0",
   "type": "module",
   "description": "CLI and local web dashboard for verified direct-Bluetooth or Desktop control of Aputure Amaran lights.",
   "main": "dist/index.js",
