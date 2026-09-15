@@ -116,7 +116,7 @@ describe('circadian dashboard settings', () => {
       servicePath,
       '[Service]\nExecStart=/usr/local/bin/amaran-cli auto-cct --backend ble --service-mode --curve cie-daylight\n'
     );
-    writeFileSync(timerPath, '[Timer]\nOnUnitActiveSec=60s\n');
+    writeFileSync(timerPath, '[Timer]\nOnBootSec=45s\nOnUnitActiveSec=60s\n');
     const runSystemctl = vi.fn(async () => undefined);
 
     await updateCircadianDashboardSettings(
@@ -132,6 +132,8 @@ describe('circadian dashboard settings', () => {
     );
 
     expect(readFileSync(servicePath, 'utf8')).toContain('--curve physics');
+    expect(readFileSync(timerPath, 'utf8')).toContain('OnActiveSec=45s');
+    expect(readFileSync(timerPath, 'utf8')).not.toContain('OnBootSec=');
     expect(readFileSync(timerPath, 'utf8')).toContain('OnUnitActiveSec=120s');
     expect(runSystemctl).toHaveBeenNthCalledWith(1, ['daemon-reload']);
     expect(runSystemctl).toHaveBeenNthCalledWith(2, ['restart', 'amaran-circadian.timer']);

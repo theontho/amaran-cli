@@ -165,7 +165,7 @@ describe('DashboardStore', () => {
     expect(dashboardFavicon).toContain('<svg');
     expect(dashboardFavicon).toContain('viewBox="0 0 64 64"');
     expect(dashboardHtml).toContain('Save circadian settings');
-    expect(dashboardJs).toContain("api('/dashboard/circadian')");
+    expect(dashboardJs).toContain("api('/dashboard/circadian'");
     expect(dashboardJs).toContain("api('/dashboard/circadian/settings'");
     expect(dashboardJs).toContain('onpointermove');
     expect(dashboardJs).toContain('100%</text>');
@@ -174,5 +174,7 @@ describe('DashboardStore', () => {
     expect(dashboardJs).toContain('Actual sunlight ');
     expect(dashboardJs).toContain('System capacity ');
     expect(dashboardJs).toContain(' vs clear');
+    expect(dashboardJs).toContain('AbortSignal.timeout(timeoutMs)');
+    expect(dashboardJs).toContain('Promise.allSettled([refreshStatus(),circadianRefresh])');
   });
 });

@@ -107,7 +107,9 @@ async function updateSystemdSettings(
   const timer = readFileSync(timerPath, 'utf8');
   const intervalSeconds = update.intervalSeconds ?? parseSystemdInterval(timer) ?? 60;
   const nextService = service.replace(/(--curve\s+)\S+/, `$1${configuredCurve}`);
-  const nextTimer = timer.replace(/^(OnUnitActiveSec=).+$/m, `$1${intervalSeconds}s`);
+  const nextTimer = timer
+    .replace(/^OnBootSec=/m, 'OnActiveSec=')
+    .replace(/^(OnUnitActiveSec=).+$/m, `$1${intervalSeconds}s`);
   const changed = nextService !== service || nextTimer !== timer;
   if (nextService !== service) writeFileSync(servicePath, nextService);
   if (nextTimer !== timer) writeFileSync(timerPath, nextTimer);
