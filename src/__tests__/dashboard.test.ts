@@ -185,5 +185,8 @@ describe('DashboardStore', () => {
     expect(dashboardCss).toContain('.graph-tip-capacity:before');
     expect(dashboardJs).toContain('AbortSignal.timeout(timeoutMs)');
     expect(dashboardJs).toContain('Promise.allSettled([refreshStatus(),circadianRefresh])');
+    expect(dashboardJs).toContain('light.capabilities.hsi_support?1000:light.capabilities.cct_min');
+    expect(dashboardJs).toContain("'Simulated '+simulated+'K'");
+    expect(dashboardJs).toContain("usesSimulation?'simulated-cct':'cct'");
   });
 });

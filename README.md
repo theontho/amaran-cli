@@ -166,6 +166,8 @@ diagnostics. It is loopback-only, loads no remote code, and does not expose mesh
 the fixtures' full 0-100% brightness range without an artificial output cap. In CCT mode, fixture cards also show
 estimated lux from the configured Kelvin-dependent `maxLux` calibration, scaled by verified brightness. Optional
 `maxLuxByModel` entries for `200x`, `200x-s`, and `150c` override the shared curve per fixture model. Dashboard
+fixture sliders keep native CCT limits for bi-color lights, while the 150c extends down to 1000K and labels values
+below its native 2500K floor as simulated before applying the corresponding verified HSI color.
 preferences and the last timestamped observed status are stored beside the private BLE configuration as
 `dashboard-settings.json` and `dashboard-status.json`. A circadian panel shows whether the LaunchAgent is loaded and
 recently updating, its latest requested target, current verified fixture output, active curve, weather adjustment

@@ -390,6 +390,23 @@ describe('verified command execution', () => {
       strategy: 'cct',
       state: { sleep: false, mode: 'cct', cct: 3000 },
     });
+
+    const manualLink = fakeLink();
+    const manualBack = manualLink.states.get(10);
+    if (!manualBack) throw new Error('Missing 150c');
+    manualBack.sleep = false;
+    const manual = new VerifiedController(config, manualLink);
+    await expect(manual.execute('back', 'simulated-cct', { kelvin: 1500, brightness: 4 })).resolves.toMatchObject({
+      sleep: false,
+      mode: 'hsi',
+      hue: 25,
+      sat: 100,
+      intensity: 40,
+    });
+    expect(manual.overrideStatus(['back']).back).toBeGreaterThan(0);
+    await expect(manual.execute('desk', 'simulated-cct', { kelvin: 2000 })).rejects.toThrow(
+      'does not support simulated CCT'
+    );
   });
 
   it('persists manual overrides and checks them atomically before automatic CCT', async () => {

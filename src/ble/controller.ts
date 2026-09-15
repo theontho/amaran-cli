@@ -73,6 +73,7 @@ const ARGUMENTS: Record<string, string[]> = {
   'increment-brightness': ['delta'],
   'increment-cct': ['delta', 'brightness'],
   cct: ['kelvin', 'brightness', 'gm'],
+  'simulated-cct': ['kelvin', 'brightness'],
   gm: ['value'],
   hsi: ['hue', 'saturation', 'brightness'],
   color: ['color', 'brightness'],
@@ -92,8 +93,12 @@ export function validateAction(light: MeshLight, action: string, body: Record<st
   if (action === 'brightness' || action === 'effect-intensity') numberInRange(body.value, 'brightness', 0, 100);
   if (action === 'increment-brightness') numberInRange(body.delta, 'brightness delta', -100, 100);
   if (action === 'increment-cct') numberInRange(body.delta, 'CCT delta', -7500, 7500);
-  if (action === 'cct' || body.kelvin !== undefined)
+  if (action === 'simulated-cct') {
+    if (!caps.hsi_support) throw new Error(`${light.name} does not support simulated CCT`);
+    numberInRange(body.kelvin, `${light.name} simulated CCT`, 1000, caps.cct_max);
+  } else if (action === 'cct' || body.kelvin !== undefined) {
     numberInRange(body.kelvin, `${light.name} CCT`, caps.cct_min, caps.cct_max);
+  }
   if (action === 'gm' || body.gm !== undefined) {
     if (!caps.gm_support) throw new Error(`${light.name} does not support G/M`);
     numberInRange(action === 'gm' ? body.value : body.gm, 'G/M', -100, 100);
@@ -872,6 +877,11 @@ export class VerifiedController {
       if (previous.mode !== 'cct')
         throw new Error('G/M adjustment is supported in CCT mode; advanced HSI tint is not supported by the 150c');
       return this.prepare(light, 'cct', { kelvin: previous.cct, gm: body.value }, previous);
+    }
+    if (action === 'simulated-cct') {
+      const kelvin = numberInRange(body.kelvin, 'simulated CCT', 1000, caps.cct_max);
+      if (kelvin >= caps.cct_min) return this.prepare(light, 'cct', body, previous);
+      return this.prepare(light, 'hsi', { ...kelvinToHSI(kelvin), brightness: body.brightness }, previous);
     }
     if (action === 'color')
       return this.prepare(
