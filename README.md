@@ -317,8 +317,10 @@ The `auto-cct` command automatically adjusts color temperature based on sunrise/
 - **Between sunrise and sunset**: Smooth bell curve transition from 2000K/5% → 6500K/100% → 2000K/5%
 
 This mimics natural daylight changes throughout the day for more comfortable, circadian-friendly lighting. Both color temperature and brightness follow the same curve, providing natural dimming at dawn/dusk.
-When a configured schedule extends beyond a fixture's advertised CCT range, direct BLE automation clamps the target
-for that fixture instead of failing the entire multi-light update.
+Direct BLE automation handles targets outside each fixture's native range independently. Above the maximum it clamps
+to the fixture maximum. Below the minimum, color-capable fixtures simulate the blackbody color in HSI mode, while
+fixtures without color control turn off. Automatically turned-off fixtures wake when the schedule returns to their
+native range; lights turned off manually remain off.
 
 #### Location Priority
 

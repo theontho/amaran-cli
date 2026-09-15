@@ -322,7 +322,10 @@ function handleAutoCct(deps: CommandDeps) {
         typeof capabilities?.cct_max === 'number' && Number.isFinite(capabilities.cct_max)
           ? capabilities.cct_max
           : undefined;
-      const deviceCct = Math.min(maximumCct ?? result.cct, Math.max(minimumCct ?? result.cct, result.cct));
+      const deviceCct =
+        device.backend === 'ble'
+          ? result.cct
+          : Math.min(maximumCct ?? result.cct, Math.max(minimumCct ?? result.cct, result.cct));
 
       console.log(`  Setting ${displayName} (${device.node_id}) to ${deviceCct}K at ${percent}%`);
       const set = controller.setAutomaticCCT?.bind(controller) ?? controller.setCCT.bind(controller);

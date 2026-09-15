@@ -146,7 +146,7 @@ describe('auto-cct command', () => {
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
-  test('clamps automatic CCT to each BLE fixture capability', async () => {
+  test('passes the full schedule target to model-aware BLE automation', async () => {
     const setAutomaticCCT = vi.fn(
       (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {
         cb?.(true, 'ok');
@@ -178,6 +178,6 @@ describe('auto-cct command', () => {
 
     await program.parseAsync(['node', 'test', 'auto-cct']);
 
-    expect(setAutomaticCCT).toHaveBeenCalledWith('desk', 5500, 500, expect.any(Function));
+    expect(setAutomaticCCT).toHaveBeenCalledWith('desk', 5600, 500, expect.any(Function));
   });
 });

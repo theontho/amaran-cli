@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { kelvinToHSI } from '../ble/colors.js';
 import { capabilities, type MeshLink, VerifiedController, validateAction } from '../ble/controller.js';
 import { cmac, MeshCrypto } from '../ble/crypto.js';
 import { EFFECTS, effectPacket } from '../ble/effects.js';
@@ -356,6 +357,41 @@ describe('persistent mesh sequence identity', () => {
 });
 
 describe('verified command execution', () => {
+  it('simulates sub-minimum CCT with HSI and automatically sleeps unsupported fixtures', async () => {
+    expect(kelvinToHSI(2500)).toEqual({ hue: 29, saturation: 73 });
+    expect(kelvinToHSI(2000)).toEqual({ hue: 31, saturation: 95 });
+    expect(kelvinToHSI(1500)).toEqual({ hue: 25, saturation: 100 });
+    expect(kelvinToHSI(1000)).toEqual({ hue: 16, saturation: 100 });
+
+    const directory = mkdtempSync(path.join(tmpdir(), 'amaran-automatic-off-'));
+    dirs.push(directory);
+    const link = fakeLink();
+    const desk = link.states.get(6);
+    const back = link.states.get(10);
+    if (!desk || !back) throw new Error('Missing fixtures');
+    desk.sleep = false;
+    back.sleep = false;
+    const controller = new VerifiedController(config, link, new LocalLibrary(directory));
+
+    await expect(controller.automaticCct('desk', { kelvin: 2500, brightness: 5 })).resolves.toMatchObject({
+      skipped: false,
+      strategy: 'off',
+      state: { sleep: true },
+    });
+    await expect(controller.automaticCct('back', { kelvin: 2000, brightness: 5 })).resolves.toMatchObject({
+      skipped: false,
+      strategy: 'hsi',
+      state: { sleep: false, mode: 'hsi', hue: 31, sat: 95, intensity: 50 },
+    });
+
+    const restarted = new VerifiedController(config, link, new LocalLibrary(directory));
+    await expect(restarted.automaticCct('desk', { kelvin: 3000, brightness: 5 })).resolves.toMatchObject({
+      skipped: false,
+      strategy: 'cct',
+      state: { sleep: false, mode: 'cct', cct: 3000 },
+    });
+  });
+
   it('persists manual overrides and checks them atomically before automatic CCT', async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'amaran-override-'));
     dirs.push(directory);

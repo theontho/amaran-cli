@@ -128,16 +128,31 @@ export default class BleHttpController {
             skipped: z.literal(true),
             reason: z.enum(['manual-override', 'light-off', 'thermal-protection', 'stopped-cooling']),
           }),
-          z.object({ skipped: z.literal(false), state: z.unknown() }),
+          z.object({ skipped: z.literal(false), strategy: z.enum(['cct', 'hsi', 'off']), state: z.unknown() }),
         ])
         .parse(response.result);
       if (!result.skipped && response.verified !== true) throw new Error('Automatic CCT was not verified');
       if (!result.skipped) {
         const state = this.stateRecord(result.state);
-        if (state.mode !== 'cct' || typeof state.cct !== 'number')
-          throw new Error('Automatic CCT returned invalid state');
+        if (
+          (result.strategy === 'cct' && (state.mode !== 'cct' || typeof state.cct !== 'number')) ||
+          (result.strategy === 'hsi' &&
+            (state.mode !== 'hsi' || typeof state.hue !== 'number' || typeof state.sat !== 'number')) ||
+          (result.strategy === 'off' && state.sleep !== true)
+        )
+          throw new Error('Automatic color-temperature control returned invalid state');
       }
-      callback?.(true, result.skipped ? `Skipped: ${result.reason}` : 'OK', result);
+      callback?.(
+        true,
+        result.skipped
+          ? `Skipped: ${result.reason}`
+          : result.strategy === 'hsi'
+            ? 'OK: simulated with HSI'
+            : result.strategy === 'off'
+              ? 'OK: turned off below native CCT range'
+              : 'OK',
+        result
+      );
     } catch (error) {
       callback?.(false, (error as Error).message);
     }

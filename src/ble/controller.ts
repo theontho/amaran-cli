@@ -1,5 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { colorToHSI } from './colors.js';
+import { colorToHSI, kelvinToHSI } from './colors.js';
 import { readComposition } from './configuration.js';
 import { desktopDeviceKeys } from './desktop.js';
 import {
@@ -169,6 +169,7 @@ export class VerifiedController {
   private stopping = false;
   private readonly steadyStates = new Map<string, FixtureState>();
   private readonly manualOverrides = new Map<string, number>();
+  private readonly automaticOff = new Set<string>();
 
   constructor(
     readonly config: MeshConfig,
@@ -226,14 +227,23 @@ export class VerifiedController {
     if (!light) throw new Error(`Unknown fixture: ${key}`);
     return light;
   }
-  private hold(keys: string[], minutes = 30, replace = false): void {
+  private hold(keys: string[], minutes = 30, replace = false, clearAutomaticOff = true): void {
     const until = minutes === 0 ? 0 : Date.now() + minutes * 60_000;
     for (const key of keys) {
+      if (clearAutomaticOff) this.setAutomaticOff(key, false);
       const current = this.history?.getOverride?.(key) ?? this.manualOverrides.get(key) ?? 0;
       const expires = replace ? until : Math.max(until, current);
       this.manualOverrides.set(key, expires);
       this.history?.setOverride?.(key, expires);
     }
+  }
+  private isAutomaticOff(key: string): boolean {
+    return this.history?.getAutomaticOff?.(key) ?? this.automaticOff.has(key);
+  }
+  private setAutomaticOff(key: string, off: boolean): void {
+    if (off) this.automaticOff.add(key);
+    else this.automaticOff.delete(key);
+    this.history?.setAutomaticOff?.(key, off);
   }
   overrideStatus(keys: string[]): Record<string, number> {
     for (const key of keys) this.light(key);
@@ -249,7 +259,7 @@ export class VerifiedController {
     for (const key of keys) this.light(key);
     numberInRange(minutes, 'override minutes', 0, 1440);
     return this.serialize(async () => {
-      this.hold(keys, minutes, true);
+      this.hold(keys, minutes, true, false);
       return this.overrideStatus(keys);
     }, signal);
   }
@@ -263,16 +273,34 @@ export class VerifiedController {
   }
   async automaticCct(key: string, body: Record<string, unknown>, signal?: AbortSignal) {
     const light = this.light(key);
-    validateAction(light, 'cct', body);
+    const kelvin = numberInRange(body.kelvin, 'simulated CCT', 1000, 40000);
+    if (body.brightness !== undefined) numberInRange(body.brightness, 'brightness', 0, 100);
     return this.serialize(async () => {
       if (this.overrideStatus([key])[key] > 0) return { skipped: true as const, reason: 'manual-override' };
       const state = await this.readWithReconnect(light.address, signal);
-      if (state.sleep) return { skipped: true as const, reason: 'light-off' };
+      const wasAutomaticOff = this.isAutomaticOff(key);
+      if (state.sleep && !wasAutomaticOff) return { skipped: true as const, reason: 'light-off' };
+      const caps = capabilities(light);
+      if (kelvin < caps.cct_min && !caps.hsi_support) {
+        if (!state.sleep) await this.apply(this.prepare(light, 'off', {}, state), signal);
+        this.setAutomaticOff(key, true);
+        return { skipped: false as const, strategy: 'off' as const, state: { ...state, sleep: true } };
+      }
       const fan = await this.readFanWithReconnect(light.address, signal);
       if (fan.highTemperature) return { skipped: true as const, reason: 'thermal-protection' };
       if (fan.mode === FAN_MODES.off || (fan.mode === FAN_MODES.manual && fan.speed === 0))
         return { skipped: true as const, reason: 'stopped-cooling' };
-      return { skipped: false as const, state: await this.apply(this.prepare(light, 'cct', body, state), signal) };
+      const strategy = kelvin < caps.cct_min ? ('hsi' as const) : ('cct' as const);
+      const prepared = (() => {
+        if (strategy === 'hsi') {
+          const target = kelvinToHSI(kelvin);
+          return this.prepare(light, 'hsi', { ...target, brightness: body.brightness }, state);
+        }
+        return this.prepare(light, 'cct', { ...body, kelvin: Math.min(kelvin, caps.cct_max) }, state);
+      })();
+      const applied = await this.apply(prepared, signal);
+      this.setAutomaticOff(key, false);
+      return { skipped: false as const, strategy, state: applied };
     }, signal);
   }
   async productInfo(key: string): Promise<ProductInfo> {

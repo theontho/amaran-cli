@@ -57,6 +57,7 @@ const Schema = z.object({
   groups: z.array(Group).max(128),
   steady: z.record(SavedStateSchema),
   overrides: z.record(z.number().int().nonnegative()).default({}),
+  automaticOff: z.record(z.boolean()).default({}),
 });
 export type LibraryCollection = 'scenes' | 'presets' | 'quickshots';
 export type LibraryEntry = z.infer<typeof Entry>;
@@ -69,6 +70,8 @@ export interface SteadyHistory {
   saveSteady(key: string, state: FixtureState): void;
   getOverride?(key: string): number | undefined;
   setOverride?(key: string, until: number): void;
+  getAutomaticOff?(key: string): boolean;
+  setAutomaticOff?(key: string, off: boolean): void;
 }
 
 export class LocalLibrary implements SteadyHistory {
@@ -80,6 +83,7 @@ export class LocalLibrary implements SteadyHistory {
     groups: [],
     steady: {},
     overrides: {},
+    automaticOff: {},
   };
   private readonly filename?: string;
   constructor(directory?: string) {
@@ -210,5 +214,14 @@ export class LocalLibrary implements SteadyHistory {
   }
   setOverride(key: string, until: number): void {
     this.commit({ ...this.data, overrides: { ...this.data.overrides, [key]: until } });
+  }
+  getAutomaticOff(key: string): boolean {
+    return this.data.automaticOff[key] === true;
+  }
+  setAutomaticOff(key: string, off: boolean): void {
+    const automaticOff = { ...this.data.automaticOff };
+    if (off) automaticOff[key] = true;
+    else delete automaticOff[key];
+    this.commit({ ...this.data, automaticOff });
   }
 }
