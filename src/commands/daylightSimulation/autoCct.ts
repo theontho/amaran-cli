@@ -33,6 +33,19 @@ export function registerAutoCct(program: Command, deps: CommandDeps) {
     .action(asyncCommand(handleAutoCct(deps)));
 }
 
+export function automaticCctForDevice(
+  target: number,
+  backend: unknown,
+  minimum: number | undefined,
+  maximum: number | undefined,
+  config: { extendCctBelowNative?: boolean; extendCctAboveNative?: boolean }
+): number {
+  if (backend !== 'ble') return Math.min(maximum ?? target, Math.max(minimum ?? target, target));
+  if (minimum !== undefined && target < minimum && config.extendCctBelowNative === false) return minimum;
+  if (maximum !== undefined && target > maximum && config.extendCctAboveNative === false) return maximum;
+  return target;
+}
+
 function handleAutoCct(deps: CommandDeps) {
   const { createController, loadConfig, findDevice } = deps;
 
@@ -118,6 +131,7 @@ function handleAutoCct(deps: CommandDeps) {
 
     const controller = await createController(options.url, options.clientId, options.debug, options.backend);
     const { result, percent } = calculation;
+    const config = loadConfig?.() ?? {};
 
     console.log(chalk.blue(`Setting CCT to ${result.cct}K at ${percent}% for active lights`));
     console.log(
@@ -322,10 +336,7 @@ function handleAutoCct(deps: CommandDeps) {
         typeof capabilities?.cct_max === 'number' && Number.isFinite(capabilities.cct_max)
           ? capabilities.cct_max
           : undefined;
-      const deviceCct =
-        device.backend === 'ble'
-          ? result.cct
-          : Math.min(maximumCct ?? result.cct, Math.max(minimumCct ?? result.cct, result.cct));
+      const deviceCct = automaticCctForDevice(result.cct, device.backend, minimumCct, maximumCct, config);
 
       console.log(`  Setting ${displayName} (${device.node_id}) to ${deviceCct}K at ${percent}%`);
       const set = controller.setAutomaticCCT?.bind(controller) ?? controller.setCCT.bind(controller);

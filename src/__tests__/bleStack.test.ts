@@ -1037,6 +1037,8 @@ describe('verified command execution', () => {
         weather: false,
         cctMin: 1700,
         cctMax: 6500,
+        extendCctBelowNative: true,
+        extendCctAboveNative: true,
         intensityMin: 5,
         intensityMax: 25,
       },

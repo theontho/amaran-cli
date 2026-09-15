@@ -37,6 +37,8 @@ export const ConfigSchema = z
     defaultCurve: z.string().trim().min(1).optional(),
     cctMin: z.number().min(1000).max(20000).optional(),
     cctMax: z.number().min(1000).max(20000).optional(),
+    extendCctBelowNative: z.boolean().optional(),
+    extendCctAboveNative: z.boolean().optional(),
     intensityMin: z.number().min(0).max(100).optional(),
     intensityMax: z.number().min(0).max(100).optional(),
     autoStartApp: z.boolean().optional(),

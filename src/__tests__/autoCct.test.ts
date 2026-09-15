@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { vi } from 'vitest';
+import { automaticCctForDevice } from '../commands/daylightSimulation/autoCct.js';
 import registerCommands from '../commands.js';
 import type LightController from '../deviceControl/lightControl.js';
 
@@ -179,5 +180,23 @@ describe('auto-cct command', () => {
     await program.parseAsync(['node', 'test', 'auto-cct']);
 
     expect(setAutomaticCCT).toHaveBeenCalledWith('desk', 5600, 500, expect.any(Function));
+  });
+
+  test('optionally clamps BLE targets to each fixture native range', () => {
+    expect(automaticCctForDevice(2000, 'ble', 2700, 6500, {})).toBe(2000);
+    expect(automaticCctForDevice(9000, 'ble', 2700, 6500, {})).toBe(9000);
+    expect(
+      automaticCctForDevice(2000, 'ble', 2700, 6500, {
+        extendCctBelowNative: false,
+        extendCctAboveNative: true,
+      })
+    ).toBe(2700);
+    expect(
+      automaticCctForDevice(9000, 'ble', 2700, 6500, {
+        extendCctBelowNative: true,
+        extendCctAboveNative: false,
+      })
+    ).toBe(6500);
+    expect(automaticCctForDevice(9000, 'desktop', 2700, 6500, {})).toBe(6500);
   });
 });

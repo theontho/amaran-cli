@@ -23,6 +23,8 @@ const CircadianSettingsSchema = z
     longitude: z.number().min(-180).max(180).nullable().optional(),
     cctMin: z.number().min(1000).max(20000).optional(),
     cctMax: z.number().min(1000).max(20000).optional(),
+    extendCctBelowNative: z.boolean().optional(),
+    extendCctAboveNative: z.boolean().optional(),
     intensityMin: z.number().min(0).max(100).optional(),
     intensityMax: z.number().min(0).max(100).optional(),
   })
@@ -48,7 +50,15 @@ export async function updateCircadianDashboardSettings(value: unknown, deps: Cir
     const parsed = parseCurveType(update.curve);
     config.defaultCurve = CurveType[parsed];
   }
-  for (const key of ['weather', 'cctMin', 'cctMax', 'intensityMin', 'intensityMax'] as const) {
+  for (const key of [
+    'weather',
+    'cctMin',
+    'cctMax',
+    'extendCctBelowNative',
+    'extendCctAboveNative',
+    'intensityMin',
+    'intensityMax',
+  ] as const) {
     if (update[key] !== undefined) config[key] = update[key];
   }
   for (const key of ['latitude', 'longitude'] as const) {

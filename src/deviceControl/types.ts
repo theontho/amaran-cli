@@ -125,6 +125,8 @@ export interface Config {
   defaultCurve?: string;
   cctMin?: number;
   cctMax?: number;
+  extendCctBelowNative?: boolean;
+  extendCctAboveNative?: boolean;
   intensityMin?: number;
   intensityMax?: number;
   autoStartApp?: boolean;

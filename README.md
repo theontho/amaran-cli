@@ -179,8 +179,10 @@ maximum with a dotted limit line. The natural intensity curve continues above th
 uncapped schedule and the value the service will actually apply. A separate **Actual sunlight lux (modeled)** curve
 continues beyond the fixtures' measured lux capacity, which is shown as its own dashed reference. The same panel can
 persistently enable or disable the service and edit its curve, live-weather adjustment, interval, location, Kelvin
-bounds, and intensity bounds. Saving immediately recalculates the graph; active weather shows cloud/precipitation
-details and its current intensity, Kelvin, and sunlight-lux difference from clear-sky output.
+bounds, intensity bounds, and whether each fixture may go below or above its native Kelvin range. Disabling a range
+extension clamps fixtures to that boundary instead; enabling the lower extension retains automatic nighttime sleep
+for fixtures without HSI. Saving immediately recalculates the graph; active weather shows cloud/precipitation details
+and its current intensity, Kelvin, and sunlight-lux difference from clear-sky output.
 
 Desktop import previews by default and never changes fixture output. With `--apply`, Desktop quickshots become local
 quickshots, explicit workspace membership becomes local groups, and all eleven supported legacy effect types become

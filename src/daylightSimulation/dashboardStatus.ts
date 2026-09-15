@@ -47,6 +47,8 @@ export interface CircadianDashboardStatus {
     longitude?: number;
     cctMin: number;
     cctMax: number;
+    extendCctBelowNative: boolean;
+    extendCctAboveNative: boolean;
     intensityMin: number;
     intensityMax: number;
   };
@@ -126,6 +128,8 @@ export async function getCircadianDashboardStatus(deps: CircadianDashboardDeps):
       longitude: config.longitude,
       cctMin: config.cctMin ?? CCT_DEFAULTS.cctMinK,
       cctMax: config.cctMax ?? CCT_DEFAULTS.cctMaxK,
+      extendCctBelowNative: config.extendCctBelowNative !== false,
+      extendCctAboveNative: config.extendCctAboveNative !== false,
       intensityMin: config.intensityMin ?? CCT_DEFAULTS.intensityMinPct,
       intensityMax: config.intensityMax ?? CCT_DEFAULTS.intensityMaxPct,
     },

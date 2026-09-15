@@ -126,6 +126,8 @@ describe('DashboardStore', () => {
       intervalSeconds: 60,
       curve: 'cie-daylight',
       weather: false,
+      extendCctBelowNative: true,
+      extendCctAboveNative: true,
       intensityMin: 5,
       intensityMax: 25,
     });
@@ -182,6 +184,8 @@ describe('DashboardStore', () => {
     expect(dashboardFavicon).toContain('<svg');
     expect(dashboardFavicon).toContain('viewBox="0 0 64 64"');
     expect(dashboardHtml).toContain('Save circadian settings');
+    expect(dashboardHtml).toContain('Go below fixture Kelvin range');
+    expect(dashboardHtml).toContain('Go above fixture Kelvin range');
     expect(dashboardJs).toContain("api('/dashboard/circadian'");
     expect(dashboardJs).toContain("api('/dashboard/circadian/settings'");
     expect(dashboardJs).toContain('onpointermove');
@@ -200,5 +204,7 @@ describe('DashboardStore', () => {
     expect(dashboardJs).toContain('value<light.capabilities.cct_min||value>light.capabilities.cct_max');
     expect(dashboardJs).toContain('data-card-lux-target');
     expect(dashboardJs).toContain('brightnessFromLux');
+    expect(dashboardJs).toContain('extendCctBelowNative');
+    expect(dashboardJs).toContain('extendCctAboveNative');
   });
 });
