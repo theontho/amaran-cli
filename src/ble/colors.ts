@@ -39,6 +39,25 @@ export function colorToHSI(value: unknown): { hue: number; saturation: number } 
 export function kelvinToHSI(kelvin: number): { hue: number; saturation: number } {
   if (!Number.isFinite(kelvin) || kelvin < 1000 || kelvin > 40000)
     throw new Error('Simulated CCT must be a finite number between 1000 and 40000');
+  if (kelvin <= 2500) {
+    // The 2500K boundary is camera-matched to the 150c's native CCT output; lower anchors preserve a gradual warm shift.
+    const anchors = [
+      { kelvin: 1000, hue: 16, saturation: 100 },
+      { kelvin: 1500, hue: 25, saturation: 79 },
+      { kelvin: 2000, hue: 31, saturation: 58 },
+      { kelvin: 2400, hue: 33, saturation: 36 },
+      { kelvin: 2500, hue: 33, saturation: 36 },
+    ];
+    const upper = anchors.findIndex((anchor) => anchor.kelvin >= kelvin);
+    if (upper <= 0) return { hue: anchors[0].hue, saturation: anchors[0].saturation };
+    const left = anchors[upper - 1];
+    const right = anchors[upper];
+    const fraction = (kelvin - left.kelvin) / (right.kelvin - left.kelvin);
+    return {
+      hue: Math.round(left.hue + (right.hue - left.hue) * fraction),
+      saturation: Math.round(left.saturation + (right.saturation - left.saturation) * fraction),
+    };
+  }
   const temperature = kelvin / 100;
   const red = temperature <= 66 ? 255 : 329.698727446 * (temperature - 60) ** -0.1332047592;
   const green =

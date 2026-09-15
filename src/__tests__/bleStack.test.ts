@@ -358,9 +358,11 @@ describe('persistent mesh sequence identity', () => {
 
 describe('verified command execution', () => {
   it('simulates sub-minimum CCT with HSI and automatically sleeps unsupported fixtures', async () => {
-    expect(kelvinToHSI(2500)).toEqual({ hue: 29, saturation: 73 });
-    expect(kelvinToHSI(2000)).toEqual({ hue: 31, saturation: 95 });
-    expect(kelvinToHSI(1500)).toEqual({ hue: 25, saturation: 100 });
+    expect(kelvinToHSI(2500)).toEqual({ hue: 33, saturation: 36 });
+    expect(kelvinToHSI(2400)).toEqual({ hue: 33, saturation: 36 });
+    expect(kelvinToHSI(2200)).toEqual({ hue: 32, saturation: 47 });
+    expect(kelvinToHSI(2000)).toEqual({ hue: 31, saturation: 58 });
+    expect(kelvinToHSI(1500)).toEqual({ hue: 25, saturation: 79 });
     expect(kelvinToHSI(1000)).toEqual({ hue: 16, saturation: 100 });
 
     const directory = mkdtempSync(path.join(tmpdir(), 'amaran-automatic-off-'));
@@ -381,7 +383,7 @@ describe('verified command execution', () => {
     await expect(controller.automaticCct('back', { kelvin: 2000, brightness: 5 })).resolves.toMatchObject({
       skipped: false,
       strategy: 'hsi',
-      state: { sleep: false, mode: 'hsi', hue: 31, sat: 95, intensity: 50 },
+      state: { sleep: false, mode: 'hsi', hue: 31, sat: 58, intensity: 50 },
     });
 
     const restarted = new VerifiedController(config, link, new LocalLibrary(directory));
@@ -400,7 +402,7 @@ describe('verified command execution', () => {
       sleep: false,
       mode: 'hsi',
       hue: 25,
-      sat: 100,
+      sat: 79,
       intensity: 40,
     });
     expect(manual.overrideStatus(['back']).back).toBeGreaterThan(0);
