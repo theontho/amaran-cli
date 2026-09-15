@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Script } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DashboardStore, dashboardFavicon, dashboardHtml, dashboardJs, estimateLux } from '../ble/dashboard.js';
+import {
+  DashboardStore,
+  dashboardCss,
+  dashboardFavicon,
+  dashboardHtml,
+  dashboardJs,
+  estimateLux,
+} from '../ble/dashboard.js';
 import { getCircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 
 describe('DashboardStore', () => {
@@ -174,6 +181,8 @@ describe('DashboardStore', () => {
     expect(dashboardJs).toContain('Actual sunlight ');
     expect(dashboardJs).toContain('System capacity ');
     expect(dashboardJs).toContain(' vs clear');
+    expect(dashboardJs).toContain('graph-tip-row graph-tip-kelvin');
+    expect(dashboardCss).toContain('.graph-tip-capacity:before');
     expect(dashboardJs).toContain('AbortSignal.timeout(timeoutMs)');
     expect(dashboardJs).toContain('Promise.allSettled([refreshStatus(),circadianRefresh])');
   });

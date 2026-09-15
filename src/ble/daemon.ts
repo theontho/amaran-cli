@@ -64,9 +64,6 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
       });
     });
     console.log(`BLE API listening at http://127.0.0.1:${port}`);
-    void link.connect().catch((error) => {
-      console.error(`Initial BLE connection failed; serving dashboard while disconnected: ${(error as Error).message}`);
-    });
   } catch (error) {
     process.removeListener('SIGINT', stop);
     process.removeListener('SIGTERM', stop);
