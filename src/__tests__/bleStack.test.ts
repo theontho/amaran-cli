@@ -821,12 +821,12 @@ describe('verified command execution', () => {
     await expect(new VerifiedController(config, link).fan('desk', 'medium')).rejects.toThrow('Thermal protection');
     expect(link.send).toHaveBeenCalledOnce();
   });
-  it('reconnects fan reads and rejects cancelled or empty operations before mutation', async () => {
+  it('retries fan reads and rejects cancelled or empty operations before mutation', async () => {
     const link = fakeLink();
     const controller = new VerifiedController(config, link);
     link.readFan.mockRejectedValueOnce(new Error('disconnected'));
     await expect(controller.fan('back')).resolves.toMatchObject({ mode: 1, rpmStatus: 'rotation-reported' });
-    expect(link.connect).toHaveBeenCalledOnce();
+    expect(link.connect).not.toHaveBeenCalled();
     await expect(controller.fans([], 'medium')).rejects.toThrow('nonempty');
     await expect(controller.fans(['back', 'back'], 'medium')).rejects.toThrow('unique');
     const cancel = new AbortController();
@@ -960,9 +960,18 @@ describe('verified command execution', () => {
     ]);
     expect(results.map((state) => state.sleep)).toEqual([false, true]);
   });
-  it('reconnects after a failed state read', async () => {
+  it('retries the current proxy before reconnecting after failed state reads', async () => {
     const link = fakeLink();
     vi.mocked(link.readState).mockRejectedValueOnce(new Error('disconnected'));
+    await expect(new VerifiedController(config, link).execute('desk', 'state', {})).resolves.toMatchObject({
+      ...initial,
+      observedAt: expect.any(String),
+    });
+    expect(link.connect).not.toHaveBeenCalled();
+
+    vi.mocked(link.readState)
+      .mockRejectedValueOnce(new Error('disconnected'))
+      .mockRejectedValueOnce(new Error('still disconnected'));
     await expect(new VerifiedController(config, link).execute('desk', 'state', {})).resolves.toMatchObject({
       ...initial,
       observedAt: expect.any(String),

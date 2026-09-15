@@ -1002,7 +1002,7 @@ export class VerifiedController {
         lastError = error;
         console.error(`${item.light.name} attempt ${attempt + 1}/3 failed: ${(error as Error).message}`);
         if (attempt < 2) {
-          await this.link.disconnect();
+          if (attempt > 0 || !this.link.ready) await this.link.disconnect();
           await delay(300);
         }
       }
@@ -1021,18 +1021,24 @@ export class VerifiedController {
   }
 
   private async telemetryWithReconnect<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       signal?.throwIfAborted();
       try {
         if (!this.link.ready) await this.link.connect();
         signal?.throwIfAborted();
         return await read();
       } catch (error) {
-        if (attempt === 1 || signal?.aborted) throw error;
-        console.error(`BLE telemetry read failed; reconnecting: ${(error as Error).message}`);
-        await this.link.disconnect();
+        if (attempt === 2 || signal?.aborted) throw error;
+        if (attempt === 0 && this.link.ready) {
+          console.error(`BLE telemetry read failed; retrying current proxy: ${(error as Error).message}`);
+          await delay(200);
+        } else {
+          console.error(`BLE telemetry retry failed; reconnecting: ${(error as Error).message}`);
+          await this.link.disconnect();
+        }
       }
     }
+    throw new Error('BLE telemetry retries exhausted');
   }
 
   async stop(): Promise<void> {
