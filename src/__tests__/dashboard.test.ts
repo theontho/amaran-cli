@@ -4,12 +4,14 @@ import path from 'node:path';
 import { Script } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  brightnessForLux,
   DashboardStore,
   dashboardCss,
   dashboardFavicon,
   dashboardHtml,
   dashboardJs,
   estimateLux,
+  simulatedCctForState,
 } from '../ble/dashboard.js';
 import { getCircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
 
@@ -35,6 +37,7 @@ describe('DashboardStore', () => {
       connected: true,
       lighting: {},
       fans: {},
+      simulatedCct: {},
       estimatedLux: {},
     });
 
@@ -68,6 +71,13 @@ describe('DashboardStore', () => {
     expect(estimateLux(8000, { ...state, intensity: 250 })).toBe(2000);
     expect(estimateLux(8000, { ...state, sleep: true })).toBe(0);
     expect(estimateLux(8000, { ...state, mode: 'hsi', hue: 0, sat: 100 })).toBeNull();
+    expect(
+      estimateLux({ 1000: 1900, 2500: 4160 }, { ...state, mode: 'hsi', hue: 32, sat: 90, intensity: 500 }, 1000)
+    ).toBe(950);
+    expect(brightnessForLux({ 2500: 4160, 7500: 5600 }, 5000, 2500)).toBe(51);
+    expect(brightnessForLux({ 2500: 4160 }, 2500, 9000)).toBe(100);
+    expect(simulatedCctForState({ ...state, mode: 'hsi', hue: 210, sat: 20 }, 2500, 7500)).toBe(9000);
+    expect(simulatedCctForState({ ...state, mode: 'hsi', hue: 120, sat: 50 }, 2500, 7500)).toBeUndefined();
   });
 
   it('reports the loaded circadian service, latest target, weather state, and capped daily schedule', async () => {
@@ -185,8 +195,10 @@ describe('DashboardStore', () => {
     expect(dashboardCss).toContain('.graph-tip-capacity:before');
     expect(dashboardJs).toContain('AbortSignal.timeout(timeoutMs)');
     expect(dashboardJs).toContain('Promise.allSettled([refreshStatus(),circadianRefresh])');
-    expect(dashboardJs).toContain('light.capabilities.hsi_support?1000:light.capabilities.cct_min');
+    expect(dashboardJs).toContain('light.capabilities.hsi_support?20000:light.capabilities.cct_max');
     expect(dashboardJs).toContain("'Simulated '+simulated+'K'");
-    expect(dashboardJs).toContain("usesSimulation?'simulated-cct':'cct'");
+    expect(dashboardJs).toContain('value<light.capabilities.cct_min||value>light.capabilities.cct_max');
+    expect(dashboardJs).toContain('data-card-lux-target');
+    expect(dashboardJs).toContain('brightnessFromLux');
   });
 });

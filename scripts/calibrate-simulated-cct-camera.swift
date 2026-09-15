@@ -82,13 +82,26 @@ func runCurl(_ path: String, body: String) throws {
 
 func setBack(_ body: String, action: String) throws {
   try runCurl("/lights/back/\(action)", body: body)
-  Thread.sleep(forTimeInterval: 0.45)
+  // Large HSI jumps can verify before the emitters finish their visible transition.
+  Thread.sleep(forTimeInterval: 1.25)
 }
 
 let fine = CommandLine.arguments.contains("--fine")
 let verify = CommandLine.arguments.contains("--verify")
+let extended = CommandLine.arguments.contains("--extended")
+let extendedFine = CommandLine.arguments.contains("--extended-fine")
+let anchors = CommandLine.arguments.contains("--anchors")
+let steadyHigh = CommandLine.arguments.contains("--steady-high")
 let directory = URL(
-  fileURLWithPath: verify
+  fileURLWithPath: steadyHigh
+    ? "artifacts/webcam/simulated-cct-calibration-steady-high"
+    : anchors
+    ? "artifacts/webcam/simulated-cct-calibration-anchors"
+    : extendedFine
+    ? "artifacts/webcam/simulated-cct-calibration-extended-fine"
+    : extended
+    ? "artifacts/webcam/simulated-cct-calibration-extended"
+    : verify
     ? "artifacts/webcam/simulated-cct-calibration-verify"
     : fine
       ? "artifacts/webcam/simulated-cct-calibration-fine"
@@ -130,26 +143,80 @@ if device.isWhiteBalanceModeSupported(.locked) { device.whiteBalanceMode = .lock
 device.unlockForConfiguration()
 try capture.capture(directory.appendingPathComponent("native-2500.png"))
 
+if extended || extendedFine || anchors || steadyHigh {
+  try setBack(#"{"kelvin":7500,"brightness":10}"#, action: "cct")
+  try capture.capture(directory.appendingPathComponent("native-7500.png"))
+}
+
 try setBack("{}", action: "off")
 try capture.capture(directory.appendingPathComponent("dark.png"))
 
-let hues = verify
-  ? [33]
-  : fine ? Array(stride(from: 32, through: 38, by: 1)) : Array(stride(from: 20, through: 40, by: 5))
-let saturations = verify
-  ? [36]
-  : fine ? Array(stride(from: 24, through: 36, by: 2)) : Array(stride(from: 20, through: 80, by: 10))
-for hue in hues {
-  for saturation in saturations {
-    if verify {
-      try setBack(#"{"kelvin":2400,"brightness":10}"#, action: "simulated-cct")
-      try capture.capture(directory.appendingPathComponent("simulated-2400.png"))
-    } else {
+if steadyHigh {
+  for hue in stride(from: 190, through: 220, by: 10) {
+    for saturation in stride(from: 5, through: 20, by: 5) {
+      try setBack(#"{"kelvin":7500,"brightness":10}"#, action: "cct")
+      Thread.sleep(forTimeInterval: 3)
       try setBack(
         #"{"hue":\#(hue),"saturation":\#(saturation),"brightness":10}"#,
         action: "hsi"
       )
-      try capture.capture(directory.appendingPathComponent(String(format: "h%03d-s%03d.png", hue, saturation)))
+      Thread.sleep(forTimeInterval: 6)
+      try capture.capture(directory.appendingPathComponent(String(format: "high-h%03d-s%03d.png", hue, saturation)))
+    }
+  }
+} else if anchors {
+  for kelvin in [1000, 1200, 1500, 2000, 2200, 2400] {
+    try setBack(#"{"kelvin":\#(kelvin),"brightness":10}"#, action: "simulated-cct")
+    try capture.capture(directory.appendingPathComponent("simulated-\(kelvin).png"))
+  }
+  for kelvin in [7600, 9000, 12000, 16000, 20000] {
+    try setBack(#"{"kelvin":7500,"brightness":10}"#, action: "cct")
+    Thread.sleep(forTimeInterval: 2)
+    try setBack(#"{"kelvin":\#(kelvin),"brightness":10}"#, action: "simulated-cct")
+    Thread.sleep(forTimeInterval: 8)
+    try capture.capture(directory.appendingPathComponent("simulated-\(kelvin).png"))
+  }
+} else {
+  let hues = extendedFine
+    ? Array(stride(from: 28, through: 34, by: 1))
+    : extended
+    ? Array(stride(from: 20, through: 40, by: 4))
+    : verify
+    ? [33]
+    : fine ? Array(stride(from: 32, through: 38, by: 1)) : Array(stride(from: 20, through: 40, by: 5))
+  let saturations = extendedFine
+    ? Array(stride(from: 70, through: 95, by: 5))
+    : extended
+    ? Array(stride(from: 40, through: 100, by: 10))
+    : verify
+    ? [36]
+    : fine ? Array(stride(from: 24, through: 36, by: 2)) : Array(stride(from: 20, through: 80, by: 10))
+  for hue in hues {
+    for saturation in saturations {
+      if verify {
+        try setBack(#"{"kelvin":2400,"brightness":10}"#, action: "simulated-cct")
+        try capture.capture(directory.appendingPathComponent("simulated-2400.png"))
+      } else {
+        try setBack(
+          #"{"hue":\#(hue),"saturation":\#(saturation),"brightness":10}"#,
+          action: "hsi"
+        )
+        try capture.capture(directory.appendingPathComponent(String(format: "h%03d-s%03d.png", hue, saturation)))
+      }
+    }
+  }
+}
+
+if extended || extendedFine {
+  let highHues = extendedFine ? Array(stride(from: 202, through: 212, by: 2)) : Array(stride(from: 190, through: 230, by: 5))
+  let highSaturations = extendedFine ? Array(stride(from: 34, through: 44, by: 2)) : Array(stride(from: 10, through: 60, by: 10))
+  for hue in highHues {
+    for saturation in highSaturations {
+      try setBack(
+        #"{"hue":\#(hue),"saturation":\#(saturation),"brightness":10}"#,
+        action: "hsi"
+      )
+      try capture.capture(directory.appendingPathComponent(String(format: "high-h%03d-s%03d.png", hue, saturation)))
     }
   }
 }

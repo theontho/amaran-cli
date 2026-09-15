@@ -10,6 +10,7 @@ import {
   dashboardHtml,
   dashboardJs,
   estimateLux,
+  simulatedCctForState,
 } from './dashboard.js';
 import { planDesktopImport } from './desktopLibrary.js';
 import { type LibraryCollection, LocalLibrary } from './library.js';
@@ -164,16 +165,23 @@ export function createBleServer(
       if (route === '/dashboard/status' && request.method === 'GET') {
         const keys = controller.config.lights.map((light) => light.key);
         const lighting = await controller.snapshot(keys, false);
+        const simulatedCct = Object.fromEntries(
+          controller.config.lights.map((light) => {
+            const caps = capabilities(light);
+            return [light.key, simulatedCctForState(lighting[light.key], caps.cct_min, caps.cct_max) ?? null];
+          })
+        );
         const result = dashboard.saveStatus({
           version: 1,
           updatedAt: new Date().toISOString(),
           connected: controller.link.ready,
           lighting,
           fans: await controller.fans(keys),
+          simulatedCct,
           estimatedLux: Object.fromEntries(
             controller.config.lights.map((light) => [
               light.key,
-              estimateLux(calibrationFor(light.model), lighting[light.key]),
+              estimateLux(calibrationFor(light.model), lighting[light.key], simulatedCct[light.key] ?? undefined),
             ])
           ),
         });

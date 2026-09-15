@@ -163,11 +163,13 @@ The daemon also serves a local control dashboard at `http://127.0.0.1:2708/dashb
 BLE API as the CLI for fixtures, groups, power, CCT/G/M, HSI, effects, fans, saved states, transitions, circadian
 overrides, timelines, local media paths, browser camera/microphone sampling, Desktop-library import and mesh
 diagnostics. It is loopback-only, loads no remote code, and does not expose mesh credentials. The dashboard exposes
-the fixtures' full 0-100% brightness range without an artificial output cap. In CCT mode, fixture cards also show
-estimated lux from the configured Kelvin-dependent `maxLux` calibration, scaled by verified brightness. Optional
+the fixtures' full 0-100% brightness range without an artificial output cap. Fixture cards show estimated lux from
+the configured Kelvin-dependent `maxLux` calibration, scaled by verified brightness, and provide a linked lux-target
+slider that converts the requested output back to the nearest supported brightness. Optional
 `maxLuxByModel` entries for `200x`, `200x-s`, and `150c` override the shared curve per fixture model. Dashboard
-fixture sliders keep native CCT limits for bi-color lights, while the 150c extends down to 1000K and labels values
-below its native 2500K floor as simulated before applying the corresponding verified HSI color.
+fixture sliders keep native CCT limits for bi-color lights, while the 150c spans 1000-20000K and labels values
+outside its native 2500-7500K range as simulated before applying the corresponding camera-calibrated HSI color.
+Simulated-CCT lux estimates require calibration points for those Kelvin values in the 150c model curve. Dashboard
 preferences and the last timestamped observed status are stored beside the private BLE configuration as
 `dashboard-settings.json` and `dashboard-status.json`. A circadian panel shows whether the LaunchAgent is loaded and
 recently updating, its latest requested target, current verified fixture output, active curve, weather adjustment

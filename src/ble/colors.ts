@@ -36,28 +36,50 @@ export function colorToHSI(value: unknown): { hue: number; saturation: number } 
   return { hue: Math.round((hue + 360) % 360) % 360, saturation: Math.round((delta / max) * 100) };
 }
 
+export const SIMULATED_CCT_MIN = 1000;
+export const SIMULATED_CCT_MAX = 20000;
+
+const LOW_CCT_ANCHORS = [
+  { kelvin: 1000, hue: 32, saturation: 90 },
+  { kelvin: 1200, hue: 31, saturation: 84 },
+  { kelvin: 1500, hue: 30, saturation: 72 },
+  { kelvin: 2000, hue: 31, saturation: 58 },
+  { kelvin: 2200, hue: 32, saturation: 47 },
+  { kelvin: 2400, hue: 33, saturation: 36 },
+  { kelvin: 2500, hue: 33, saturation: 36 },
+];
+
+const HIGH_CCT_ANCHORS = [
+  { kelvin: 7500, hue: 200, saturation: 20 },
+  { kelvin: 9000, hue: 210, saturation: 20 },
+  { kelvin: 12000, hue: 220, saturation: 20 },
+  { kelvin: 16000, hue: 220, saturation: 22 },
+  { kelvin: 20000, hue: 220, saturation: 24 },
+];
+
+function interpolateAnchors(
+  kelvin: number,
+  anchors: { kelvin: number; hue: number; saturation: number }[]
+): { hue: number; saturation: number } {
+  const upper = anchors.findIndex((anchor) => anchor.kelvin >= kelvin);
+  if (upper <= 0) return { hue: anchors[0].hue, saturation: anchors[0].saturation };
+  const left = anchors[upper - 1];
+  const right = anchors[upper];
+  const fraction = (kelvin - left.kelvin) / (right.kelvin - left.kelvin);
+  return {
+    hue: Math.round(left.hue + (right.hue - left.hue) * fraction),
+    saturation: Math.round(left.saturation + (right.saturation - left.saturation) * fraction),
+  };
+}
+
 export function kelvinToHSI(kelvin: number): { hue: number; saturation: number } {
-  if (!Number.isFinite(kelvin) || kelvin < 1000 || kelvin > 40000)
-    throw new Error('Simulated CCT must be a finite number between 1000 and 40000');
+  if (!Number.isFinite(kelvin) || kelvin < SIMULATED_CCT_MIN || kelvin > SIMULATED_CCT_MAX)
+    throw new Error(`Simulated CCT must be a finite number between ${SIMULATED_CCT_MIN} and ${SIMULATED_CCT_MAX}`);
   if (kelvin <= 2500) {
-    // The 2500K boundary is camera-matched to the 150c's native CCT output; lower anchors preserve a gradual warm shift.
-    const anchors = [
-      { kelvin: 1000, hue: 16, saturation: 100 },
-      { kelvin: 1500, hue: 25, saturation: 79 },
-      { kelvin: 2000, hue: 31, saturation: 58 },
-      { kelvin: 2400, hue: 33, saturation: 36 },
-      { kelvin: 2500, hue: 33, saturation: 36 },
-    ];
-    const upper = anchors.findIndex((anchor) => anchor.kelvin >= kelvin);
-    if (upper <= 0) return { hue: anchors[0].hue, saturation: anchors[0].saturation };
-    const left = anchors[upper - 1];
-    const right = anchors[upper];
-    const fraction = (kelvin - left.kelvin) / (right.kelvin - left.kelvin);
-    return {
-      hue: Math.round(left.hue + (right.hue - left.hue) * fraction),
-      saturation: Math.round(left.saturation + (right.saturation - left.saturation) * fraction),
-    };
+    // Camera-matched to native 2500K, with an amber floor that avoids red-only output at the lowest settings.
+    return interpolateAnchors(kelvin, LOW_CCT_ANCHORS);
   }
+  if (kelvin >= 7500) return interpolateAnchors(kelvin, HIGH_CCT_ANCHORS);
   const temperature = kelvin / 100;
   const red = temperature <= 66 ? 255 : 329.698727446 * (temperature - 60) ** -0.1332047592;
   const green =
@@ -74,4 +96,28 @@ export function kelvinToHSI(kelvin: number): { hue: number; saturation: number }
     )
     .join('');
   return colorToHSI(hex);
+}
+
+export function inferSimulatedKelvin(
+  hue: number | undefined,
+  saturation: number | undefined,
+  nativeMin: number,
+  nativeMax: number
+): number | undefined {
+  if (hue === undefined || saturation === undefined) return undefined;
+  const anchor = [...LOW_CCT_ANCHORS, ...HIGH_CCT_ANCHORS].find(
+    (candidate) =>
+      (candidate.kelvin < nativeMin || candidate.kelvin > nativeMax) &&
+      candidate.hue === hue &&
+      candidate.saturation === saturation
+  );
+  if (anchor) return anchor.kelvin;
+  let best: { kelvin: number; distance: number } | undefined;
+  for (let kelvin = SIMULATED_CCT_MIN; kelvin <= SIMULATED_CCT_MAX; kelvin += 100) {
+    if (kelvin >= nativeMin && kelvin <= nativeMax) continue;
+    const target = kelvinToHSI(kelvin);
+    const distance = Math.abs(target.hue - hue) + Math.abs(target.saturation - saturation);
+    if (!best || distance < best.distance) best = { kelvin, distance };
+  }
+  return best?.distance === 0 ? best.kelvin : undefined;
 }

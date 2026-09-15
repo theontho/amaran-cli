@@ -1,5 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { colorToHSI, kelvinToHSI } from './colors.js';
+import { colorToHSI, kelvinToHSI, SIMULATED_CCT_MAX, SIMULATED_CCT_MIN } from './colors.js';
 import { readComposition } from './configuration.js';
 import { desktopDeviceKeys } from './desktop.js';
 import {
@@ -95,7 +95,7 @@ export function validateAction(light: MeshLight, action: string, body: Record<st
   if (action === 'increment-cct') numberInRange(body.delta, 'CCT delta', -7500, 7500);
   if (action === 'simulated-cct') {
     if (!caps.hsi_support) throw new Error(`${light.name} does not support simulated CCT`);
-    numberInRange(body.kelvin, `${light.name} simulated CCT`, 1000, caps.cct_max);
+    numberInRange(body.kelvin, `${light.name} simulated CCT`, SIMULATED_CCT_MIN, SIMULATED_CCT_MAX);
   } else if (action === 'cct' || body.kelvin !== undefined) {
     numberInRange(body.kelvin, `${light.name} CCT`, caps.cct_min, caps.cct_max);
   }
@@ -278,7 +278,7 @@ export class VerifiedController {
   }
   async automaticCct(key: string, body: Record<string, unknown>, signal?: AbortSignal) {
     const light = this.light(key);
-    const kelvin = numberInRange(body.kelvin, 'simulated CCT', 1000, 40000);
+    const kelvin = numberInRange(body.kelvin, 'simulated CCT', SIMULATED_CCT_MIN, SIMULATED_CCT_MAX);
     if (body.brightness !== undefined) numberInRange(body.brightness, 'brightness', 0, 100);
     return this.serialize(async () => {
       if (this.overrideStatus([key])[key] > 0) return { skipped: true as const, reason: 'manual-override' };
@@ -295,7 +295,8 @@ export class VerifiedController {
       if (fan.highTemperature) return { skipped: true as const, reason: 'thermal-protection' };
       if (fan.mode === FAN_MODES.off || (fan.mode === FAN_MODES.manual && fan.speed === 0))
         return { skipped: true as const, reason: 'stopped-cooling' };
-      const strategy = kelvin < caps.cct_min ? ('hsi' as const) : ('cct' as const);
+      const strategy =
+        caps.hsi_support && (kelvin < caps.cct_min || kelvin > caps.cct_max) ? ('hsi' as const) : ('cct' as const);
       const prepared = (() => {
         if (strategy === 'hsi') {
           const target = kelvinToHSI(kelvin);
@@ -879,8 +880,8 @@ export class VerifiedController {
       return this.prepare(light, 'cct', { kelvin: previous.cct, gm: body.value }, previous);
     }
     if (action === 'simulated-cct') {
-      const kelvin = numberInRange(body.kelvin, 'simulated CCT', 1000, caps.cct_max);
-      if (kelvin >= caps.cct_min) return this.prepare(light, 'cct', body, previous);
+      const kelvin = numberInRange(body.kelvin, 'simulated CCT', SIMULATED_CCT_MIN, SIMULATED_CCT_MAX);
+      if (kelvin >= caps.cct_min && kelvin <= caps.cct_max) return this.prepare(light, 'cct', body, previous);
       return this.prepare(light, 'hsi', { ...kelvinToHSI(kelvin), brightness: body.brightness }, previous);
     }
     if (action === 'color')

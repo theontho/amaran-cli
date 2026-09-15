@@ -362,8 +362,13 @@ describe('verified command execution', () => {
     expect(kelvinToHSI(2400)).toEqual({ hue: 33, saturation: 36 });
     expect(kelvinToHSI(2200)).toEqual({ hue: 32, saturation: 47 });
     expect(kelvinToHSI(2000)).toEqual({ hue: 31, saturation: 58 });
-    expect(kelvinToHSI(1500)).toEqual({ hue: 25, saturation: 79 });
-    expect(kelvinToHSI(1000)).toEqual({ hue: 16, saturation: 100 });
+    expect(kelvinToHSI(1500)).toEqual({ hue: 30, saturation: 72 });
+    expect(kelvinToHSI(1200)).toEqual({ hue: 31, saturation: 84 });
+    expect(kelvinToHSI(1000)).toEqual({ hue: 32, saturation: 90 });
+    expect(kelvinToHSI(7500)).toEqual({ hue: 200, saturation: 20 });
+    expect(kelvinToHSI(9000)).toEqual({ hue: 210, saturation: 20 });
+    expect(kelvinToHSI(12000)).toEqual({ hue: 220, saturation: 20 });
+    expect(kelvinToHSI(20000)).toEqual({ hue: 220, saturation: 24 });
 
     const directory = mkdtempSync(path.join(tmpdir(), 'amaran-automatic-off-'));
     dirs.push(directory);
@@ -385,6 +390,11 @@ describe('verified command execution', () => {
       strategy: 'hsi',
       state: { sleep: false, mode: 'hsi', hue: 31, sat: 58, intensity: 50 },
     });
+    await expect(controller.automaticCct('back', { kelvin: 9000, brightness: 5 })).resolves.toMatchObject({
+      skipped: false,
+      strategy: 'hsi',
+      state: { sleep: false, mode: 'hsi', hue: 210, sat: 20, intensity: 50 },
+    });
 
     const restarted = new VerifiedController(config, link, new LocalLibrary(directory));
     await expect(restarted.automaticCct('desk', { kelvin: 3000, brightness: 5 })).resolves.toMatchObject({
@@ -401,8 +411,15 @@ describe('verified command execution', () => {
     await expect(manual.execute('back', 'simulated-cct', { kelvin: 1500, brightness: 4 })).resolves.toMatchObject({
       sleep: false,
       mode: 'hsi',
-      hue: 25,
-      sat: 79,
+      hue: 30,
+      sat: 72,
+      intensity: 40,
+    });
+    await expect(manual.execute('back', 'simulated-cct', { kelvin: 20000, brightness: 4 })).resolves.toMatchObject({
+      sleep: false,
+      mode: 'hsi',
+      hue: 220,
+      sat: 24,
       intensity: 40,
     });
     expect(manual.overrideStatus(['back']).back).toBeGreaterThan(0);

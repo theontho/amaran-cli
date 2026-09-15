@@ -223,16 +223,18 @@ and native groups, scenes/presets/quickshots with transitions, circadian holds, 
 browser camera/microphone sampling, Desktop import and mesh diagnostics. Daemon installation and initial private
 mesh import remain CLI operations because the web interface does not receive mesh credentials.
 
-The compact live-status cards provide direct per-fixture power, full-range brightness and model-correct Kelvin
-sliders. Slider values update locally while dragging and send one verified BLE write when released, avoiding a flood
-of intermediate mesh commands. In CCT mode each card also shows estimated lux: the interpolated full-output
-calibration at that Kelvin multiplied by verified brightness. Sleeping fixtures show 0 lx; HSI/effect states show no
-CCT-based estimate.
+The compact live-status cards provide direct per-fixture power, full-range brightness, lux-target, and model-correct
+Kelvin sliders. Slider values update locally while dragging and send one verified BLE write when released, avoiding
+a flood of intermediate mesh commands. The lux control interpolates full output at the selected Kelvin and converts
+the target to the nearest whole-percent brightness. The 150c Kelvin slider spans 1000-20000K; values outside its
+native 2500-7500K range use camera-calibrated HSI simulation. Sleeping fixtures show 0 lx, while unrelated HSI/effect
+states show no CCT-based estimate.
 
 The dashboard uses the ordinary `maxLux` number/map as its fallback calibration. Different measured curves can be
 assigned by model in `config.json` under `maxLuxByModel`, whose supported keys are `200x`, `200x-s`, and `150c`.
 Each value uses the same Kelvin-to-lux map shape as `maxLux`. Use the locally measured curves for the actual setup; a
-model-specific entry takes precedence over the shared fallback.
+model-specific entry takes precedence over the shared fallback. Include simulated Kelvin anchors in the 150c curve
+to enable lux targets across the extended range.
 
 The dashboard is loopback-only and same-origin: it loads no CDN resources, rejects cross-origin browser requests,
 and applies a restrictive Content Security Policy. Fixture registration still comes from private `mesh.json`.
