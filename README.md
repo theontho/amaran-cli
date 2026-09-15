@@ -322,9 +322,10 @@ The `auto-cct` command automatically adjusts color temperature based on sunrise/
 
 This mimics natural daylight changes throughout the day for more comfortable, circadian-friendly lighting. Both color temperature and brightness follow the same curve, providing natural dimming at dawn/dusk.
 Direct BLE automation handles targets outside each fixture's native range independently. Above the maximum it clamps
-to the fixture maximum. Below the minimum, color-capable fixtures simulate the blackbody color in HSI mode, while
-fixtures without color control turn off. Automatically turned-off fixtures wake when the schedule returns to their
-native range; lights turned off manually remain off.
+to the fixture maximum while preserving the daytime brightness target; a 200x therefore stays on at 6500K rather
+than sleeping when the schedule requests a cooler color. Below the minimum, color-capable fixtures simulate the
+calibrated color in HSI mode, while fixtures without color control turn off. Automatically turned-off fixtures wake
+when the schedule returns above their minimum; lights turned off manually remain off.
 
 #### Location Priority
 

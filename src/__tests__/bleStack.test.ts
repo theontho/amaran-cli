@@ -380,6 +380,11 @@ describe('verified command execution', () => {
     back.sleep = false;
     const controller = new VerifiedController(config, link, new LocalLibrary(directory));
 
+    await expect(controller.automaticCct('desk', { kelvin: 9000, brightness: 100 })).resolves.toMatchObject({
+      skipped: false,
+      strategy: 'cct',
+      state: { sleep: false, mode: 'cct', cct: 6500, intensity: 1000 },
+    });
     await expect(controller.automaticCct('desk', { kelvin: 2500, brightness: 5 })).resolves.toMatchObject({
       skipped: false,
       strategy: 'off',
