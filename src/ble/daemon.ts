@@ -24,6 +24,7 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
   const controller = new VerifiedController(config, link, library);
   let circadianCache: { expiresAt: number; value: Awaited<ReturnType<typeof getCircadianDashboardStatus>> } | undefined;
   const server = createBleServer(controller, library, {
+    monitor: true,
     persistMesh: (value) => atomicJson(path.join(meshDirectory(), 'mesh.json'), value),
     dashboard,
     luxCalibration: appConfig?.maxLux,
@@ -42,10 +43,21 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
       return status;
     },
   });
+  const recovery = setInterval(() => {
+    if (!link.connectionStatus.resetRequired) return;
+    console.error(
+      `BLE native transport is stuck; exiting for supervised adapter recovery: ${link.connectionStatus.lastError}`
+    );
+    // Reserved mesh sequence blocks are already durable; never replay queued work after a native reset.
+    process.exit(1);
+  }, 1000);
+  recovery.unref();
   let stopping = false;
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    clearInterval(recovery);
+    server.stopMonitoring();
     await server.stopPrograms();
     server.close();
     server.closeIdleConnections();
@@ -65,6 +77,8 @@ export async function serveBle(port = 2708, debug = false): Promise<void> {
     });
     console.log(`BLE API listening at http://127.0.0.1:${port}`);
   } catch (error) {
+    clearInterval(recovery);
+    server.stopMonitoring();
     process.removeListener('SIGINT', stop);
     process.removeListener('SIGTERM', stop);
     await server.stopPrograms();

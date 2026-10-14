@@ -1,4 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import { BleUnavailableError, type ConnectionStatus } from './availability.js';
 import { colorToHSI, kelvinToHSI, SIMULATED_CCT_MAX, SIMULATED_CCT_MIN } from './colors.js';
 import { readComposition } from './configuration.js';
 import { desktopDeviceKeys } from './desktop.js';
@@ -34,6 +35,7 @@ import { interpolateState } from './transitions.js';
 
 export interface MeshLink {
   readonly ready: boolean;
+  readonly connectionStatus?: ConnectionStatus;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   send(address: number, payload: Buffer): Promise<void>;
@@ -172,6 +174,7 @@ export class VerifiedController {
   private queue: Promise<void> = Promise.resolve();
   private queued = 0;
   private stopping = false;
+  private connectionEpoch = 0;
   private readonly steadyStates = new Map<string, FixtureState>();
   private readonly manualOverrides = new Map<string, number>();
   private readonly automaticOff = new Set<string>();
@@ -318,13 +321,28 @@ export class VerifiedController {
 
   private serialize<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (this.stopping) return Promise.reject(new Error('BLE daemon is stopping'));
+    const availability = this.link.connectionStatus;
+    if (availability && (availability.resetRequired || Date.now() < availability.nextRetryAt))
+      return Promise.reject(
+        new BleUnavailableError(availability.lastError ?? 'Bluetooth is offline', availability.nextRetryAt - Date.now())
+      );
     if (this.queued >= 16) return Promise.reject(new Error('BLE command queue is full'));
     const expires = Date.now() + 45_000;
+    const epoch = this.connectionEpoch;
     this.queued++;
     const operation = this.queue.then(async () => {
       if (this.stopping || Date.now() > expires) throw new Error('BLE command expired before execution');
+      if (epoch !== this.connectionEpoch)
+        throw new BleUnavailableError(
+          'BLE connection changed; submit a new request instead of replaying queued commands'
+        );
       signal?.throwIfAborted();
-      return work();
+      try {
+        return await work();
+      } catch (error) {
+        if (error instanceof BleUnavailableError || !this.link.ready) this.connectionEpoch++;
+        throw error;
+      }
     });
     this.queue = operation.then(
       () => {
@@ -450,7 +468,8 @@ export class VerifiedController {
 
   async snapshot(
     keys = this.config.lights.map((light) => light.key),
-    includeFans = true
+    includeFans = true,
+    signal?: AbortSignal
   ): Promise<Record<string, FixtureState>> {
     if (!keys.length || new Set(keys).size !== keys.length)
       throw new Error('Snapshot requires unique, nonempty targets');
@@ -458,10 +477,10 @@ export class VerifiedController {
     return this.serialize(async () => {
       const result: Record<string, FixtureState> = {};
       for (const light of lights) {
-        const state = await this.readWithReconnect(light.address);
+        const state = await this.readWithReconnect(light.address, signal);
         if (!capabilities(light).gm_support) state.gm = undefined;
         if (includeFans) {
-          const fan = await this.readFanWithReconnect(light.address);
+          const fan = await this.readFanWithReconnect(light.address, signal);
           const mode = parseFanMode(fan.mode);
           if (mode === 'manual') throw new Error(`${light.name}: cannot infer a manual fan setpoint from current RPM`);
           state.fan = { mode };
@@ -469,7 +488,7 @@ export class VerifiedController {
         result[light.key] = state;
       }
       return result;
-    });
+    }, signal);
   }
 
   async stopEffects(keys: string[], signal?: AbortSignal): Promise<Record<string, FixtureState>> {
@@ -1024,8 +1043,16 @@ export class VerifiedController {
   private async telemetryWithReconnect<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     for (let attempt = 0; attempt < 3; attempt++) {
       signal?.throwIfAborted();
+      if (!this.link.ready) {
+        try {
+          await this.link.connect();
+        } catch (error) {
+          throw error instanceof BleUnavailableError
+            ? error
+            : new BleUnavailableError((error as Error).message, 0, { cause: error });
+        }
+      }
       try {
-        if (!this.link.ready) await this.link.connect();
         signal?.throwIfAborted();
         return await read();
       } catch (error) {

@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BleUnavailableError } from '../ble/availability.js';
 import { kelvinToHSI } from '../ble/colors.js';
 import { capabilities, type MeshLink, VerifiedController, validateAction } from '../ble/controller.js';
 import { cmac, MeshCrypto } from '../ble/crypto.js';
+import { DashboardStore } from '../ble/dashboard.js';
 import { EFFECTS, effectPacket } from '../ble/effects.js';
 import { LocalLibrary } from '../ble/library.js';
 import { packet } from '../ble/packets.js';
@@ -1014,6 +1016,109 @@ describe('verified command execution', () => {
     cancel.abort();
     await expect(new VerifiedController(config, link).execute('desk', 'on', {}, cancel.signal)).rejects.toThrow();
     expect(link.send).not.toHaveBeenCalled();
+  });
+  it('does not replay queued manual commands after a failed connection and accepts fresh work on restoration', async () => {
+    const link = fakeLink();
+    link.ready = false;
+    link.connect.mockRejectedValueOnce(new Error('No powered proxy'));
+    const controller = new VerifiedController(config, link);
+    const results = await Promise.allSettled([
+      controller.execute('desk', 'state', {}),
+      controller.execute('desk', 'on', {}),
+    ]);
+    expect(results.every((result) => result.status === 'rejected')).toBe(true);
+    expect(link.connect).toHaveBeenCalledOnce();
+    expect(link.send).not.toHaveBeenCalled();
+    await expect(controller.execute('desk', 'on', {})).resolves.toMatchObject({ sleep: false });
+    expect(link.send).toHaveBeenCalledOnce();
+  });
+  it('rejects requests promptly during offline backoff instead of filling the command queue', async () => {
+    const link = Object.assign(fakeLink(), {
+      connectionStatus: {
+        state: 'offline' as const,
+        nextRetryAt: Date.now() + 30_000,
+        lastError: 'No powered proxy',
+        resetRequired: false,
+      },
+    });
+    link.ready = false;
+    const controller = new VerifiedController(config, link);
+    const results = await Promise.allSettled(Array.from({ length: 32 }, () => controller.execute('desk', 'on', {})));
+    for (const result of results) {
+      expect(result.status).toBe('rejected');
+      if (result.status === 'rejected') expect(result.reason).toBeInstanceOf(BleUnavailableError);
+    }
+    expect(link.connect).not.toHaveBeenCalled();
+    expect(link.send).not.toHaveBeenCalled();
+  });
+  it('coalesces blocked dashboard polls while serving the page and health independently, then recovers fresh readback', async () => {
+    const link = fakeLink();
+    link.ready = false;
+    let restore: () => void = () => {
+      throw new Error('Connection not started');
+    };
+    link.connect.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          restore = () => {
+            link.ready = true;
+            resolve();
+          };
+        })
+    );
+    const controller = new VerifiedController(config, link);
+    const server = createBleServer(controller);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing server address');
+    const url = `http://127.0.0.1:${address.port}`;
+    try {
+      const polls = Array.from({ length: 8 }, () => fetch(`${url}/dashboard/status`));
+      await vi.waitFor(() => expect(link.connect).toHaveBeenCalledOnce());
+      const start = Date.now();
+      const staticResponses = await Promise.all(
+        ['/dashboard', '/dashboard.js', '/dashboard.css', '/health', '/dashboard/settings'].map((route) =>
+          fetch(url + route)
+        )
+      );
+      expect(Date.now() - start).toBeLessThan(1000);
+      expect(staticResponses.every((response) => response.status === 200)).toBe(true);
+      expect(await staticResponses[3].json()).toMatchObject({ connected: false });
+      const responses = await Promise.all(polls);
+      expect(responses.every((response) => response.status === 503)).toBe(true);
+      expect(link.connect).toHaveBeenCalledOnce();
+      restore();
+      await vi.waitFor(() => expect(link.readFan).toHaveBeenCalledTimes(2));
+      const live = await (await fetch(`${url}/dashboard/status`)).json();
+      expect(live).toMatchObject({ verified: true, result: { connected: true, lighting: { desk: {}, back: {} } } });
+    } finally {
+      restore();
+      await controller.stop();
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
+  });
+  it('reconnects and refreshes the dashboard after power returns without a browser or control commands', async () => {
+    vi.useFakeTimers();
+    const link = fakeLink();
+    link.ready = false;
+    link.connect.mockRejectedValueOnce(new BleUnavailableError('No powered proxy'));
+    const controller = new VerifiedController(config, link);
+    const dashboard = new DashboardStore();
+    const server = createBleServer(controller, undefined, { dashboard, monitor: true });
+    try {
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(dashboard.getStatus()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(dashboard.getStatus()).toMatchObject({ connected: true, lighting: { desk: {}, back: {} } });
+      expect(link.connect).toHaveBeenCalledTimes(2);
+      expect(link.send).not.toHaveBeenCalled();
+    } finally {
+      server.stopMonitoring();
+      await controller.stop();
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      vi.useRealTimers();
+    }
   });
   it('serves truthful state and model capabilities through the existing CLI client', async () => {
     const link = fakeLink();

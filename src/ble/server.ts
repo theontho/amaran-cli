@@ -2,6 +2,8 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { MaxLuxCalibration } from '../config.js';
 import type { CircadianDashboardStatus } from '../daylightSimulation/dashboardStatus.js';
+import { DeadlineError, deadline } from './async.js';
+import { BleUnavailableError } from './availability.js';
 import { capabilities, type VerifiedController, validateAction } from './controller.js';
 import {
   DashboardStore,
@@ -42,6 +44,7 @@ export function createBleServer(
     luxByModel?: Partial<Record<MeshConfig['lights'][number]['model'], MaxLuxCalibration>>;
     circadianStatus?: () => Promise<CircadianDashboardStatus>;
     updateCircadianSettings?: (value: Record<string, unknown>) => Promise<CircadianDashboardStatus>;
+    monitor?: boolean;
   } = {}
 ) {
   const dashboard =
@@ -57,6 +60,46 @@ export function createBleServer(
   const programs = new Programs(controller, fanTargets);
   const calibrationFor = (model: MeshConfig['lights'][number]['model']) =>
     options.luxByModel?.[model] ?? options.luxCalibration;
+  let statusRefresh: Promise<ReturnType<DashboardStore['saveStatus']>> | undefined;
+  const refreshStatus = () => {
+    if (statusRefresh) return statusRefresh;
+    const signal = AbortSignal.timeout(8000);
+    const keys = controller.config.lights.map((light) => light.key);
+    const refresh = (async () => {
+      const lighting = await controller.snapshot(keys, false, signal);
+      const fans = await controller.fans(keys, undefined, signal);
+      const simulatedCct = Object.fromEntries(
+        controller.config.lights.map((light) => {
+          const caps = capabilities(light);
+          return [light.key, simulatedCctForState(lighting[light.key], caps.cct_min, caps.cct_max) ?? null];
+        })
+      );
+      return dashboard.saveStatus({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        connected: controller.link.ready,
+        lighting,
+        fans,
+        simulatedCct,
+        estimatedLux: Object.fromEntries(
+          controller.config.lights.map((light) => [
+            light.key,
+            estimateLux(calibrationFor(light.model), lighting[light.key], simulatedCct[light.key] ?? undefined),
+          ])
+        ),
+      });
+    })();
+    statusRefresh = refresh;
+    void refresh.then(
+      () => {
+        statusRefresh = undefined;
+      },
+      () => {
+        statusRefresh = undefined;
+      }
+    );
+    return refresh;
+  };
   const manual = async (keys: string[], action: string, args: Record<string, unknown>) => {
     if (!keys.length || new Set(keys).size !== keys.length)
       throw new Error('Manual control requires unique, nonempty targets');
@@ -163,28 +206,7 @@ export function createBleServer(
         return;
       }
       if (route === '/dashboard/status' && request.method === 'GET') {
-        const keys = controller.config.lights.map((light) => light.key);
-        const lighting = await controller.snapshot(keys, false);
-        const simulatedCct = Object.fromEntries(
-          controller.config.lights.map((light) => {
-            const caps = capabilities(light);
-            return [light.key, simulatedCctForState(lighting[light.key], caps.cct_min, caps.cct_max) ?? null];
-          })
-        );
-        const result = dashboard.saveStatus({
-          version: 1,
-          updatedAt: new Date().toISOString(),
-          connected: controller.link.ready,
-          lighting,
-          fans: await controller.fans(keys),
-          simulatedCct,
-          estimatedLux: Object.fromEntries(
-            controller.config.lights.map((light) => [
-              light.key,
-              estimateLux(calibrationFor(light.model), lighting[light.key], simulatedCct[light.key] ?? undefined),
-            ])
-          ),
-        });
+        const result = await deadline(refreshStatus(), 2000, 'Dashboard readback');
         reply(200, { ok: true, verified: true, result });
         return;
       }
@@ -194,6 +216,7 @@ export function createBleServer(
           daemon: true,
           protocolVersion: 2,
           connected: controller.link.ready,
+          connection: controller.link.connectionStatus,
           features: {
             state: true,
             verifiedCommands: true,
@@ -589,14 +612,43 @@ export function createBleServer(
       reply(200, { ok: true, verified: true, result });
     } catch (error) {
       console.error(`BLE API request failed: ${(error as Error).message}`);
-      reply(400, { ok: false, error: (error as Error).message });
+      const unavailable = error instanceof BleUnavailableError || error instanceof DeadlineError;
+      if (error instanceof BleUnavailableError)
+        response.setHeader('retry-after', Math.max(1, Math.ceil(error.retryAfterMs / 1000)));
+      reply(unavailable ? 503 : 400, { ok: false, error: (error as Error).message });
     }
   });
   server.requestTimeout = 10_000;
   server.headersTimeout = 10_000;
   server.keepAliveTimeout = 65_000;
+  let monitoring = false;
+  let monitorTimer: NodeJS.Timeout | undefined;
+  const monitor = async () => {
+    try {
+      await refreshStatus();
+    } catch (error) {
+      console.error(`BLE background readback unavailable: ${(error as Error).message}`);
+    } finally {
+      if (monitoring)
+        monitorTimer = setTimeout(
+          monitor,
+          Math.max(10_000, (controller.link.connectionStatus?.nextRetryAt ?? 0) - Date.now())
+        );
+    }
+  };
+  const stopMonitoring = () => {
+    monitoring = false;
+    clearTimeout(monitorTimer);
+  };
+  server.on('listening', () => {
+    if (options.monitor) {
+      monitoring = true;
+      void monitor();
+    }
+  });
   server.on('close', () => {
+    stopMonitoring();
     void programs.close().catch((error) => console.error(`Program shutdown failed: ${(error as Error).message}`));
   });
-  return Object.assign(server, { stopPrograms: () => programs.close() });
+  return Object.assign(server, { stopPrograms: () => programs.close(), stopMonitoring });
 }

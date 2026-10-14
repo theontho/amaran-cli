@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Characteristic, Peripheral } from '@abandonware/noble';
-import { deadline } from './async.js';
+import { DeadlineError, deadline } from './async.js';
+import { BleUnavailableError, type ConnectionStatus } from './availability.js';
 import { MeshCrypto, type NetworkMessage } from './crypto.js';
 import { packet } from './packets.js';
 import { discoverUnprovisioned, type UnprovisionedDevice } from './provisioning.js';
@@ -11,6 +12,16 @@ export { deadline } from './async.js';
 import { decodeProductInfo, type ProductInfo } from './settings.js';
 import type { MeshConfig, SequenceStore } from './storage.js';
 import { decodeFan, decodeState, type FanState, type FixtureState, readFanPacket, readStatePacket } from './telink.js';
+
+export function initializeUserChannel(bindings: unknown): void {
+  if (!bindings || typeof bindings !== 'object' || !('_hci' in bindings))
+    throw new Error('Exclusive Bluetooth mode requires noble HCI bindings');
+  const hci: unknown = bindings._hci;
+  if (!hci || typeof hci !== 'object' || !('readLeBufferSize' in hci) || typeof hci.readLeBufferSize !== 'function')
+    throw new Error('Exclusive Bluetooth mode cannot initialize ACL buffers');
+  // noble's user-channel reset omits the buffer query required before ATT traffic.
+  hci.readLeBufferSize();
+}
 
 export class ProxyAssembler {
   private partial?: { type: number; chunks: Buffer[]; length: number; started: number };
@@ -77,6 +88,15 @@ export class MeshTransport {
   private writes: Promise<void> = Promise.resolve();
   private initialized = false;
   private closing = false;
+  private connecting?: Promise<void>;
+  private pendingConnect?: Promise<void>;
+  private connectionAbort?: AbortController;
+  private failures = 0;
+  private nativeFailures = 0;
+  private candidateOffset = 0;
+  private nextRetryAt = 0;
+  private lastError?: string;
+  private resetRequired = false;
 
   constructor(
     readonly config: MeshConfig,
@@ -88,6 +108,15 @@ export class MeshTransport {
 
   get ready(): boolean {
     return this.initialized && this.peripheral?.state === 'connected';
+  }
+
+  get connectionStatus(): ConnectionStatus {
+    return {
+      state: this.resetRequired ? 'recovering' : this.ready ? 'connected' : this.connecting ? 'connecting' : 'offline',
+      nextRetryAt: this.nextRetryAt,
+      lastError: this.lastError,
+      resetRequired: this.resetRequired,
+    };
   }
 
   private wait<T>(event: string, accept: (value: T) => boolean, milliseconds: number): Promise<T> {
@@ -120,9 +149,51 @@ export class MeshTransport {
     });
   }
 
-  async connect(): Promise<void> {
-    if (this.ready) return;
+  connect(): Promise<void> {
+    if (this.ready) return Promise.resolve();
+    if (this.connecting) return this.connecting;
+    if (this.resetRequired || Date.now() < this.nextRetryAt)
+      return Promise.reject(
+        new BleUnavailableError(this.lastError ?? 'Bluetooth is offline', Math.max(0, this.nextRetryAt - Date.now()))
+      );
+    const abort = new AbortController();
+    this.connectionAbort = abort;
+    const attempt = this.connectOnce(abort.signal).then(
+      () => {
+        this.failures = 0;
+        this.nativeFailures = 0;
+        this.nextRetryAt = 0;
+        this.lastError = undefined;
+      },
+      (error: unknown) => {
+        if (
+          error instanceof DeadlineError &&
+          ['BLE connect', 'BLE service discovery', 'Bluetooth scan start', 'Bluetooth scan stop'].includes(error.label)
+        ) {
+          if (++this.nativeFailures >= 3) this.resetRequired = true;
+        }
+        this.lastError = error instanceof Error ? error.message : String(error);
+        const wait = Math.min(30_000, 5000 * 2 ** Math.min(this.failures++, 3));
+        this.nextRetryAt = Date.now() + wait;
+        console.error(`BLE offline; retrying in ${wait / 1000}s: ${this.lastError}`);
+        throw new BleUnavailableError(this.lastError, wait, { cause: error });
+      }
+    );
+    this.connecting = attempt;
+    void attempt.then(
+      () => {
+        this.connecting = undefined;
+      },
+      () => {
+        this.connecting = undefined;
+      }
+    );
+    return attempt;
+  }
+
+  private async connectOnce(signal: AbortSignal): Promise<void> {
     const { default: noble } = await import('@abandonware/noble');
+    signal.throwIfAborted();
     this.closing = false;
     const candidates = new Map<string, Peripheral>();
     const discover = (peripheral: Peripheral) => {
@@ -141,6 +212,8 @@ export class MeshTransport {
     let stateListener: ((state: string) => void) | undefined;
     try {
       if (noble._state !== 'poweredOn') {
+        if (['poweredOff', 'unauthorized', 'unsupported'].includes(noble._state))
+          throw new BleUnavailableError(`Bluetooth is ${noble._state}`);
         await deadline(
           new Promise<void>((resolve, reject) => {
             stateListener = (state) => {
@@ -150,64 +223,68 @@ export class MeshTransport {
             };
             noble.on('stateChange', stateListener);
           }),
-          60_000,
+          10_000,
           'Bluetooth adapter initialization (check macOS Privacy & Security > Bluetooth permission for Node)'
         );
       }
+      if (process.platform === 'linux' && process.env.HCI_CHANNEL_USER) initializeUserChannel(noble._bindings);
       noble.on('discover', discover);
       await deadline(noble.startScanningAsync(['1828'], true), 5000, 'Bluetooth scan start');
-      await delay(5000);
+      await delay(5000, undefined, { signal });
     } finally {
       if (stateListener) noble.removeListener('stateChange', stateListener);
       noble.removeListener('discover', discover);
       await deadline(noble.stopScanningAsync(), 3000, 'Bluetooth scan stop');
     }
-    if (!candidates.size)
-      throw new Error(
-        'No proxy for the configured mesh found. Quit Amaran Desktop and verify the lights and Bluetooth permission.'
+    if (!candidates.size) throw new Error('No powered mesh proxy found; lights may be disconnected from mains power.');
+    signal.throwIfAborted();
+    const sorted = [...candidates.values()].sort((a, b) => b.rssi - a.rssi);
+    const peripheral = sorted[this.candidateOffset++ % sorted.length];
+    try {
+      console.error(`Connecting to mesh proxy ${peripheral.id} (${peripheral.rssi} dBm)`);
+      this.peripheral = peripheral;
+      peripheral.once('disconnect', () => {
+        if (this.peripheral !== peripheral) return;
+        this.initialized = false;
+        this.input = undefined;
+        this.output?.removeListener('data', this.notify);
+        this.output = undefined;
+        this.events.emit('lost');
+      });
+      this.pendingConnect = peripheral.connectAsync();
+      await deadline(this.pendingConnect, 10_000, 'BLE connect');
+      this.pendingConnect = undefined;
+      signal.throwIfAborted();
+      const { characteristics } = await deadline(
+        peripheral.discoverSomeServicesAndCharacteristicsAsync(['1828'], ['2add', '2ade']),
+        8000,
+        'BLE service discovery'
       );
-    const failures: string[] = [];
-    for (const peripheral of [...candidates.values()].sort((a, b) => b.rssi - a.rssi)) {
-      try {
-        console.error(`Connecting to mesh proxy ${peripheral.id} (${peripheral.rssi} dBm)`);
-        this.peripheral = peripheral;
-        peripheral.once('disconnect', () => {
-          this.initialized = false;
-          this.input = undefined;
-          this.events.emit('lost');
-        });
-        await deadline(peripheral.connectAsync(), 10_000, 'BLE connect');
-        const { characteristics } = await deadline(
-          peripheral.discoverSomeServicesAndCharacteristicsAsync(['1828'], ['2add', '2ade']),
-          8000,
-          'BLE service discovery'
-        );
-        this.input = characteristics.find((entry) => entry.uuid === '2add');
-        this.output = characteristics.find((entry) => entry.uuid === '2ade');
-        if (!this.input || !this.output) throw new Error('Mesh proxy characteristics are missing');
-        this.iv = undefined;
-        this.assembler = new ProxyAssembler();
-        this.output.on('data', this.notify);
-        const beacon = this.wait<number>('beacon', () => true, 8000);
-        await Promise.all([beacon, deadline(this.output.subscribeAsync(), 5000, 'BLE subscribe')]);
-        await delay(500);
-        await this.configureFilter(Buffer.from([0, 0]), 0);
-        const addresses = Buffer.alloc(5);
-        addresses[0] = 1;
-        addresses.writeUInt16BE(this.config.source, 1);
-        // Amaran firmware sends menu replies to the original provisioner, not the request source.
-        addresses.writeUInt16BE(1, 3);
-        await this.configureFilter(addresses, 2);
-        this.initialized = true;
-        console.error(`Authenticated mesh proxy ready (IV ${this.iv}, source ${this.config.source})`);
-        return;
-      } catch (error) {
-        failures.push(`${peripheral.id}: ${(error as Error).message}`);
-        await this.disconnect();
-        this.closing = false;
-      }
+      signal.throwIfAborted();
+      this.input = characteristics.find((entry) => entry.uuid === '2add');
+      this.output = characteristics.find((entry) => entry.uuid === '2ade');
+      if (!this.input || !this.output) throw new Error('Mesh proxy characteristics are missing');
+      this.iv = undefined;
+      this.assembler = new ProxyAssembler();
+      this.output.on('data', this.notify);
+      const beacon = this.wait<number>('beacon', () => true, 8000);
+      await Promise.all([beacon, deadline(this.output.subscribeAsync(), 5000, 'BLE subscribe')]);
+      await delay(500);
+      await this.configureFilter(Buffer.from([0, 0]), 0);
+      const addresses = Buffer.alloc(5);
+      addresses[0] = 1;
+      addresses.writeUInt16BE(this.config.source, 1);
+      // Amaran firmware sends menu replies to the original provisioner, not the request source.
+      addresses.writeUInt16BE(1, 3);
+      await this.configureFilter(addresses, 2);
+      signal.throwIfAborted();
+      this.initialized = true;
+      console.error(`Authenticated mesh proxy ready (IV ${this.iv}, source ${this.config.source})`);
+      return;
+    } catch (error) {
+      await this.disconnect();
+      throw error;
     }
-    throw new Error(`Unable to initialize mesh proxy: ${failures.join('; ')}`);
   }
 
   private async configureFilter(data: Buffer, count: number): Promise<void> {
@@ -238,10 +315,11 @@ export class MeshTransport {
       },
       proxy
     );
+    const input = this.input;
     const write = this.writes.then(async () => {
-      const input = this.input;
-      if (!input || this.closing) throw new Error('BLE proxy is disconnected');
+      if (!input || input !== this.input || this.closing) throw new Error('BLE proxy is disconnected');
       for (const fragment of proxyFragments(proxy ? 2 : 0, data)) {
+        if (input !== this.input || this.closing) throw new Error('BLE proxy is disconnected');
         await deadline(input.writeAsync(fragment, !input.properties.includes('write')), 3000, 'BLE write');
       }
     });
@@ -396,21 +474,39 @@ export class MeshTransport {
   }
 
   async disconnect(): Promise<void> {
+    this.connectionAbort?.abort(new BleUnavailableError('BLE connection cancelled'));
     this.closing = true;
     this.initialized = false;
     this.events.emit('lost');
     this.output?.removeListener('data', this.notify);
     const peripheral = this.peripheral;
+    const disconnected = () => peripheral?.state === 'disconnected';
     this.input = undefined;
     this.output = undefined;
-    if (peripheral && peripheral.state !== 'disconnected') {
+    if (peripheral && !disconnected()) {
       try {
-        await deadline(peripheral.disconnectAsync(), 3000, 'BLE disconnect');
+        if (peripheral.state === 'connecting') {
+          peripheral.cancelConnect();
+          if (this.pendingConnect)
+            await deadline(
+              this.pendingConnect.then(
+                () => undefined,
+                (error: unknown) =>
+                  console.error(`BLE connection cancelled: ${error instanceof Error ? error.message : String(error)}`)
+              ),
+              3000,
+              'BLE connect cancellation'
+            );
+          await delay(200);
+        }
+        if (!disconnected()) await deadline(peripheral.disconnectAsync(), 3000, 'BLE disconnect');
       } catch (error) {
         console.error((error as Error).message);
-        peripheral.cancelConnect();
+        this.lastError = (error as Error).message;
+        this.resetRequired = true;
       }
     }
+    this.pendingConnect = undefined;
     this.peripheral = undefined;
     this.segments.clear();
   }

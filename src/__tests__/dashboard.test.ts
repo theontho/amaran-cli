@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Script } from 'node:vm';
-import { afterEach, describe, expect, it } from 'vitest';
+import { createContext, Script } from 'node:vm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   brightnessForLux,
   DashboardStore,
@@ -198,7 +198,7 @@ describe('DashboardStore', () => {
     expect(dashboardJs).toContain('graph-tip-row graph-tip-kelvin');
     expect(dashboardCss).toContain('.graph-tip-capacity:before');
     expect(dashboardJs).toContain('AbortSignal.timeout(timeoutMs)');
-    expect(dashboardJs).toContain('Promise.allSettled([refreshStatus(),circadianRefresh])');
+    expect(dashboardJs).toContain('Promise.allSettled([refreshStatus(),refreshCircadian()])');
     expect(dashboardJs).toContain('light.capabilities.hsi_support?20000:light.capabilities.cct_max');
     expect(dashboardJs).toContain("'Simulated '+simulated+'K'");
     expect(dashboardJs).toContain('value<light.capabilities.cct_min||value>light.capabilities.cct_max');
@@ -206,5 +206,66 @@ describe('DashboardStore', () => {
     expect(dashboardJs).toContain('brightnessFromLux');
     expect(dashboardJs).toContain('extendCctBelowNative');
     expect(dashboardJs).toContain('extendCctAboveNative');
+  });
+
+  it('boots from cached state without awaiting Bluetooth and never overlaps its status polls', async () => {
+    const elements = new Map<
+      string,
+      {
+        value: string;
+        textContent: string;
+        innerHTML: string;
+        style: Record<string, string>;
+        children: never[];
+        options: { value: string }[];
+      }
+    >();
+    const element = (id: string) => {
+      let value = elements.get(id);
+      if (!value) {
+        value = { value: '', textContent: '', innerHTML: '', style: {}, children: [], options: [] };
+        elements.set(id, value);
+      }
+      return value;
+    };
+    let finishReadback: (response: unknown) => void = () => {
+      throw new Error('Readback not started');
+    };
+    const fetch = vi.fn(async (route: string) => {
+      if (route === '/dashboard/status')
+        return new Promise((resolve) => {
+          finishReadback = resolve;
+        });
+      if (route === '/dashboard/circadian') throw new Error('Schedule unavailable in offline test');
+      const result =
+        route === '/dashboard/settings'
+          ? { title: 'Studio', refreshSeconds: 10, defaultTransitionSeconds: 2, fixtureOrder: [], fixtureLabels: {} }
+          : route === '/health'
+            ? { connected: false, connection: { state: 'offline' }, lights: [], groups: [] }
+            : { updatedAt: '2026-01-01T12:00:00.000Z', connected: true, lighting: {}, fans: {} };
+      return { ok: true, json: async () => ({ ok: true, result }) };
+    });
+    const interval = vi.fn();
+    const context = createContext({
+      document: { getElementById: element, querySelectorAll: () => [] },
+      fetch,
+      AbortSignal,
+      setInterval: interval,
+      console,
+    });
+    new Script(dashboardJs).runInContext(context);
+    await vi.waitFor(() => expect(interval).toHaveBeenCalledOnce());
+    expect(element('connection').textContent).toBe('Offline — waiting for lights');
+    expect(element('updated').textContent).toContain('Last known');
+    new Script('refreshStatus(); refreshStatus();').runInContext(context);
+    expect(fetch.mock.calls.filter(([route]) => route === '/dashboard/status')).toHaveLength(1);
+    finishReadback({
+      ok: false,
+      statusText: 'Unavailable',
+      json: async () => ({ ok: false, error: 'Lights powered off' }),
+    });
+    await vi.waitFor(() => expect(new Script('statusRefreshing').runInContext(context)).toBe(false));
+    expect(element('connection').textContent).not.toBe('Connected');
+    expect(element('updated').textContent).toContain('Last known');
   });
 });

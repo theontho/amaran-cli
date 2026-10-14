@@ -137,6 +137,52 @@ CCT transitions interpolate Kelvin/tint; HSI transitions take the shortest hue a
 
 ## Manual control and testing
 
+### Power outages and daemon recovery
+
+Removing mains power from the fixtures is an expected offline state, not a reason
+to reset their settings or restart the daemon repeatedly. The daemon performs
+read-only background checks even when no browser is open. Connection attempts
+are shared, scan one proxy at a time, and back off from 5 seconds to at most
+30 seconds while no powered mesh proxy is available. It reconnects and reads
+current fixture state when power returns; existing circadian automation then
+applies its current target, not old queued targets.
+
+Dashboard page, assets, settings and health requests do not wait for Bluetooth.
+Concurrent status polls share one readback, and each HTTP wait is limited to
+2 seconds. Browser polling does not overlap. Cached values are labeled **Last
+known**, not presented as current ON/OFF readings, and fixture-card controls
+are disabled until live readback succeeds. Offline operations fail explicitly
+with HTTP 503 and a retry hint rather than accumulating work to replay later.
+Commands queued before a failed connection are discarded.
+
+The transport cancels pending native connection attempts before disconnecting,
+ignores old-proxy callbacks, and rejects queued fragments from old connections.
+A native disconnect that will not finish, or three repeated native timeouts
+from advertised proxies, causes the daemon to exit with an error for its service
+manager to restart. Missing advertisements alone do not trigger this escalation.
+`/health` includes `connection.state`, `nextRetryAt`, `lastError` and
+`resetRequired` for diagnosis.
+
+On Linux, install `scripts/amaran-ble-recovery.conf` as
+`/etc/systemd/system/amaran-ble.service.d/recovery.conf`, then reload systemd and
+restart `amaran-ble.service` under authorized administrator access. This drop-in
+is for the existing system-level Amaran service on a dedicated `hci0` adapter:
+it unblocks and brings that adapter down before each service start, enables
+noble's exclusive `HCI_CHANNEL_USER` mode, and preserves `Restart=on-failure`.
+The daemon brings the adapter up through that exclusive channel. This bypasses
+the native library's raw-channel, synchronous L2CAP connection workaround,
+which can block the entire Node event loop for roughly 40 seconds and prevent
+HTTP responses and JavaScript deadlines from running. BlueZ cannot compete for
+the adapter while the exclusive channel is held.
+The transport explicitly queries the controller's LE ACL buffers in this mode;
+noble 1.9.2-26 omits that query from its user-channel initialization, otherwise
+leaving ATT/service discovery waiting indefinitely for transmit capacity.
+The drop-in replaces the service's existing `ExecStartPre` list, so
+review that list first. Resetting a shared adapter also interrupts other
+Bluetooth connections. Do not run a second BLE daemon or Desktop controller
+against the same adapter/mesh; the daemon's sequence-state lock prevents a
+second owner using the same configuration directory.
+
 ### Native groups and read-only mesh discovery
 
 ```sh
