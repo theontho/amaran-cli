@@ -99,6 +99,7 @@ describe('DashboardStore', () => {
     const result = await getCircadianDashboardStatus({
       homeDir: directory,
       now: new Date('2026-09-13T22:30:00.000Z'),
+      platform: 'darwin',
       isServiceLoaded: async () => true,
       loadConfig: () => ({
         latitude: 37.7852,

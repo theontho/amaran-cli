@@ -5,6 +5,17 @@ import registerConfig from '../commands/deviceControl/config.js';
 import { interpolateMaxLux, parseMaxLuxMap } from '../daylightSimulation/mathUtil.js';
 import type { CommandDeps, LightController } from '../deviceControl/types.js';
 
+// Mock cctUtil to control the "current" CCT for the AutoCCT integration test
+vi.mock('../daylightSimulation/cctUtil', () => ({
+  calculateCCT: vi.fn(() => ({ cct: 4150, intensity: 500, lightOutput: 4500 })), // 4500 lux target
+  parseCurveType: vi.fn(() => 'HANN'),
+  CurveType: { HANN: 'hann' },
+}));
+
+vi.mock('../daylightSimulation/geoipUtil', () => ({
+  getLocationFromIP: vi.fn(() => ({ ll: [0, 0] })),
+}));
+
 describe('Max Lux Map Feature', () => {
   describe('Math Utils', () => {
     const map = {
@@ -70,17 +81,6 @@ describe('Max Lux Map Feature', () => {
   });
 
   describe('AutoCCT Integration', () => {
-    // Mock cctUtil to control the "current" CCT
-    vi.mock('../daylightSimulation/cctUtil', () => ({
-      calculateCCT: vi.fn(() => ({ cct: 4150, intensity: 500, lightOutput: 4500 })), // 4500 lux target
-      parseCurveType: vi.fn(() => 'HANN'),
-      CurveType: { HANN: 'hann' },
-    }));
-
-    vi.mock('../daylightSimulation/geoipUtil', () => ({
-      getLocationFromIP: vi.fn(() => ({ ll: [0, 0] })),
-    }));
-
     it('uses interpolated max lux for intensity calculation', async () => {
       const setCCT = vi.fn(
         (_: string, _cct: number, _intensity: number, cb?: (success: boolean, message: string) => void) => {

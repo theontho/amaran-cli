@@ -11,7 +11,7 @@ export function formatCoordinate(coord: number, privacyOff = false): string {
 export function formatSource(source: string, privacyOff = false): string {
   if (privacyOff || !source.includes('(')) return source;
 
-  const ipMatch = source.match(/(\d+\.\d+\.\d+\.\d+)/);
+  const ipMatch = source.match(/\b(\d{1,3}(?:\.\d{1,3}){3})\b/);
   if (ipMatch) {
     const ipParts = ipMatch[1].split('.');
     // Redact first three octets
