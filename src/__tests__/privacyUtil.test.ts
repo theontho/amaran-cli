@@ -12,9 +12,9 @@ describe('formatSource', () => {
   });
 
   it('handles long digit runs without catastrophic backtracking', () => {
-    const input = `geoip (${'1.'.repeat(50_000)})`;
+    const input = `geoip (${'1'.repeat(50_000)})`;
     const started = performance.now();
     formatSource(input);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
