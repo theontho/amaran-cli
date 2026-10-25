@@ -41,6 +41,7 @@ describe('circadian dashboard settings', () => {
         longitude: -122.5,
       },
       {
+        platform: 'darwin',
         homeDir,
         loadConfig: () => ({ backend: 'ble', bleApiKey: 'preserved' }),
         saveConfig,
@@ -98,6 +99,7 @@ describe('circadian dashboard settings', () => {
     await updateCircadianDashboardSettings(
       { enabled: false },
       {
+        platform: 'darwin',
         homeDir,
         loadConfig: () => ({}),
         saveConfig: vi.fn(),
