@@ -10,6 +10,8 @@ See [DEVELOPMENT](docs/DEVELOPMENT.md) on how to help with development.  See [KN
 
 It's not as obvious, but this repo is published on npm too: https://www.npmjs.com/package/amaran-light-cli 
 
+![The local dashboard: live per-light status, controls and the circadian schedule](https://raw.githubusercontent.com/theontho/amaran-cli/main/docs/images/dashboard-status.webp)
+
 ## Installation
 
 1. Clone this repository or download the files
